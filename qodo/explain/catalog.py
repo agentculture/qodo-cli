@@ -9,6 +9,9 @@ context without chaining reads.
 
 from __future__ import annotations
 
+# The console script is `qodo` while the CLI self-identifies (argparse prog) and
+# the dist are `qodo-cli`. The agent-first rubric runs `explain <script-name>`,
+# i.e. `explain qodo`, so the root entry is keyed under both spellings below.
 _ROOT = """\
 # qodo-cli
 
@@ -119,6 +122,7 @@ itself (distinct from the global `overview`, which describes the agent).
 ENTRIES: dict[tuple[str, ...], str] = {
     (): _ROOT,
     ("qodo-cli",): _ROOT,
+    ("qodo",): _ROOT,  # console-script name; satisfies the rubric's `explain <self>` check
     ("whoami",): _WHOAMI,
     ("learn",): _LEARN,
     ("explain",): _EXPLAIN,
