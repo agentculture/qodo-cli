@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/). This project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] - 2026-06-16
+
+### Changed
+
+- CLAUDE.md: re-initialized from the seed placeholder into a full runtime prompt via /init — documents the agent-first CLI dispatch/contracts, the rubric gate, colleague-backend mesh identity (AGENTS.colleague.md), vendored-skill provenance, version-bump-every-PR + cicd PR lane, and the add-a-command/rename procedures. Flags known drift where stale text still says backend: claude and that the console script is qodo (not qodo-cli).
+
 ## [0.3.1] - 2026-06-13
 
 ### Changed
