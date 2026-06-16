@@ -7,6 +7,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.3.2] - 2026-06-16
 
+### Fixed
+
+- `explain` now resolves the console-script name `qodo` (not only the dist name
+  `qodo-cli`), so the agent-first rubric's `explain <self>` check passes — the
+  rubric derives the self-token from `[project.scripts]` (`qodo`). Pinned by a
+  regression test.
+
 ### Changed
 
 - CLAUDE.md: re-initialized from the seed placeholder into a full runtime prompt via /init — documents the agent-first CLI dispatch/contracts, the rubric gate, colleague-backend mesh identity (AGENTS.colleague.md), vendored-skill provenance, version-bump-every-PR + cicd PR lane, and the add-a-command/rename procedures. Flags known drift where stale text still says backend: claude and that the console script is qodo (not qodo-cli).

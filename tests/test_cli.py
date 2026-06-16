@@ -92,6 +92,14 @@ def test_explain_self(capsys: pytest.CaptureFixture[str]) -> None:
     assert capsys.readouterr().out.startswith("#")
 
 
+def test_explain_console_script_name(capsys: pytest.CaptureFixture[str]) -> None:
+    # The agent-first rubric runs `explain <console-script-name>` (= `qodo`).
+    # Keep that resolvable even though the CLI self-identifies as `qodo-cli`.
+    rc = main(["explain", "qodo"])
+    assert rc == 0
+    assert capsys.readouterr().out.startswith("#")
+
+
 def test_explain_json(capsys: pytest.CaptureFixture[str]) -> None:
     rc = main(["explain", "whoami", "--json"])
     assert rc == 0
