@@ -15,7 +15,7 @@ import argparse
 from qodo.cli import _providers
 from qodo.cli._commands.overview import emit_overview, review_sections
 from qodo.cli._errors import EXIT_USER_ERROR, CliError
-from qodo.cli._output import emit_result
+from qodo.cli._output import add_json_flag, emit_result
 
 
 def _resolve_pr_number(args: argparse.Namespace) -> tuple[int, dict | None]:
@@ -117,23 +117,23 @@ def register(sub: argparse._SubParsersAction) -> None:
         aliases=["pr"],
         help="Triage the Qodo bot's PR review comments (cites qodo-pr-resolver).",
     )
-    p.add_argument("--json", action="store_true", help="Emit structured JSON.")
+    add_json_flag(p)
     p.set_defaults(func=_no_verb, json=False)
     verb = p.add_subparsers(dest="review_command", parser_class=type(p))
 
     listp = verb.add_parser("list", help="List the Qodo bot's comments on the PR.")
     listp.add_argument("--pr", type=int, help="PR number (default: detect from branch).")
-    listp.add_argument("--json", action="store_true", help="Emit structured JSON.")
+    add_json_flag(listp)
     listp.set_defaults(func=cmd_review_list)
 
     resolvep = verb.add_parser("resolve", help="Reply to and acknowledge a Qodo comment.")
     resolvep.add_argument("comment_id", help="The inline review comment id to resolve.")
     resolvep.add_argument("--reply", help="Optional reply body to post before acknowledging.")
     resolvep.add_argument("--pr", type=int, help="PR number (default: detect from branch).")
-    resolvep.add_argument("--json", action="store_true", help="Emit structured JSON.")
+    add_json_flag(resolvep)
     resolvep.set_defaults(func=cmd_review_resolve)
 
     ov = verb.add_parser("overview", help="Describe the qodo-cli review noun.")
     ov.add_argument("target", nargs="?", help="Ignored — overview describes the review noun.")
-    ov.add_argument("--json", action="store_true", help="Emit structured JSON.")
+    add_json_flag(ov)
     ov.set_defaults(func=cmd_review_overview)

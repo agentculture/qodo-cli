@@ -15,7 +15,7 @@ from __future__ import annotations
 import argparse
 
 from qodo.cli._commands.whoami import report
-from qodo.cli._output import emit_result
+from qodo.cli._output import add_json_flag, emit_result
 
 _ARTIFACTS = [
     "culture.yaml + AGENTS.colleague.md — mesh identity (suffix + backend)",
@@ -169,5 +169,5 @@ def register(sub: argparse._SubParsersAction) -> None:
         help="Ignored — overview always describes this agent itself. Accepted so a "
         "stray path argument never hard-fails.",
     )
-    p.add_argument("--json", action="store_true", help="Emit structured JSON.")
+    add_json_flag(p)
     p.set_defaults(func=cmd_overview)

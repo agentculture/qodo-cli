@@ -14,7 +14,7 @@ import argparse
 
 from qodo.cli import _qodo_api
 from qodo.cli._commands.overview import emit_overview, rules_sections
-from qodo.cli._output import emit_result
+from qodo.cli._output import add_json_flag, emit_result
 
 
 def _render_rules(query: str, rules: list[dict[str, object]]) -> str:
@@ -66,7 +66,7 @@ def register(sub: argparse._SubParsersAction) -> None:
         "rules",
         help="Surface your org's Qodo rules by semantic search (cites qodo-get-rules).",
     )
-    p.add_argument("--json", action="store_true", help="Emit structured JSON.")
+    add_json_flag(p)
     p.set_defaults(func=_no_verb, json=False)
     # Propagate the structured-error parser class to the nested subparsers.
     verb = p.add_subparsers(dest="rules_command", parser_class=type(p))
@@ -89,10 +89,10 @@ def register(sub: argparse._SubParsersAction) -> None:
         metavar="SCOPE",
         help="Repository/module scope to pass through (repeatable).",
     )
-    get.add_argument("--json", action="store_true", help="Emit structured JSON.")
+    add_json_flag(get)
     get.set_defaults(func=cmd_rules_get)
 
     ov = verb.add_parser("overview", help="Describe the qodo-cli rules noun.")
     ov.add_argument("target", nargs="?", help="Ignored — overview describes the rules noun.")
-    ov.add_argument("--json", action="store_true", help="Emit structured JSON.")
+    add_json_flag(ov)
     ov.set_defaults(func=cmd_rules_overview)

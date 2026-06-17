@@ -14,7 +14,7 @@ import argparse
 from pathlib import Path
 
 from qodo import __version__
-from qodo.cli._output import emit_result
+from qodo.cli._output import add_json_flag, emit_result
 
 _FALLBACK_NICK = "qodo-cli"
 
@@ -102,5 +102,5 @@ def register(sub: argparse._SubParsersAction) -> None:
         "whoami",
         help="Report this agent's nick, version, backend, and served model.",
     )
-    p.add_argument("--json", action="store_true", help="Emit structured JSON.")
+    add_json_flag(p)
     p.set_defaults(func=cmd_whoami)

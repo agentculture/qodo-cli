@@ -22,7 +22,7 @@ from __future__ import annotations
 import argparse
 
 from qodo.cli._commands.whoami import find_culture_yaml, read_agent_fields
-from qodo.cli._output import emit_result
+from qodo.cli._output import add_json_flag, emit_result
 
 # backend → required prompt file (the backend-consistency mapping).
 _PROMPT_FILE = {
@@ -120,5 +120,5 @@ def register(sub: argparse._SubParsersAction) -> None:
         "doctor",
         help="Check the agent-identity invariants (prompt-file-present, backend-consistency).",
     )
-    p.add_argument("--json", action="store_true", help="Emit structured JSON.")
+    add_json_flag(p)
     p.set_defaults(func=cmd_doctor)

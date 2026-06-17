@@ -7,11 +7,25 @@ payloads to the same streams — never mixes them.
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from typing import Any, TextIO
 
 from qodo.cli._errors import CliError
+
+# The standard ``--json`` flag help — shared so the literal lives in one place
+# (every command supports ``--json``; see :func:`add_json_flag`).
+JSON_FLAG_HELP = "Emit structured JSON."
+
+
+def add_json_flag(parser: argparse.ArgumentParser) -> None:
+    """Attach the standard ``--json`` flag to ``parser``.
+
+    Centralises the flag + its help text so each command (and any new one)
+    declares ``--json`` identically without repeating the literal.
+    """
+    parser.add_argument("--json", action="store_true", help=JSON_FLAG_HELP)
 
 
 def emit_result(data: Any, *, json_mode: bool, stream: TextIO | None = None) -> None:
