@@ -5,6 +5,63 @@ All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/). This project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-06-17
+
+### Added
+
+- **GitLab provider** for `qodo review` (via `glab`): find the open MR, list the
+  Qodo bot's notes across MR discussions (with the same parsed triage fields as
+  GitHub), reply, and resolve. GitLab's model is MR *discussions* (resolution is
+  at the discussion level — there is no `+1` marker, so resolving the discussion
+  *is* the acknowledgement). Implemented but **not live-tested** against a real
+  GitLab (we have none) — covered by mocked tests mirroring the GitHub ones, with
+  the `glab` REST shapes pinned in the citation ledger. (#10)
+
+### Changed
+
+- Generalized the provider gate: `require_provider` (supersedes the GitHub-only
+  `require_github` on the `review` surface) now allows **GitHub + GitLab**;
+  Azure/Bitbucket/Gerrit still error with a clear "not wired yet". `review`
+  dispatches find/fetch/resolve through a provider-aware seam
+  (`find_pr` / `fetch_comments` / `resolve` / `prefetch_threads`). (#10)
+
+### Fixed
+
+- **Self-hosted GitLab on a custom domain is now detected.** `resolve_provider`
+  gained a `glab_knows_host()` upgrade path mirroring the GHE `gh_knows_host()`
+  one: an `origin` whose host isn't `github.com`/`gitlab.com` is no longer
+  hard-failed as `unknown` when `glab auth status --hostname <host>` recognises
+  it — it resolves to `gitlab`. `gh` is consulted first (a host both CLIs know
+  resolves to `github`). Mocked-only, like the GHE path. (#10, PR #16 review)
+- **Live smokes are now explicitly opt-in and skip (don't fail) when their
+  prerequisites are missing.** Both `test_contracts.py` smokes require a
+  deliberate `QODO_LIVE_SMOKE=1` switch, so a shell that merely exports
+  `QODO_API_KEY` for real `qodo rules` use no longer fires a network call during
+  a normal `pytest` run. The GHE smoke additionally gates on `gh` being present
+  and authenticated to the remote's host (`gh_knows_host`), so a `gh`-less or
+  unauthenticated box *skips* rather than failing on `resolve_provider → unknown`.
+  (#8, PR #15 review)
+
+## [0.8.1] - 2026-06-17
+
+### Added
+
+- `tests/test_contracts.py` + `tests/fixtures/rules_search_response.json` — an
+  **offline contract test** that pins the Qodo `/rules/search` response shape
+  (relevance order, the `{id, name, content, severity}` fields, severities within
+  the known set, unknown extra fields passing through), so the parser is verified
+  without a Qodo subscription in CI. (#8)
+- **Opt-in live smokes** (skipped by default): `test_live_rules_search_smoke`
+  (runs when `QODO_API_KEY` is set) and `test_live_ghe_resolves_to_github` (runs
+  when `QODO_CLI_GHE_REMOTE` points at a real GitHub Enterprise origin). (#8)
+- `docs/manual-verification.md` — a manual checklist for the paths that need a
+  real system to exercise (live `qodo rules`, GitHub Enterprise resolution, the
+  non-GitHub provider gate), cross-referenced from the citation ledger. (#8)
+
+### Changed
+
+### Fixed
+
 ## [0.8.0] - 2026-06-17
 
 ### Added

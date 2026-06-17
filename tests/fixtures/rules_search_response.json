@@ -1,0 +1,28 @@
+{
+  "rules": [
+    {
+      "id": "rule-001",
+      "name": "Validate input at trust boundaries",
+      "content": "All external input (HTTP, CLI, files) must be validated and sanitised before use.",
+      "severity": "ERROR",
+      "score": 0.94,
+      "scope": "org/repo"
+    },
+    {
+      "id": "rule-002",
+      "name": "Prefer parameterised queries",
+      "content": "Never interpolate untrusted data into SQL; use parameter binding.",
+      "severity": "WARNING",
+      "score": 0.81
+    },
+    {
+      "id": "rule-003",
+      "name": "Document public functions",
+      "content": "Public functions carry a docstring describing intent and return shape.",
+      "severity": "RECOMMENDATION",
+      "score": 0.62
+    }
+  ],
+  "request_id": "11111111-2222-3333-4444-555555555555",
+  "total": 3
+}
