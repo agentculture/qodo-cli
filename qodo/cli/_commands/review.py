@@ -20,12 +20,12 @@ from qodo.cli._errors import EXIT_SUCCESS, EXIT_USER_ERROR, CliError
 from qodo.cli._output import add_json_flag, emit_result
 
 
-def _resolve_pr_number(args: argparse.Namespace) -> tuple[int, dict | None]:
+def _resolve_pr_number(args: argparse.Namespace, provider: str) -> tuple[int, dict | None]:
     """Return ``(pr_number, pr_record)``; honour an explicit ``--pr`` override."""
     if getattr(args, "pr", None):
         return int(args.pr), None
     branch = _providers.current_branch()
-    pr = _providers.find_open_pr(branch)
+    pr = _providers.find_pr(provider, branch)
     if pr is None:
         raise CliError(
             code=EXIT_USER_ERROR,
@@ -65,9 +65,9 @@ def _render_comments(pr_number: int, pr: dict | None, comments: list[dict]) -> s
 def cmd_review_list(args: argparse.Namespace) -> int:
     json_mode = bool(getattr(args, "json", False))
     provider = _providers.resolve_provider(_providers.remote_url())
-    _providers.require_github(provider)
-    pr_number, pr = _resolve_pr_number(args)
-    comments = _providers.fetch_qodo_comments(pr_number)
+    _providers.require_provider(provider)
+    pr_number, pr = _resolve_pr_number(args, provider)
+    comments = _providers.fetch_comments(provider, pr_number)
     kind = getattr(args, "kind", "all")
     if kind != "all":
         comments = [c for c in comments if c.get("kind") == kind]
@@ -105,7 +105,7 @@ def _maybe_sign(args: argparse.Namespace) -> str | None:
     return f"{reply.rstrip()}\n\n{signature}"
 
 
-def _select_targets(args: argparse.Namespace, pr_number: int) -> list[int]:
+def _select_targets(args: argparse.Namespace, pr_number: int, provider: str) -> list[int]:
     """Resolve which inline comment ids to act on, from explicit ids or filters."""
     raw = list(getattr(args, "comment_id", None) or [])
     use_all = bool(getattr(args, "all", False))
@@ -132,7 +132,7 @@ def _select_targets(args: argparse.Namespace, pr_number: int) -> list[int]:
             remediation="give a comment id, or use --all / --severity to select inline comments",
         )
     targets: list[int] = []
-    for comment in _providers.fetch_qodo_comments(pr_number):
+    for comment in _providers.fetch_comments(provider, pr_number):
         # only inline review comments are individually resolvable (summaries have no id)
         if comment.get("kind") != "inline" or comment.get("id") is None:
             continue
@@ -158,26 +158,28 @@ def _render_resolve(pr_number: int, items: list[dict]) -> str:
 def cmd_review_resolve(args: argparse.Namespace) -> int:
     json_mode = bool(getattr(args, "json", False))
     provider = _providers.resolve_provider(_providers.remote_url())
-    _providers.require_github(provider)
-    pr_number, _ = _resolve_pr_number(args)
+    _providers.require_provider(provider)
+    pr_number, _ = _resolve_pr_number(args, provider)
     reply = _maybe_sign(args)
     resolve_thread = not bool(getattr(args, "no_resolve_thread", False))
-    targets = _select_targets(args, pr_number)
+    targets = _select_targets(args, pr_number, provider)
 
     # Pre-fetch the PR's review threads ONCE for a batch so each resolve doesn't
-    # re-paginate them (the N+1 fix). Best-effort: if the fetch fails, fall back
-    # to per-comment lookup, which reports its own failure. A single target needs
-    # no prefetch — resolve_comment's own lookup is exactly one call.
+    # re-paginate them (the N+1 fix; GitHub only — None elsewhere). Best-effort:
+    # if the fetch fails, fall back to per-comment lookup, which reports its own
+    # failure. A single target needs no prefetch — the per-comment lookup is one
+    # call anyway.
     threads = None
     if resolve_thread and len(targets) > 1:
         try:
-            threads = _providers.review_threads(pr_number)
+            threads = _providers.prefetch_threads(provider, pr_number)
         except Exception:  # noqa: BLE001 - fall back to per-comment lookup
             threads = None
 
     items: list[dict] = []
     for comment_id in targets:
-        actions = _providers.resolve_comment(
+        actions = _providers.resolve(
+            provider,
             pr_number,
             comment_id,
             reply=reply,

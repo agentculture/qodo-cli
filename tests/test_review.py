@@ -104,14 +104,47 @@ def test_resolve_provider_upgrades_ghe_host() -> None:
         assert _providers.resolve_provider("git@github.acme.com:o/r.git") == "github"
 
 
-def test_resolve_provider_unknown_when_gh_does_not_know_host() -> None:
-    with mock.patch("qodo.cli._providers.gh_knows_host", return_value=False):
+def test_resolve_provider_unknown_when_neither_cli_knows_host() -> None:
+    with (
+        mock.patch("qodo.cli._providers.gh_knows_host", return_value=False),
+        mock.patch("qodo.cli._providers.glab_knows_host", return_value=False),
+    ):
         assert _providers.resolve_provider("https://git.example.com/o/r.git") == "unknown"
+
+
+def test_resolve_provider_upgrades_self_hosted_gitlab_host() -> None:
+    # An unknown host gh doesn't know but glab is authenticated to is self-hosted GitLab.
+    with (
+        mock.patch("qodo.cli._providers.gh_knows_host", return_value=False),
+        mock.patch("qodo.cli._providers.glab_knows_host", return_value=True),
+    ):
+        assert _providers.resolve_provider("https://git.company.com/o/r.git") == "gitlab"
+
+
+def test_resolve_provider_prefers_github_when_both_clis_know_host() -> None:
+    # Degenerate tie-break: gh is consulted first, so a host both CLIs know is github.
+    with (
+        mock.patch("qodo.cli._providers.gh_knows_host", return_value=True),
+        mock.patch(
+            "qodo.cli._providers.glab_knows_host",
+            side_effect=AssertionError("glab must not be consulted once gh claims the host"),
+        ),
+    ):
+        assert _providers.resolve_provider("git@git.both.com:o/r.git") == "github"
 
 
 def test_resolve_provider_does_not_upgrade_other_providers() -> None:
     # gitlab.com is detected by host and must never be upgraded to github.
     with mock.patch("qodo.cli._providers.gh_knows_host", return_value=True):
+        assert _providers.resolve_provider("https://gitlab.com/o/r.git") == "gitlab"
+
+
+def test_resolve_provider_gitlab_com_skips_glab() -> None:
+    # gitlab.com resolves by host without consulting glab at all.
+    with mock.patch(
+        "qodo.cli._providers.glab_knows_host",
+        side_effect=AssertionError("glab must not be consulted for gitlab.com"),
+    ):
         assert _providers.resolve_provider("https://gitlab.com/o/r.git") == "gitlab"
 
 
@@ -134,6 +167,27 @@ def test_gh_knows_host_false_on_nonzero_exit() -> None:
 def test_gh_knows_host_false_when_gh_missing() -> None:
     with mock.patch("qodo.cli._providers.shutil.which", return_value=None):
         assert _providers.gh_knows_host("github.acme.com") is False
+
+
+def test_glab_knows_host_true_on_zero_exit() -> None:
+    with (
+        mock.patch("qodo.cli._providers.shutil.which", return_value="/usr/bin/glab"),
+        mock.patch("qodo.cli._providers.subprocess.run", return_value=mock.Mock(returncode=0)),
+    ):
+        assert _providers.glab_knows_host("git.company.com") is True
+
+
+def test_glab_knows_host_false_on_nonzero_exit() -> None:
+    with (
+        mock.patch("qodo.cli._providers.shutil.which", return_value="/usr/bin/glab"),
+        mock.patch("qodo.cli._providers.subprocess.run", return_value=mock.Mock(returncode=1)),
+    ):
+        assert _providers.glab_knows_host("git.company.com") is False
+
+
+def test_glab_knows_host_false_when_glab_missing() -> None:
+    with mock.patch("qodo.cli._providers.shutil.which", return_value=None):
+        assert _providers.glab_knows_host("git.company.com") is False
 
 
 @pytest.mark.parametrize(
@@ -566,8 +620,13 @@ def test_review_list_works_on_github_enterprise(capsys: pytest.CaptureFixture[st
     assert "No Qodo review comments" in capsys.readouterr().out
 
 
-def test_review_list_non_github_exits_env_error(capsys: pytest.CaptureFixture[str]) -> None:
-    with mock.patch("qodo.cli._providers.remote_url", return_value="https://gitlab.com/o/r.git"):
+def test_review_list_unsupported_provider_exits_env_error(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Azure is recognised but not wired -> clear env error (gitlab IS wired now).
+    with mock.patch(
+        "qodo.cli._providers.remote_url", return_value="https://dev.azure.com/o/p/_git/r"
+    ):
         rc = main(["review", "list", "--pr", "5"])
     assert rc == 2
     assert "not wired yet" in capsys.readouterr().err
@@ -720,3 +779,196 @@ def test_review_overview(capsys: pytest.CaptureFixture[str]) -> None:
     rc = main(["review", "overview"])
     assert rc == 0
     assert "qodo-pr-resolver" in capsys.readouterr().out
+
+
+# --- GitLab provider (issue #10) -------------------------------------------
+
+_GL_URL = "https://gitlab.com/group/proj.git"
+
+
+def test_require_provider_allows_github_and_gitlab() -> None:
+    _providers.require_provider("github")  # no raise
+    _providers.require_provider("gitlab")  # no raise
+
+
+@pytest.mark.parametrize("provider", ["azure", "bitbucket", "gerrit"])
+def test_require_provider_rejects_unwired(provider: str) -> None:
+    with pytest.raises(CliError) as exc:
+        _providers.require_provider(provider)
+    assert exc.value.code == 2
+    assert "not wired yet" in exc.value.message
+
+
+def test_require_provider_rejects_unknown() -> None:
+    with pytest.raises(CliError) as exc:
+        _providers.require_provider("unknown")
+    assert exc.value.code == 2
+    assert "could not identify" in exc.value.message
+
+
+def test_gitlab_find_open_pr() -> None:
+    payload = json.dumps([{"iid": 42, "title": "MR title", "web_url": "https://gl/mr/42"}])
+    with (
+        mock.patch("qodo.cli._providers.remote_url", return_value=_GL_URL),
+        mock.patch("qodo.cli._providers._glab", return_value=payload),
+    ):
+        mr = _providers.gitlab_find_open_pr("feat/x")
+    assert mr == {"number": 42, "title": "MR title", "url": "https://gl/mr/42"}
+
+
+def test_gitlab_find_open_pr_none_when_empty() -> None:
+    with (
+        mock.patch("qodo.cli._providers.remote_url", return_value=_GL_URL),
+        mock.patch("qodo.cli._providers._glab", return_value="[]"),
+    ):
+        assert _providers.gitlab_find_open_pr("feat/x") is None
+
+
+def test_gitlab_fetch_qodo_comments_filters_and_parses() -> None:
+    badge = '<img alt="Action required">\n\n'
+    discussions = json.dumps(
+        [
+            {
+                "id": "disc-1",
+                "notes": [
+                    {
+                        "id": 1001,
+                        "author": {"username": "qodo-merge"},
+                        "body": badge + "1\\. SQLi risk <code>📘 Rule violation</code>",
+                        "position": {"new_path": "a.py", "new_line": 10},
+                        "resolved": False,
+                    }
+                ],
+            },
+            {
+                "id": "disc-2",
+                "notes": [
+                    {"id": 1002, "author": {"username": "a-human"}, "body": "lgtm"},
+                    {"id": 1003, "author": {"username": "system"}, "system": True, "body": "x"},
+                ],
+            },
+        ]
+    )
+    with (
+        mock.patch("qodo.cli._providers.remote_url", return_value=_GL_URL),
+        mock.patch("qodo.cli._providers._glab", return_value=discussions),
+    ):
+        comments = _providers.gitlab_fetch_qodo_comments(42)
+    assert len(comments) == 1  # only the qodo note kept; human + system dropped
+    c = comments[0]
+    assert c["id"] == 1001
+    assert c["discussion_id"] == "disc-1"
+    assert c["kind"] == "inline"
+    assert c["severity"] == "HIGH"
+    assert c["type"] == "Rule violation"
+    assert c["path"] == "a.py"
+
+
+def test_gitlab_resolve_comment_replies_and_resolves_discussion() -> None:
+    discussions = json.dumps([{"id": "disc-9", "notes": [{"id": 5001, "resolved": False}]}])
+    calls: list[tuple[str, ...]] = []
+
+    def fake_glab(*args: str) -> str:
+        calls.append(args)
+        if "discussions?per_page" in args[1]:
+            return discussions
+        return ""
+
+    with (
+        mock.patch("qodo.cli._providers.remote_url", return_value=_GL_URL),
+        mock.patch("qodo.cli._providers._glab", side_effect=fake_glab),
+    ):
+        actions = _providers.gitlab_resolve_comment(42, 5001, reply="fixed", resolve_thread=True)
+    by_action = {a["action"]: a for a in actions}
+    assert by_action["reply"]["ok"] is True
+    assert by_action["resolve thread"]["ok"] is True
+    # the resolve issued a PUT resolved=true on the note's discussion
+    assert any("discussions/disc-9" in c[1] and "PUT" in c for c in calls if c[0] == "api")
+
+
+def test_gitlab_resolve_comment_no_discussion_for_note() -> None:
+    discussions = json.dumps([{"id": "disc-9", "notes": [{"id": 1, "resolved": False}]}])
+    with (
+        mock.patch("qodo.cli._providers.remote_url", return_value=_GL_URL),
+        mock.patch("qodo.cli._providers._glab", return_value=discussions),
+    ):
+        actions = _providers.gitlab_resolve_comment(42, 999, resolve_thread=True)
+    assert actions[0]["action"] == "lookup discussion"
+    assert actions[0]["ok"] is False
+
+
+def test_review_list_works_on_gitlab(capsys: pytest.CaptureFixture[str]) -> None:
+    discussions = json.dumps(
+        [
+            {
+                "id": "d1",
+                "notes": [
+                    {
+                        "id": 7,
+                        "author": {"username": "qodo-ai"},
+                        "body": '<img alt="Review recommended">\n\n1\\. Tighten this',
+                        "position": {"new_path": "x.py", "new_line": 3},
+                    }
+                ],
+            }
+        ]
+    )
+    with (
+        mock.patch("qodo.cli._providers.remote_url", return_value=_GL_URL),
+        mock.patch("qodo.cli._providers._glab", return_value=discussions),
+    ):
+        rc = main(["review", "list", "--pr", "42", "--json"])
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["provider"] == "gitlab"
+    assert out["count"] == 1
+    assert out["comments"][0]["severity"] == "MEDIUM"
+
+
+def test_gitlab_prefetch_threads_returns_discussions() -> None:
+    discussions = json.dumps([{"id": "d1", "notes": [{"id": 7}]}])
+    with (
+        mock.patch("qodo.cli._providers.remote_url", return_value=_GL_URL),
+        mock.patch("qodo.cli._providers._glab", return_value=discussions),
+    ):
+        out = _providers.prefetch_threads("gitlab", 42)
+    assert out == [{"id": "d1", "notes": [{"id": 7}]}]
+
+
+def test_gitlab_resolve_uses_prefetched_discussions_no_refetch() -> None:
+    # With a pre-fetched discussion pool, the lookup must NOT re-GET discussions
+    # (the batch N+1 fix mirroring GitHub's thread prefetch).
+    discussions = [{"id": "d1", "notes": [{"id": 7, "resolved": False}]}]
+    calls: list[tuple[str, ...]] = []
+
+    def fake_glab(*args: str) -> str:
+        calls.append(args)
+        return ""
+
+    with (
+        mock.patch("qodo.cli._providers.remote_url", return_value=_GL_URL),
+        mock.patch("qodo.cli._providers._glab", side_effect=fake_glab),
+    ):
+        actions = _providers.gitlab_resolve_comment(42, 7, resolve_thread=True, threads=discussions)
+    by_action = {a["action"]: a for a in actions}
+    assert by_action["resolve thread"]["ok"] is True
+    assert not any("discussions?per_page" in c[1] for c in calls)  # no re-fetch
+
+
+def test_review_resolve_works_on_gitlab(capsys: pytest.CaptureFixture[str]) -> None:
+    discussions = json.dumps([{"id": "d1", "notes": [{"id": 7, "resolved": False}]}])
+
+    def fake_glab(*args: str) -> str:
+        if "discussions?per_page" in args[1]:
+            return discussions
+        return ""
+
+    with (
+        mock.patch("qodo.cli._providers.remote_url", return_value=_GL_URL),
+        mock.patch("qodo.cli._providers._glab", side_effect=fake_glab),
+    ):
+        rc = main(["review", "resolve", "7", "--pr", "42", "--reply", "done", "--json"])
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["ok"] is True
+    assert out["resolved"][0]["comment_id"] == 7
