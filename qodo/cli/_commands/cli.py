@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 
 from qodo.cli._commands.overview import cli_sections, emit_overview
+from qodo.cli._output import add_json_flag
 
 
 def cmd_cli_overview(args: argparse.Namespace) -> int:
@@ -32,12 +33,12 @@ def register(sub: argparse._SubParsersAction) -> None:
         "cli",
         help="CLI-surface introspection (see 'qodo-cli cli overview').",
     )
-    p.add_argument("--json", action="store_true", help="Emit structured JSON.")
+    add_json_flag(p)
     p.set_defaults(func=_no_verb, json=False)
     # `p` is a _CliArgumentParser (the top-level subparsers were built with that
     # parser_class); propagate it so `cli overview` parse errors route through
     # the structured error contract instead of argparse's default stderr/exit 2.
     noun_sub = p.add_subparsers(dest="cli_command", parser_class=type(p))
     ov = noun_sub.add_parser("overview", help="Describe the qodo-cli CLI surface.")
-    ov.add_argument("--json", action="store_true", help="Emit structured JSON.")
+    add_json_flag(ov)
     ov.set_defaults(func=cmd_cli_overview)

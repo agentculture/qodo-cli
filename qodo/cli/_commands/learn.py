@@ -9,26 +9,33 @@ from __future__ import annotations
 import argparse
 
 from qodo import __version__
-from qodo.cli._output import emit_result
+from qodo.cli._output import add_json_flag, emit_result
 
 _TEXT = """\
-qodo-cli — a clonable template for AgentCulture mesh agents.
+qodo-cli — an unofficial, community CLI to manage Qodo from your terminal.
 
 Purpose
 -------
-Scaffold for a new Culture mesh agent: an agent-first CLI (cited from the teken
-`python-cli` reference), an identity (culture.yaml + CLAUDE.md), the canonical
-guildmaster skill kit under .claude/skills/, and a deploy/CI baseline. Clone it,
-rename the package, and edit culture.yaml to mint a new agent.
+Run Qodo's core jobs natively, in zero-dependency Python. `qodo rules` surfaces
+your org's coding rules by semantic search (reusing the API key already in
+~/.qodo/config.json); `qodo review` (a.k.a. `qodo pr`) triages and resolves the
+Qodo bot's PR review comments through your existing provider CLI (gh). Each verb
+cites qodo-ai/qodo-skills as its behavioral source of truth — we point at the
+skills, we do not fork, vendor, or npx-install them. Unofficial: not affiliated
+with, authorized, or endorsed by Qodo.
 
 Commands
 --------
-  qodo-cli whoami             Identity from culture.yaml.
-  qodo-cli learn              This self-teaching prompt.
-  qodo-cli explain <path>...  Markdown docs for any noun/verb path.
-  qodo-cli overview           Descriptive snapshot of the agent.
-  qodo-cli doctor             Check the agent-identity invariants.
-  qodo-cli cli overview       Describe the CLI surface itself.
+  qodo-cli rules get "<query>"  Semantic-search your org's Qodo rules.
+  qodo-cli review list          List the Qodo bot's PR review comments.
+  qodo-cli review resolve <id>  Reply to and acknowledge a Qodo comment.
+  qodo-cli pr ...               Alias for `review`.
+  qodo-cli whoami               Identity from culture.yaml.
+  qodo-cli learn                This self-teaching prompt.
+  qodo-cli explain <path>...    Markdown docs for any noun/verb path.
+  qodo-cli overview             Descriptive snapshot of the agent.
+  qodo-cli doctor               Check the agent-identity invariants.
+  qodo-cli cli overview         Describe the CLI surface itself.
 
 Machine-readable output
 -----------------------
@@ -39,12 +46,13 @@ Exit-code policy
 ----------------
   0 success
   1 user-input error (bad flag, bad path, missing arg)
-  2 environment / setup error
+  2 environment / setup error (missing ~/.qodo/config.json, gh absent, API error)
   3+ reserved
 
 More detail
 -----------
-  qodo-cli explain qodo-cli
+  qodo-cli explain rules
+  qodo-cli explain review
 """
 
 
@@ -52,8 +60,11 @@ def _as_json_payload() -> dict[str, object]:
     return {
         "tool": "qodo-cli",
         "version": __version__,
-        "purpose": "Clonable scaffold for a new AgentCulture mesh agent.",
+        "purpose": "Unofficial community CLI to manage Qodo (rules + PR review).",
         "commands": [
+            {"path": ["rules", "get"], "summary": "Semantic-search your org's Qodo rules."},
+            {"path": ["review", "list"], "summary": "List the Qodo bot's PR comments."},
+            {"path": ["review", "resolve"], "summary": "Reply to / acknowledge a comment."},
             {"path": ["whoami"], "summary": "Identity probe from culture.yaml."},
             {"path": ["learn"], "summary": "Self-teaching prompt."},
             {"path": ["explain"], "summary": "Markdown docs by path."},
@@ -84,5 +95,5 @@ def register(sub: argparse._SubParsersAction) -> None:
         "learn",
         help="Print a structured self-teaching prompt for agent consumers.",
     )
-    p.add_argument("--json", action="store_true", help="Emit structured JSON.")
+    add_json_flag(p)
     p.set_defaults(func=cmd_learn)

@@ -15,14 +15,20 @@ from __future__ import annotations
 _ROOT = """\
 # qodo-cli
 
-A clonable template for AgentCulture mesh agents. It carries an agent-first CLI
-(cited from the teken `python-cli` reference), a mesh identity (`culture.yaml` +
-`CLAUDE.md`), the canonical guildmaster skill kit under `.claude/skills/`, and a
-buildable/deployable package baseline. Clone it, rename the package, edit
-`culture.yaml`, and you have a new agent.
+An unofficial, community CLI to manage **Qodo** from your terminal, in
+zero-dependency Python. It runs Qodo's core jobs natively — `rules` (semantic
+rule search) and `review`/`pr` (triage the Qodo bot's PR comments) — each citing
+`qodo-ai/qodo-skills` as its behavioral source of truth (we point at the skills,
+we do not fork or vendor them). It also carries an agent-first introspection
+surface (`whoami`/`learn`/`explain`/`overview`/`doctor`) and a mesh identity
+(`culture.yaml` + `AGENTS.colleague.md`). Not affiliated with Qodo Ltd.
 
 ## Verbs
 
+- `qodo-cli rules get "<query>"` — semantic-search your org's Qodo rules.
+- `qodo-cli review list` — list the Qodo bot's PR review comments.
+- `qodo-cli review resolve <id>` — reply to and acknowledge a comment.
+- `qodo-cli pr ...` — alias for `review`.
 - `qodo-cli whoami` — identity probe from `culture.yaml`.
 - `qodo-cli learn` — structured self-teaching prompt.
 - `qodo-cli explain <path>` — markdown docs for any noun/verb.
@@ -39,8 +45,62 @@ buildable/deployable package baseline. Clone it, rename the package, edit
 
 ## See also
 
-- `qodo-cli explain whoami`
+- `qodo-cli explain rules`
+- `qodo-cli explain review`
 - `qodo-cli explain doctor`
+"""
+
+_RULES = """\
+# qodo-cli rules
+
+Surface your org's Qodo coding rules by semantic search. Native reimplementation
+of `qodo-ai/qodo-skills` `qodo-get-rules` (cited, not vendored): it reads the API
+key already in `~/.qodo/config.json` and POSTs your query to the Qodo rules API,
+returning the relevance-ranked rules with their severity
+(`ERROR`/`WARNING`/`RECOMMENDATION`).
+
+Reuses existing credentials — it never prompts. Errors (exit 2) when no API key
+is available (`~/.qodo/config.json` absent and `QODO_API_KEY` unset).
+
+## Usage
+
+    qodo-cli rules get "validate all user input at trust boundaries"
+    qodo-cli rules get "<query>" --top-k 10 --scope org/repo
+    qodo-cli rules get "<query>" --json
+    qodo-cli rules overview
+
+## See also
+
+- `qodo-cli explain review`
+- `docs/qodo-skills-sources.md` — the citation ledger
+"""
+
+_REVIEW = """\
+# qodo-cli review (a.k.a. qodo-cli pr)
+
+Triage the Qodo bot's review comments on the current branch's PR. Native
+reimplementation of `qodo-ai/qodo-skills` `qodo-pr-resolver` (cited, not
+vendored): it drives your existing provider CLI (`gh`) to find the open PR, list
+the comments authored by a Qodo bot (`qodo-code-review`, `qodo-merge`,
+`qodo-ai`, `pr-agent-pro`), and reply to / acknowledge them. Reuses your
+provider-CLI auth — no new credentials.
+
+GitHub — including GitHub Enterprise, recognised via your `gh` host config — is
+wired; GitLab/Azure/Bitbucket are recognised but deferred (see the citation
+ledger). The code-fixing loop stays with the calling agent — this surface is the
+deterministic detect/list/reply/acknowledge slice.
+
+## Usage
+
+    qodo-cli review list
+    qodo-cli review list --pr 123 --json
+    qodo-cli review resolve <comment-id> --reply "Fixed in <sha>."
+    qodo-cli review overview
+
+## See also
+
+- `qodo-cli explain rules`
+- `docs/qodo-skills-sources.md` — the citation ledger
 """
 
 _WHOAMI = """\
@@ -123,6 +183,14 @@ ENTRIES: dict[tuple[str, ...], str] = {
     (): _ROOT,
     ("qodo-cli",): _ROOT,
     ("qodo",): _ROOT,  # console-script name; satisfies the rubric's `explain <self>` check
+    ("rules",): _RULES,
+    ("rules", "get"): _RULES,
+    ("rules", "overview"): _RULES,
+    ("review",): _REVIEW,
+    ("review", "list"): _REVIEW,
+    ("review", "resolve"): _REVIEW,
+    ("review", "overview"): _REVIEW,
+    ("pr",): _REVIEW,  # `pr` is an alias for `review`
     ("whoami",): _WHOAMI,
     ("learn",): _LEARN,
     ("explain",): _EXPLAIN,

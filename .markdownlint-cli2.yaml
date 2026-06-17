@@ -21,3 +21,6 @@ ignores:
   - ".teken/**"
   # Vendored skills are cited verbatim from guildmaster — do not reformat them.
   - ".claude/skills/**"
+  # devague-exported specs are generated artifacts (the H1 is the verbatim
+  # announcement; bodies carry literal "<placeholders>") — do not reformat them.
+  - "docs/specs/**"

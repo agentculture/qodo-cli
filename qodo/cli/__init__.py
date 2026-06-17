@@ -67,11 +67,13 @@ def _build_parser() -> argparse.ArgumentParser:
     from qodo.cli._commands import explain as _explain_cmd
     from qodo.cli._commands import learn as _learn_cmd
     from qodo.cli._commands import overview as _overview_cmd
+    from qodo.cli._commands import review as _review_group
+    from qodo.cli._commands import rules as _rules_group
     from qodo.cli._commands import whoami as _whoami_cmd
 
     parser = _CliArgumentParser(
         prog="qodo-cli",
-        description="qodo-cli — a clonable template for AgentCulture mesh agents.",
+        description="qodo-cli — an unofficial community CLI to manage Qodo (rules + PR review).",
     )
     parser.add_argument(
         "--version",
@@ -82,13 +84,17 @@ def _build_parser() -> argparse.ArgumentParser:
     # through _CliArgumentParser too.
     sub = parser.add_subparsers(dest="command", parser_class=_CliArgumentParser)
 
+    # Qodo domain noun groups (the real surface):
+    _rules_group.register(sub)
+    _review_group.register(sub)
+    # Agent-first introspection verbs:
     _whoami_cmd.register(sub)
     _learn_cmd.register(sub)
     _explain_cmd.register(sub)
     _overview_cmd.register(sub)
     _doctor_cmd.register(sub)
     _cli_group.register(sub)
-    # Register your own noun groups here:
+    # Register further noun groups here, following the rules/review pattern:
     #   from qodo.cli._commands import my_noun as _my_noun_group
     #   _my_noun_group.register(sub)
 

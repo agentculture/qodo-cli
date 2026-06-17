@@ -15,16 +15,19 @@ from __future__ import annotations
 import argparse
 
 from qodo.cli._commands.whoami import report
-from qodo.cli._output import emit_result
+from qodo.cli._output import add_json_flag, emit_result
 
 _ARTIFACTS = [
-    "culture.yaml + CLAUDE.md — mesh identity (suffix + backend)",
+    "culture.yaml + AGENTS.colleague.md — mesh identity (suffix + backend)",
     ".claude/skills/ — the canonical guildmaster skill kit (cite-don't-import)",
     "docs/skill-sources.md — skill provenance ledger",
+    "docs/qodo-skills-sources.md — Qodo-skills citation ledger (rules/review)",
     "pyproject.toml + .github/workflows/ — buildable, deployable package baseline",
 ]
 
 _VERBS = [
+    'rules get "<query>" — semantic-search your org\'s Qodo rules',
+    "review (a.k.a. pr) — triage & resolve the Qodo bot's PR review comments",
     "whoami — identity probe (nick, version, backend, model)",
     "learn — structured self-teaching prompt",
     "explain <path> — markdown docs for a topic",
@@ -69,6 +72,64 @@ def cli_sections() -> list[dict[str, object]]:
     ]
 
 
+def rules_sections() -> list[dict[str, object]]:
+    """Sections describing the `rules` noun (used by `rules overview`)."""
+    return [
+        {
+            "title": "Verbs",
+            "items": [
+                'rules get "<query>" — semantic-search your org\'s Qodo rules',
+                "rules overview — describe the rules noun (this command)",
+            ],
+        },
+        {
+            "title": "Source",
+            "items": [
+                "cites qodo-ai/qodo-skills `qodo-get-rules` as the behavioral spec",
+                "POST {base}/rules/search, reusing ~/.qodo/config.json (API_KEY/ENVIRONMENT_NAME)",
+                "severity labels: ERROR, WARNING, RECOMMENDATION (relevance-ranked)",
+            ],
+        },
+        {
+            "title": "Conventions",
+            "items": [
+                "needs a pre-existing ~/.qodo/config.json (or QODO_API_KEY) — never prompts",
+                "supports --json; exit 2 on missing config / API error",
+            ],
+        },
+    ]
+
+
+def review_sections() -> list[dict[str, object]]:
+    """Sections describing the `review`/`pr` noun (used by `review overview`)."""
+    return [
+        {
+            "title": "Verbs",
+            "items": [
+                "review list — list the Qodo bot's review comments on this branch's PR",
+                "review resolve <id> — reply to and acknowledge a Qodo review comment",
+                "review overview — describe the review noun (this command)",
+            ],
+        },
+        {
+            "title": "Source",
+            "items": [
+                "cites qodo-ai/qodo-skills `qodo-pr-resolver` as the behavioral spec",
+                "drives your existing gh — GitHub incl. Enterprise (via your gh host "
+                "config); glab/az are follow-ups",
+                "Qodo bots: qodo-code-review, qodo-merge, qodo-ai, pr-agent-pro(-staging)",
+            ],
+        },
+        {
+            "title": "Conventions",
+            "items": [
+                "reuses your provider-CLI auth — no new credentials",
+                "also reachable as `qodo pr`; supports --json",
+            ],
+        },
+    ]
+
+
 def render_text(subject: str, sections: list[dict[str, object]]) -> str:
     lines = [f"# {subject}", ""]
     for section in sections:
@@ -108,5 +169,5 @@ def register(sub: argparse._SubParsersAction) -> None:
         help="Ignored — overview always describes this agent itself. Accepted so a "
         "stray path argument never hard-fails.",
     )
-    p.add_argument("--json", action="store_true", help="Emit structured JSON.")
+    add_json_flag(p)
     p.set_defaults(func=cmd_overview)

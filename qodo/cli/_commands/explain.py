@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import argparse
 
-from qodo.cli._output import emit_result
+from qodo.cli._output import add_json_flag, emit_result
 from qodo.explain import resolve
 
 
@@ -34,5 +34,5 @@ def register(sub: argparse._SubParsersAction) -> None:
         nargs="*",
         help="Command path tokens; empty = root (same as 'qodo-cli').",
     )
-    p.add_argument("--json", action="store_true", help="Emit structured JSON.")
+    add_json_flag(p)
     p.set_defaults(func=cmd_explain)
