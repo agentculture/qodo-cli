@@ -17,8 +17,25 @@ from qodo.cli._commands.overview import emit_overview, rules_sections
 from qodo.cli._output import add_json_flag, emit_result
 
 
-def _render_rules(query: str, rules: list[dict[str, object]]) -> str:
-    lines = [f"# Qodo Rules — {query}", ""]
+def _resolve_scopes(args: argparse.Namespace) -> list[str] | None:
+    """Decide the scopes to send: explicit ``--scope`` > ``--no-scope`` > auto-detect.
+
+    Returns ``None`` (omit ``scopes`` entirely) when forced off or nothing is
+    detected — never an empty list.
+    """
+    if getattr(args, "no_scope", False):
+        return None
+    if getattr(args, "scopes", None):
+        return args.scopes
+    detected = _qodo_api.detect_scopes()
+    return detected or None
+
+
+def _render_rules(query: str, rules: list[dict[str, object]], scopes: list[str] | None) -> str:
+    header = f"# Qodo Rules — {query}"
+    if scopes:
+        header += f" (scope: {', '.join(scopes)})"
+    lines = [header, ""]
     if not rules:
         lines.append("No relevant rules found for this task.")
         return "\n".join(lines).rstrip()
@@ -36,14 +53,15 @@ def _render_rules(query: str, rules: list[dict[str, object]]) -> str:
 def cmd_rules_get(args: argparse.Namespace) -> int:
     query = args.query
     json_mode = bool(getattr(args, "json", False))
-    rules = _qodo_api.search_rules(query, top_k=args.top_k, scopes=args.scopes)
+    scopes = _resolve_scopes(args)
+    rules = _qodo_api.search_rules(query, top_k=args.top_k, scopes=scopes)
     if json_mode:
         emit_result(
-            {"query": query, "count": len(rules), "rules": rules},
+            {"query": query, "scopes": scopes, "count": len(rules), "rules": rules},
             json_mode=True,
         )
     else:
-        emit_result(_render_rules(query, rules), json_mode=False)
+        emit_result(_render_rules(query, rules, scopes), json_mode=False)
     return 0
 
 
@@ -82,12 +100,19 @@ def register(sub: argparse._SubParsersAction) -> None:
         default=_qodo_api.DEFAULT_TOP_K,
         help=f"Max rules to request (default {_qodo_api.DEFAULT_TOP_K}).",
     )
-    get.add_argument(
+    scope_group = get.add_mutually_exclusive_group()
+    scope_group.add_argument(
         "--scope",
         action="append",
         dest="scopes",
         metavar="SCOPE",
-        help="Repository/module scope to pass through (repeatable).",
+        help="Repository/module scope to pass through (repeatable). "
+        "Overrides auto-detection from the git origin.",
+    )
+    scope_group.add_argument(
+        "--no-scope",
+        action="store_true",
+        help="Force-omit scope (skip the git-origin auto-detection).",
     )
     add_json_flag(get)
     get.set_defaults(func=cmd_rules_get)

@@ -50,6 +50,14 @@ calling agent — which keeps the CLI zero-dependency and model-agnostic.
 - **Request body:** `{"query": <str>, "top_k": <int>, "scopes": [<str>]}`.
   `scopes` is omitted entirely when empty (never `null` / `[]`). `top_k`
   defaults to `20`.
+- **Scope auto-detection:** when `--scope` is omitted, the CLI mirrors the
+  skill — it derives the repository scope as the `org/repo` slug from
+  `git remote get-url origin` (SSH `git@host:org/repo(.git)`, HTTPS
+  `https://host/org/repo(.git)`, `ssh://…` forms; multi-level namespaces such as
+  GitLab subgroups are preserved) and a module scope `<name>` when the working
+  path contains `modules/<name>/`. Detection is non-raising: no git / no origin
+  yields no scope (omitted, not empty). `--scope` overrides detection;
+  `--no-scope` forces omission.
 - **Response:** `{"rules": [{"id", "name", "content", "severity"}]}`, ranked by
   relevance (most relevant first). Severity is one of `ERROR`, `WARNING`,
   `RECOMMENDATION`.

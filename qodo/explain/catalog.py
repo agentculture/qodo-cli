@@ -62,10 +62,17 @@ returning the relevance-ranked rules with their severity
 Reuses existing credentials — it never prompts. Errors (exit 2) when no API key
 is available (`~/.qodo/config.json` absent and `QODO_API_KEY` unset).
 
+When `--scope` is omitted, the scope is **auto-detected** like `qodo-get-rules`
+does: the `org/repo` slug from the git `origin` (SSH + HTTPS forms) and the
+module name from a `modules/<name>/` path. Nothing detectable → `scopes` is
+omitted entirely (never sent empty). `--scope` overrides; `--no-scope` forces
+omission.
+
 ## Usage
 
     qodo-cli rules get "validate all user input at trust boundaries"
     qodo-cli rules get "<query>" --top-k 10 --scope org/repo
+    qodo-cli rules get "<query>" --no-scope
     qodo-cli rules get "<query>" --json
     qodo-cli rules overview
 

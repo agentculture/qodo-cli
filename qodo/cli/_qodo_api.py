@@ -19,7 +19,10 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
+import subprocess  # nosec B404 - resolved absolute path, no shell (B603 project-skipped)
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 from pathlib import Path
@@ -109,6 +112,80 @@ def resolve_base_url(config: dict[str, Any]) -> str:
     env_name = str(env_name).strip()
     host = "qodo-platform.qodo.ai" if not env_name else f"qodo-platform.{env_name}.qodo.ai"
     return f"https://{host}/rules/v1"
+
+
+# --- scope auto-detection (cited from qodo-get-rules) ----------------------
+#
+# qodo-get-rules derives a repository scope from `git remote get-url origin`
+# (parsing the org/repo slug) and a module scope when the working path contains
+# `modules/<name>/`, then passes them as `scopes`. We mirror that, non-raising:
+# absence of an origin (or of git) simply yields no scope — `scopes` is omitted
+# entirely rather than sent empty. See docs/qodo-skills-sources.md.
+
+
+def _origin_url() -> str | None:
+    """The ``origin`` remote URL, or ``None`` if git/origin is unavailable (non-raising)."""
+    git = shutil.which("git")
+    if not git:
+        return None
+    proc = subprocess.run(  # nosec B603 - resolved absolute path, no shell
+        [git, "remote", "get-url", "origin"],
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode != 0:
+        return None
+    return proc.stdout.strip() or None
+
+
+def repo_slug(url: str) -> str | None:
+    """Parse the ``org/repo`` slug from an SSH or HTTPS remote URL (or ``None``).
+
+    Handles ``git@host:org/repo.git``, ``https://host/org/repo(.git)``,
+    ``ssh://git@host[:port]/org/repo.git``; preserves multi-level namespaces
+    (e.g. GitLab subgroups ``org/sub/repo``).
+    """
+    u = (url or "").strip()
+    if not u:
+        return None
+    if u.endswith(".git"):
+        u = u[:-4]
+    if "://" in u:
+        path = urllib.parse.urlparse(u).path
+    elif ":" in u:
+        # scp-like: [user@]host:org/repo
+        path = u.split(":", 1)[1]
+    else:
+        return None
+    return path.strip("/") or None
+
+
+def module_scope(cwd: Path) -> str | None:
+    """The ``<name>`` from a ``modules/<name>/`` path segment, or ``None``."""
+    parts = cwd.parts
+    if "modules" in parts:
+        idx = parts.index("modules")
+        if idx + 1 < len(parts):
+            return parts[idx + 1]
+    return None
+
+
+def detect_scopes(cwd: Path | None = None) -> list[str]:
+    """Auto-detect the rules scopes from the git origin + cwd (never raises).
+
+    Returns the repository slug and, when inside a ``modules/<name>/`` path, the
+    module name. Empty when nothing is detectable (caller then omits ``scopes``).
+    """
+    scopes: list[str] = []
+    url = _origin_url()
+    if url:
+        slug = repo_slug(url)
+        if slug:
+            scopes.append(slug)
+    module = module_scope(cwd if cwd is not None else Path.cwd())
+    if module:
+        scopes.append(module)
+    return scopes
 
 
 def search_rules(

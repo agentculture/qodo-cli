@@ -78,7 +78,8 @@ def rules_sections() -> list[dict[str, object]]:
         {
             "title": "Verbs",
             "items": [
-                'rules get "<query>" — semantic-search your org\'s Qodo rules',
+                'rules get "<query>" [--scope S | --no-scope] — semantic-search '
+                "your org's Qodo rules (scope auto-detected from the git origin)",
                 "rules overview — describe the rules noun (this command)",
             ],
         },
@@ -87,6 +88,7 @@ def rules_sections() -> list[dict[str, object]]:
             "items": [
                 "cites qodo-ai/qodo-skills `qodo-get-rules` as the behavioral spec",
                 "POST {base}/rules/search, reusing ~/.qodo/config.json (API_KEY/ENVIRONMENT_NAME)",
+                "scope auto-detected from `git origin` org/repo + modules/<name>/ (cite-faithful)",
                 "severity labels: ERROR, WARNING, RECOMMENDATION (relevance-ranked)",
             ],
         },

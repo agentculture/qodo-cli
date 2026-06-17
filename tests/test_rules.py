@@ -194,3 +194,108 @@ def test_rules_no_verb_prints_overview(capsys: pytest.CaptureFixture[str]) -> No
     rc = main(["rules"])
     assert rc == 0
     assert "rules get" in capsys.readouterr().out
+
+
+# --- scope auto-detection (issue #9) --------------------------------------
+
+
+@pytest.mark.parametrize(
+    "url,slug",
+    [
+        ("git@github.com:org/repo.git", "org/repo"),
+        ("git@github.com:org/repo", "org/repo"),
+        ("https://github.com/org/repo.git", "org/repo"),
+        ("https://github.com/org/repo", "org/repo"),
+        ("ssh://git@github.com:22/org/repo.git", "org/repo"),
+        ("https://gitlab.com/org/sub/repo.git", "org/sub/repo"),  # subgroup preserved
+        ("", None),
+        ("not-a-url", None),
+    ],
+)
+def test_repo_slug(url: str, slug: str | None) -> None:
+    assert _qodo_api.repo_slug(url) == slug
+
+
+def test_module_scope_detects_modules_segment() -> None:
+    from pathlib import Path
+
+    assert _qodo_api.module_scope(Path("/home/x/repo/modules/auth/sub")) == "auth"
+    assert _qodo_api.module_scope(Path("/home/x/repo/src")) is None
+
+
+def test_detect_scopes_repo_and_module() -> None:
+    from pathlib import Path
+
+    with mock.patch("qodo.cli._qodo_api._origin_url", return_value="git@github.com:org/repo.git"):
+        assert _qodo_api.detect_scopes(Path("/x/modules/auth")) == ["org/repo", "auth"]
+
+
+def test_detect_scopes_empty_when_no_origin() -> None:
+    from pathlib import Path
+
+    with mock.patch("qodo.cli._qodo_api._origin_url", return_value=None):
+        assert _qodo_api.detect_scopes(Path("/x/src")) == []
+
+
+def test_rules_get_autodetects_scope(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("QODO_API_KEY", "k")
+    captured: dict[str, object] = {}
+
+    def fake_search(query: str, *, top_k: int = 20, scopes=None, config=None):
+        captured["scopes"] = scopes
+        return []
+
+    with (
+        mock.patch("qodo.cli._qodo_api.detect_scopes", return_value=["org/repo"]),
+        mock.patch("qodo.cli._qodo_api.search_rules", side_effect=fake_search),
+    ):
+        rc = main(["rules", "get", "q"])
+    assert rc == 0
+    assert captured["scopes"] == ["org/repo"]
+
+
+def test_rules_get_no_scope_forces_omission() -> None:
+    captured: dict[str, object] = {}
+
+    def fake_search(query: str, *, top_k: int = 20, scopes=None, config=None):
+        captured["scopes"] = scopes
+        return []
+
+    with (
+        mock.patch(
+            "qodo.cli._qodo_api.detect_scopes",
+            side_effect=AssertionError("must not auto-detect under --no-scope"),
+        ),
+        mock.patch("qodo.cli._qodo_api.search_rules", side_effect=fake_search),
+    ):
+        rc = main(["rules", "get", "q", "--no-scope"])
+    assert rc == 0
+    assert captured["scopes"] is None
+
+
+def test_rules_get_explicit_scope_overrides_detection() -> None:
+    captured: dict[str, object] = {}
+
+    def fake_search(query: str, *, top_k: int = 20, scopes=None, config=None):
+        captured["scopes"] = scopes
+        return []
+
+    with (
+        mock.patch(
+            "qodo.cli._qodo_api.detect_scopes",
+            side_effect=AssertionError("explicit --scope must win"),
+        ),
+        mock.patch("qodo.cli._qodo_api.search_rules", side_effect=fake_search),
+    ):
+        rc = main(["rules", "get", "q", "--scope", "a/b", "--scope", "mod"])
+    assert rc == 0
+    assert captured["scopes"] == ["a/b", "mod"]
+
+
+def test_rules_get_scope_and_no_scope_mutually_exclusive(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as exc:
+        main(["rules", "get", "q", "--scope", "a/b", "--no-scope"])
+    assert exc.value.code == 1
+    assert "hint:" in capsys.readouterr().err

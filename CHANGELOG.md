@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/). This project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-06-17
+
+### Added
+
+- `qodo rules get` now **auto-detects the rules scope** when `--scope` is
+  omitted, mirroring `qodo-get-rules`: the `org/repo` slug from the git `origin`
+  (SSH `git@host:org/repo(.git)`, HTTPS, and `ssh://` forms; multi-level
+  namespaces such as GitLab subgroups preserved) plus the module name from a
+  `modules/<name>/` path. Detection is non-raising — no git / no origin yields no
+  scope, and `scopes` is omitted entirely (never sent empty). The detected scope
+  is surfaced in `--json` (`scopes`) and the text header. (#9)
+- `qodo rules get --no-scope` forces scope omission (skips auto-detection);
+  `--scope` continues to override detection. `--scope` and `--no-scope` are
+  mutually exclusive. (#9)
+
+### Changed
+
+### Fixed
+
 ## [0.6.0] - 2026-06-17
 
 ### Added
