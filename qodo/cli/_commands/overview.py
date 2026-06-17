@@ -32,7 +32,7 @@ _VERBS = [
     "learn — structured self-teaching prompt",
     "explain <path> — markdown docs for a topic",
     "overview — this descriptive snapshot",
-    "doctor — check the agent-identity invariants",
+    "doctor — check agent-identity invariants + Qodo setup (configs), with fix guidance",
 ]
 
 

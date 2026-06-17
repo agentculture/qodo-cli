@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/). This project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-06-17
+
+### Added
+
+- `.pr_agent.toml` + `best_practices.md` at the repo root — the Qodo Merge
+  reviewer config (cite, don't fork). They codify this repo's intentional
+  patterns (bare `return 0` handlers, `parser_class=type(p)` subparser nesting,
+  the mechanics-only `review resolve --reply`) so Qodo reviews accurately and
+  stops raising them as violations.
+- `qodo doctor` now also checks **Qodo setup**, against the current git repo:
+  `.pr_agent.toml` present, `best_practices.md` present, and client API
+  credentials (`~/.qodo/config.json` / `QODO_API_KEY`) available for
+  `qodo rules`. These are advisory and each carries a `remediation` that guides
+  an agent through setup. Runs in any repo (not just a source checkout).
+  (Addresses #7.)
+
+### Changed
+
+- `qodo doctor` `healthy` now depends on **error**-severity checks only;
+  `warning`/`info` checks surface guidance without flipping `healthy` or the
+  exit code. Fixes the `claude → CLAUDE.md` drift in the `doctor` explain entry
+  (this repo's backend is `colleague` → `AGENTS.colleague.md`).
+
 ## [0.4.0] - 2026-06-17
 
 ### Added

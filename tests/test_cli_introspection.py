@@ -7,6 +7,7 @@ import json
 import pytest
 
 from qodo.cli import main
+from qodo.cli._commands import doctor as _doctor
 
 # --- overview -------------------------------------------------------------
 
@@ -104,3 +105,64 @@ def test_doctor_recognizes_declared_backend(capsys: pytest.CaptureFixture[str]) 
     assert "unknown backend" not in messages
     assert rc == 0
     assert payload["healthy"] is True
+
+
+# --- doctor: Qodo-setup detection -----------------------------------------
+
+
+def test_doctor_reports_qodo_setup_checks(capsys: pytest.CaptureFixture[str]) -> None:
+    main(["doctor", "--json"])
+    payload = json.loads(capsys.readouterr().out)
+    ids = {c["id"] for c in payload["checks"]}
+    assert {
+        "pr_agent_config_present",
+        "best_practices_present",
+        "qodo_client_config_present",
+    } <= ids
+
+
+def test_qodo_setup_checks_flag_missing(tmp_path) -> None:
+    # Empty repo root + home with no ~/.qodo/config.json and no QODO_API_KEY.
+    home = tmp_path / "home"
+    home.mkdir()
+    import os
+    from unittest import mock
+
+    with mock.patch.dict(os.environ, {}, clear=False):
+        os.environ.pop("QODO_API_KEY", None)
+        checks = {c["id"]: c for c in _doctor._qodo_setup_checks(tmp_path, home)}
+    assert checks["pr_agent_config_present"]["passed"] is False
+    assert checks["best_practices_present"]["passed"] is False
+    assert checks["qodo_client_config_present"]["passed"] is False
+    # Advisory only — none is error-severity, and each guides setup.
+    for c in checks.values():
+        assert c["severity"] in ("warning", "info")
+        assert c["remediation"]  # non-empty guidance
+
+
+def test_qodo_setup_checks_pass_when_present(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    (tmp_path / ".pr_agent.toml").write_text("[pr_reviewer]\n", encoding="utf-8")
+    (tmp_path / "best_practices.md").write_text("# bp\n", encoding="utf-8")
+    home = tmp_path / "home"
+    (home / ".qodo").mkdir(parents=True)
+    (home / ".qodo" / "config.json").write_text("{}", encoding="utf-8")
+    monkeypatch.delenv("QODO_API_KEY", raising=False)
+    checks = {c["id"]: c for c in _doctor._qodo_setup_checks(tmp_path, home)}
+    assert all(checks[k]["passed"] for k in checks)
+
+
+def test_qodo_client_config_satisfied_by_env(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("QODO_API_KEY", "k")
+    checks = {c["id"]: c for c in _doctor._qodo_setup_checks(tmp_path, tmp_path)}
+    assert checks["qodo_client_config_present"]["passed"] is True
+
+
+def test_is_healthy_ignores_advisory_failures() -> None:
+    checks = [
+        {"id": "a", "passed": True, "severity": "error"},
+        {"id": "b", "passed": False, "severity": "warning"},
+        {"id": "c", "passed": False, "severity": "info"},
+    ]
+    assert _doctor._is_healthy(checks) is True
+    checks.append({"id": "d", "passed": False, "severity": "error"})
+    assert _doctor._is_healthy(checks) is False
