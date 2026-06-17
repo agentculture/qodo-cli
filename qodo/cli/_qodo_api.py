@@ -128,11 +128,16 @@ def _origin_url() -> str | None:
     git = shutil.which("git")
     if not git:
         return None
-    proc = subprocess.run(  # nosec B603 - resolved absolute path, no shell
-        [git, "remote", "get-url", "origin"],
-        capture_output=True,
-        text=True,
-    )
+    try:
+        proc = subprocess.run(  # nosec B603 - resolved absolute path, no shell
+            [git, "remote", "get-url", "origin"],
+            capture_output=True,
+            text=True,
+        )
+    except OSError:
+        # git vanished / not executable between the which() probe and the run,
+        # or any spawn failure — scope detection is best-effort, so stay silent.
+        return None
     if proc.returncode != 0:
         return None
     return proc.stdout.strip() or None
@@ -148,8 +153,6 @@ def repo_slug(url: str) -> str | None:
     u = (url or "").strip()
     if not u:
         return None
-    if u.endswith(".git"):
-        u = u[:-4]
     if "://" in u:
         path = urllib.parse.urlparse(u).path
     elif ":" in u:
@@ -157,6 +160,11 @@ def repo_slug(url: str) -> str | None:
         path = u.split(":", 1)[1]
     else:
         return None
+    # Strip the path's surrounding slashes *before* the ``.git`` suffix, so a
+    # ``org/repo.git/`` (trailing slash after .git) still yields ``org/repo``.
+    path = path.strip("/")
+    if path.endswith(".git"):
+        path = path[:-4]
     return path.strip("/") or None
 
 
@@ -182,9 +190,16 @@ def detect_scopes(cwd: Path | None = None) -> list[str]:
         slug = repo_slug(url)
         if slug:
             scopes.append(slug)
-    module = module_scope(cwd if cwd is not None else Path.cwd())
-    if module:
-        scopes.append(module)
+    if cwd is None:
+        try:
+            cwd = Path.cwd()
+        except OSError:
+            # cwd was deleted out from under us — skip module detection.
+            cwd = None
+    if cwd is not None:
+        module = module_scope(cwd)
+        if module:
+            scopes.append(module)
     return scopes
 
 

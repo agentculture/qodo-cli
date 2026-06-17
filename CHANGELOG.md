@@ -53,6 +53,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   already guarded, so a permission/encoding problem reports a controlled
   `readable: false` status instead of crashing the read-only verb with a generic
   exit 1. (#7, PR #14 review)
+- **Scope auto-detection is now truly non-raising.** `_origin_url()` wraps its
+  `subprocess.run(git …)` in `try/except OSError`, and `detect_scopes()` guards
+  `Path.cwd()` — so a git that vanishes mid-run or a deleted working directory
+  yields *no scope* (per the documented contract) instead of turning an optional
+  enhancement into a `qodo rules get` failure. (#9, PR #13 review)
+- **`repo_slug()` no longer leaves `.git` in the slug for a trailing-slash
+  remote.** A URL like `https://host/org/repo.git/` now correctly yields
+  `org/repo` (the path is stripped of surrounding slashes *before* the `.git`
+  suffix), not `org/repo.git`. (#9, PR #13 review)
 
 ## [0.8.1] - 2026-06-17
 

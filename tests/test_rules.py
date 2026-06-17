@@ -208,6 +208,9 @@ def test_rules_no_verb_prints_overview(capsys: pytest.CaptureFixture[str]) -> No
         ("https://github.com/org/repo", "org/repo"),
         ("ssh://git@github.com:22/org/repo.git", "org/repo"),
         ("https://gitlab.com/org/sub/repo.git", "org/sub/repo"),  # subgroup preserved
+        ("https://github.com/org/repo.git/", "org/repo"),  # trailing slash after .git
+        ("https://github.com/org/repo/", "org/repo"),  # plain trailing slash
+        ("git@github.com:org/repo.git/", "org/repo"),  # scp-like + trailing slash
         ("", None),
         ("not-a-url", None),
     ],
@@ -235,6 +238,34 @@ def test_detect_scopes_empty_when_no_origin() -> None:
 
     with mock.patch("qodo.cli._qodo_api._origin_url", return_value=None):
         assert _qodo_api.detect_scopes(Path("/x/src")) == []
+
+
+def test_origin_url_returns_none_when_git_spawn_raises() -> None:
+    # _origin_url() is documented non-raising: an OSError from subprocess.run
+    # (git vanished / not executable after the which() probe) must yield None.
+    with (
+        mock.patch("qodo.cli._qodo_api.shutil.which", return_value="/usr/bin/git"),
+        mock.patch("qodo.cli._qodo_api.subprocess.run", side_effect=OSError("boom")),
+    ):
+        assert _qodo_api._origin_url() is None
+
+
+def test_detect_scopes_survives_deleted_cwd() -> None:
+    # Path.cwd() raises FileNotFoundError when the working dir was deleted;
+    # detect_scopes() must still return the origin slug, not propagate.
+    with (
+        mock.patch("qodo.cli._qodo_api._origin_url", return_value="git@github.com:org/repo.git"),
+        mock.patch("qodo.cli._qodo_api.Path.cwd", side_effect=FileNotFoundError("gone")),
+    ):
+        assert _qodo_api.detect_scopes() == ["org/repo"]
+
+
+def test_detect_scopes_empty_when_no_origin_and_deleted_cwd() -> None:
+    with (
+        mock.patch("qodo.cli._qodo_api._origin_url", return_value=None),
+        mock.patch("qodo.cli._qodo_api.Path.cwd", side_effect=OSError("gone")),
+    ):
+        assert _qodo_api.detect_scopes() == []
 
 
 def test_rules_get_autodetects_scope(monkeypatch: pytest.MonkeyPatch) -> None:
