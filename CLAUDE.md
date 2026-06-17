@@ -32,9 +32,10 @@ uv run pytest tests/test_cli.py::test_whoami_text   # a single test
 uv run teken cli doctor . --strict       # the agent-first rubric gate CI enforces
 ```
 
-> The installed console script is **`qodo`**, even though the dist/package is
-> `qodo-cli` and the CLI identifies itself (argparse `prog`) as `qodo-cli`.
-> `uv run qodo …`, not `uv run qodo-cli …` (the README example is wrong).
+> The installed console script is **`qodo`**. The CLI's argparse `prog` is also
+> `qodo`, so usage, `--version`, error remediation, and every example command
+> invoke `qodo`; `qodo-cli` survives only as the dist/package/brand name (and in
+> titles like the `explain`/`overview` headings). Run `uv run qodo …`.
 
 Lint (CI runs each of these; all must pass):
 
