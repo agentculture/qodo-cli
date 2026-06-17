@@ -104,14 +104,47 @@ def test_resolve_provider_upgrades_ghe_host() -> None:
         assert _providers.resolve_provider("git@github.acme.com:o/r.git") == "github"
 
 
-def test_resolve_provider_unknown_when_gh_does_not_know_host() -> None:
-    with mock.patch("qodo.cli._providers.gh_knows_host", return_value=False):
+def test_resolve_provider_unknown_when_neither_cli_knows_host() -> None:
+    with (
+        mock.patch("qodo.cli._providers.gh_knows_host", return_value=False),
+        mock.patch("qodo.cli._providers.glab_knows_host", return_value=False),
+    ):
         assert _providers.resolve_provider("https://git.example.com/o/r.git") == "unknown"
+
+
+def test_resolve_provider_upgrades_self_hosted_gitlab_host() -> None:
+    # An unknown host gh doesn't know but glab is authenticated to is self-hosted GitLab.
+    with (
+        mock.patch("qodo.cli._providers.gh_knows_host", return_value=False),
+        mock.patch("qodo.cli._providers.glab_knows_host", return_value=True),
+    ):
+        assert _providers.resolve_provider("https://git.company.com/o/r.git") == "gitlab"
+
+
+def test_resolve_provider_prefers_github_when_both_clis_know_host() -> None:
+    # Degenerate tie-break: gh is consulted first, so a host both CLIs know is github.
+    with (
+        mock.patch("qodo.cli._providers.gh_knows_host", return_value=True),
+        mock.patch(
+            "qodo.cli._providers.glab_knows_host",
+            side_effect=AssertionError("glab must not be consulted once gh claims the host"),
+        ),
+    ):
+        assert _providers.resolve_provider("git@git.both.com:o/r.git") == "github"
 
 
 def test_resolve_provider_does_not_upgrade_other_providers() -> None:
     # gitlab.com is detected by host and must never be upgraded to github.
     with mock.patch("qodo.cli._providers.gh_knows_host", return_value=True):
+        assert _providers.resolve_provider("https://gitlab.com/o/r.git") == "gitlab"
+
+
+def test_resolve_provider_gitlab_com_skips_glab() -> None:
+    # gitlab.com resolves by host without consulting glab at all.
+    with mock.patch(
+        "qodo.cli._providers.glab_knows_host",
+        side_effect=AssertionError("glab must not be consulted for gitlab.com"),
+    ):
         assert _providers.resolve_provider("https://gitlab.com/o/r.git") == "gitlab"
 
 
@@ -134,6 +167,27 @@ def test_gh_knows_host_false_on_nonzero_exit() -> None:
 def test_gh_knows_host_false_when_gh_missing() -> None:
     with mock.patch("qodo.cli._providers.shutil.which", return_value=None):
         assert _providers.gh_knows_host("github.acme.com") is False
+
+
+def test_glab_knows_host_true_on_zero_exit() -> None:
+    with (
+        mock.patch("qodo.cli._providers.shutil.which", return_value="/usr/bin/glab"),
+        mock.patch("qodo.cli._providers.subprocess.run", return_value=mock.Mock(returncode=0)),
+    ):
+        assert _providers.glab_knows_host("git.company.com") is True
+
+
+def test_glab_knows_host_false_on_nonzero_exit() -> None:
+    with (
+        mock.patch("qodo.cli._providers.shutil.which", return_value="/usr/bin/glab"),
+        mock.patch("qodo.cli._providers.subprocess.run", return_value=mock.Mock(returncode=1)),
+    ):
+        assert _providers.glab_knows_host("git.company.com") is False
+
+
+def test_glab_knows_host_false_when_glab_missing() -> None:
+    with mock.patch("qodo.cli._providers.shutil.which", return_value=None):
+        assert _providers.glab_knows_host("git.company.com") is False
 
 
 @pytest.mark.parametrize(

@@ -80,12 +80,31 @@ QODO_CLI_GHE_REMOTE=git@ghe.your-company.com:org/repo.git \
   uv run pytest tests/test_contracts.py::test_live_ghe_resolves_to_github -v
 ```
 
-## 4. Provider gate (other providers)
+## 4. `qodo review` against a self-hosted GitLab on a custom domain
 
-A non-GitHub remote should fail with a clear, actionable message rather than
-misbehaving:
+`resolve_provider()` upgrades an unknown host to `gitlab` when `glab` is
+authenticated to it (`glab auth status --hostname <host>`), mirroring the GHE
+path above. `gitlab.com` is detected by hostname directly (no `glab` call);
+`gh` is consulted before `glab`, so a host both CLIs know resolves to `github`.
+Covered by mocked tests only — verify it against a real self-hosted instance:
 
 ```bash
-cd /path/to/a/gitlab/repo
-qodo review list        # exit 2, "provider 'gitlab' is not wired yet" + hint
+glab auth login --hostname gitlab.your-company.com   # one-time
+cd /path/to/a/repo/whose/origin/is/that/GitLab/host
+qodo review list                                      # should detect + list, not error
+```
+
+Expected: the custom-domain remote resolves to `gitlab` (no "not wired yet" /
+"could not identify the git provider" error), and the Qodo bot's notes list as
+on gitlab.com. Resolution marks the note's MR *discussion* resolved (GitLab has
+no `+1` marker).
+
+## 5. Provider gate (still-unwired providers)
+
+An Azure/Bitbucket/Gerrit remote should fail with a clear, actionable message
+rather than misbehaving:
+
+```bash
+cd /path/to/an/azure/devops/repo
+qodo review list        # exit 2, "provider 'azure' is not wired yet" + hint
 ```

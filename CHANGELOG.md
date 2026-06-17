@@ -27,6 +27,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Self-hosted GitLab on a custom domain is now detected.** `resolve_provider`
+  gained a `glab_knows_host()` upgrade path mirroring the GHE `gh_knows_host()`
+  one: an `origin` whose host isn't `github.com`/`gitlab.com` is no longer
+  hard-failed as `unknown` when `glab auth status --hostname <host>` recognises
+  it — it resolves to `gitlab`. `gh` is consulted first (a host both CLIs know
+  resolves to `github`). Mocked-only, like the GHE path. (#10, PR #16 review)
+
 ## [0.8.1] - 2026-06-17
 
 ### Added

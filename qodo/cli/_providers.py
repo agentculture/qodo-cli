@@ -162,20 +162,44 @@ def gh_knows_host(host: str) -> bool:
     return proc.returncode == 0
 
 
-def resolve_provider(url: str) -> str:
-    """Classify the provider, upgrading an unknown host to ``github`` when it is a
-    GitHub Enterprise host ``gh`` is configured for.
+def glab_knows_host(host: str) -> bool:
+    """True if ``glab`` is authenticated to ``host`` — i.e. a self-hosted GitLab
+    instance glab can drive. Lets us recognise GitLab on a custom domain without
+    guessing hostnames (the GitLab analogue of :func:`gh_knows_host`).
 
-    GHE hostnames are arbitrary, so we don't guess from the URL — we ask ``gh``
-    (``gh auth status --hostname <host>``). The ``github.com`` path is unaffected
-    (no gh call). NOTE: GHE support is implemented but NOT live-tested against a
-    real GitHub Enterprise instance — we have none. Covered by mocked tests only.
+    Non-raising: a missing ``glab`` or an unconfigured host is a plain ``False``.
+    """
+    glab = shutil.which("glab")
+    if not glab or not host:
+        return False
+    proc = subprocess.run(  # nosec B603 - resolved absolute path, no shell
+        [glab, "auth", "status", "--hostname", host],
+        capture_output=True,
+        text=True,
+    )
+    return proc.returncode == 0
+
+
+def resolve_provider(url: str) -> str:
+    """Classify the provider, upgrading an unknown host to ``github``/``gitlab``
+    when a provider CLI is authenticated for it.
+
+    GHE and self-hosted GitLab hostnames are arbitrary, so we don't guess from
+    the URL — we ask the provider CLIs (``gh``/``glab auth status --hostname
+    <host>``). The ``github.com``/``gitlab.com`` paths are unaffected (no CLI
+    call). ``gh`` is consulted first; a host authenticated to both resolves to
+    ``github`` (a deterministic, degenerate tie-break). NOTE: GHE and
+    self-hosted GitLab support is implemented but NOT live-tested against a real
+    instance — we have none. Covered by mocked tests only.
     """
     provider = detect_provider(url)
     if provider == "unknown":
         host = _host_from_remote(url)
-        if host and gh_knows_host(host):
-            return "github"
+        if host:
+            if gh_knows_host(host):
+                return "github"
+            if glab_knows_host(host):
+                return "gitlab"
     return provider
 
 
