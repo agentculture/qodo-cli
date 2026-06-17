@@ -18,7 +18,7 @@ import tomllib
 from pathlib import Path
 
 from qodo.cli._commands.overview import emit_overview
-from qodo.cli._errors import EXIT_SUCCESS, EXIT_USER_ERROR
+from qodo.cli._errors import EXIT_SUCCESS, EXIT_USER_ERROR, CliError
 from qodo.cli._output import add_json_flag, emit_result
 
 _CONFIG_DOCS = "https://docs.qodo.ai/qodo-documentation/qodo-merge/configuration/configuration-file"
@@ -86,9 +86,16 @@ def _inspect(repo_root: Path) -> dict[str, object]:
         "path": _BEST_PRACTICES_FILE,
     }
     if best_practices.is_file():
-        text = best_practices.read_text(encoding="utf-8")
-        bp_info["bytes"] = len(text.encode("utf-8"))
-        bp_info["non_empty"] = bool(text.strip())
+        try:
+            text = best_practices.read_text(encoding="utf-8")
+            bp_info["bytes"] = len(text.encode("utf-8"))
+            bp_info["non_empty"] = bool(text.strip())
+        except (OSError, UnicodeDecodeError) as err:
+            # Read-only verbs (show/validate) must degrade gracefully on an
+            # unreadable/bad-encoding file, not crash with a generic exit 1 —
+            # mirrors the guarded .pr_agent.toml read above.
+            bp_info["readable"] = False
+            bp_info["error"] = str(err)
 
     return {
         "repo_root": str(repo_root),
@@ -110,8 +117,11 @@ def _render_show(info: dict[str, object]) -> str:
     else:
         lines.append(f"{_PR_AGENT_FILE}: absent")
     if bp["present"]:
-        empty = "" if bp.get("non_empty") else " (empty)"
-        lines.append(f"{_BEST_PRACTICES_FILE}: present, {bp.get('bytes')} bytes{empty}")
+        if bp.get("readable") is False:
+            lines.append(f"{_BEST_PRACTICES_FILE}: present, UNREADABLE ({bp.get('error')})")
+        else:
+            empty = "" if bp.get("non_empty") else " (empty)"
+            lines.append(f"{_BEST_PRACTICES_FILE}: present, {bp.get('bytes')} bytes{empty}")
     else:
         lines.append(f"{_BEST_PRACTICES_FILE}: absent")
     if not pr_agent["present"] and not bp["present"]:
@@ -235,14 +245,35 @@ def cmd_config_init(args: argparse.Namespace) -> int:
         ),
         _BEST_PRACTICES_FILE: _BEST_PRACTICES_TEMPLATE.format(repo=repo_root.name),
     }
-    written: list[str] = []
+    # Pre-scan every target before writing anything, so a refusal (symlink /
+    # non-regular path) aborts cleanly instead of leaving a half-scaffold.
     skipped: list[str] = []
+    to_write: list[tuple[str, str]] = []
     for name, content in targets.items():
         path = repo_root / name
-        if path.is_file() and not force:
+        # Treat anything already at the path — a regular file, a directory, a
+        # FIFO, or a (possibly broken) symlink — as "exists". `is_symlink()`
+        # catches broken symlinks that `exists()` (which follows links) misses.
+        occupied = path.is_symlink() or path.exists()
+        if occupied and not force:
             skipped.append(name)
             continue
-        path.write_text(content, encoding="utf-8")
+        if occupied and (path.is_symlink() or not path.is_file()):
+            # --force overwrites a *regular* file in place. Refuse to write
+            # through a symlink (it could escape the repo root) or over a
+            # non-regular path (would crash on write); never silently follow it.
+            kind = "symlink" if path.is_symlink() else "non-regular path"
+            raise CliError(
+                code=EXIT_USER_ERROR,
+                message=f"refusing to overwrite {name}: it is a {kind}, not a regular file",
+                remediation=f"remove {name} from {repo_root} by hand, then re-run "
+                "`qodo config init`",
+            )
+        to_write.append((name, content))
+
+    written: list[str] = []
+    for name, content in to_write:
+        (repo_root / name).write_text(content, encoding="utf-8")
         written.append(name)
 
     json_mode = bool(getattr(args, "json", False))

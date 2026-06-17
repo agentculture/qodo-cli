@@ -41,6 +41,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and authenticated to the remote's host (`gh_knows_host`), so a `gh`-less or
   unauthenticated box *skips* rather than failing on `resolve_provider → unknown`.
   (#8, PR #15 review)
+- **`qodo config init` is now symlink-safe.** It treats any existing path
+  (regular file, directory, FIFO, or a possibly-broken symlink) as occupied, and
+  under `--force` it refuses — with a structured `CliError` — to write *through* a
+  symlink (which could escape the repo root) or over a non-regular path (which
+  would crash). Targets are pre-scanned so a refusal aborts before any write,
+  never leaving a half-scaffold. (#7, PR #14 review)
+- **`qodo config show`/`validate` degrade gracefully on an unreadable
+  `best_practices.md`.** `_inspect()` now guards the `best_practices.md` read
+  (`OSError`/`UnicodeDecodeError`) the same way the `.pr_agent.toml` read was
+  already guarded, so a permission/encoding problem reports a controlled
+  `readable: false` status instead of crashing the read-only verb with a generic
+  exit 1. (#7, PR #14 review)
 
 ## [0.8.1] - 2026-06-17
 
