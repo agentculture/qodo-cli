@@ -29,8 +29,9 @@ calling agent — which keeps the CLI zero-dependency and model-agnostic.
   owns: turning a task into the two structured queries `qodo-get-rules`
   generates (call `rules get` once per query and merge).
 - **`qodo review`** — we own: detect the provider, find the open PR, fetch and
-  filter the Qodo bot's comments, dedup by title, reply, acknowledge. The agent
-  owns: reading the flagged files, generating a fix, editing, and committing.
+  filter the Qodo bot's comments, dedup by stable comment identity (id/url),
+  reply, acknowledge. The agent owns: reading the flagged files, generating a
+  fix, editing, and committing.
 
 ## Resolved contract — `qodo-get-rules`
 

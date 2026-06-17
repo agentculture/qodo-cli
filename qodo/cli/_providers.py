@@ -20,6 +20,7 @@ performs (read files, generate a fix, edit, commit) is the calling agent's job.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess  # nosec B404 - used only with resolved absolute paths, no shell
 from typing import Any
@@ -136,12 +137,32 @@ def _is_qodo(login: str) -> bool:
     return (login or "").removesuffix("[bot]") in QODO_BOT_LOGINS
 
 
+_CODE_CHIP_RE = re.compile(r"<code>.*?</code>", re.IGNORECASE | re.DOTALL)
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+_LEAD_NUM_RE = re.compile(r"^\d+\\?\.\s*")  # "1. " or markdown-escaped "1\. "
+
+
 def _title(body: str) -> str:
-    """Derive a short title from a comment body (first meaningful line)."""
-    for line in (body or "").splitlines():
-        stripped = line.strip().lstrip("#").strip().strip("*_`").strip()
-        if stripped:
-            return stripped[:80]
+    """Derive a short, human title from a comment body.
+
+    Qodo bodies open with an HTML badge (``<img ...Action_required...>``) and
+    carry the real issue title a few lines down, wrapped in markup with trailing
+    ``<code>`` category chips. So: skip lines that are pure HTML, drop the chips
+    and tags, strip any leading list numbering, and return the first prose line.
+    This is display-only — :func:`_dedup` keys on identity, not on the title.
+    """
+    for raw in (body or "").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        text = _CODE_CHIP_RE.sub("", line)
+        text = _HTML_TAG_RE.sub("", text).strip()
+        if not text:
+            continue  # the line was only HTML (badge / image / <pre> / <details>)
+        text = _LEAD_NUM_RE.sub("", text.lstrip("#").strip())
+        text = text.strip("*_`").strip()
+        if text:
+            return text[:80]
     return "(no title)"
 
 
@@ -176,21 +197,29 @@ def _normalize_inline(comment: dict[str, Any]) -> dict[str, Any]:
 
 
 def _dedup(comments: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Merge duplicate issues by title, preferring inline (located) over summary.
+    """Drop only TRUE duplicates, keyed on stable identity — never on title.
 
-    Dedup key is the lowercased title, mirroring qodo-pr-resolver's "match by
-    title". Trade-off: near-but-not-equal titles (e.g. "SQL injection risk" vs
-    "SQL injection vulnerability") will NOT collapse, and two genuinely distinct
-    issues that happen to share a title WILL — we accept that over fuzzy matching
-    to stay deterministic and dependency-free.
+    Distinct comments must never collapse: Qodo's inline bodies all open with the
+    same ``<img ...Action_required...>`` badge line, so a title-based key would
+    merge unrelated findings and the tool would under-report. Identity is the
+    GitHub comment id when present (inline comments), else the comment url
+    (summary comments), else a ``(kind, title)`` fallback. Order is preserved;
+    only exact id/url repeats (e.g. pagination overlap) are removed.
     """
-    by_title: dict[str, dict[str, Any]] = {}
+    seen: set[tuple[Any, ...]] = set()
+    out: list[dict[str, Any]] = []
     for comment in comments:
-        key = comment["title"].lower()
-        existing = by_title.get(key)
-        if existing is None or (existing["kind"] == "summary" and comment["kind"] == "inline"):
-            by_title[key] = comment
-    return list(by_title.values())
+        if comment.get("id") is not None:
+            key: tuple[Any, ...] = ("id", comment["id"])
+        elif comment.get("url"):
+            key = ("url", comment["url"])
+        else:
+            key = ("kt", comment["kind"], comment["title"])
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(comment)
+    return out
 
 
 def fetch_qodo_comments(pr_number: int) -> list[dict[str, Any]]:

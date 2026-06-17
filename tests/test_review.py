@@ -71,12 +71,44 @@ def test_title_from_body() -> None:
     assert _providers._title("\n\n") == "(no title)"
 
 
-def test_dedup_prefers_inline() -> None:
-    summary = {"title": "Bug X", "kind": "summary"}
-    inline = {"title": "bug x", "kind": "inline"}
-    out = _providers._dedup([summary, inline])
+def test_title_skips_badge_and_extracts_real_title() -> None:
+    # Real Qodo shape: an <img> badge line, then the numbered, marked-up title
+    # with trailing <code> category chips. The badge must be skipped.
+    body = (
+        '<img src="https://img.shields.io/badge/Action_required-x" alt="Action required">\n'
+        "\n"
+        "1\\. Unsigned <b><i>resolve_comment()</i></b> reply body "
+        "<code>📜 Skill insight</code> <code>✧ Quality</code>\n"
+    )
+    assert _providers._title(body) == "Unsigned resolve_comment() reply body"
+
+
+def test_title_strips_h3_summary_header() -> None:
+    assert _providers._title("<h3>Code Review by Qodo</h3>") == "Code Review by Qodo"
+
+
+def test_dedup_keeps_distinct_inline_comments() -> None:
+    # Qodo inline bodies share a leading badge line -> identical titles; keyed on
+    # id, distinct comments must NOT collapse (this is the under-report bug fix).
+    a = {"id": 1, "kind": "inline", "title": "Action required"}
+    b = {"id": 2, "kind": "inline", "title": "Action required"}
+    out = _providers._dedup([a, b])
+    assert len(out) == 2
+
+
+def test_dedup_drops_true_duplicate_by_id() -> None:
+    a = {"id": 1, "kind": "inline", "title": "x"}
+    dup = {"id": 1, "kind": "inline", "title": "x (refetched)"}
+    out = _providers._dedup([a, dup])
     assert len(out) == 1
-    assert out[0]["kind"] == "inline"
+    assert out[0]["title"] == "x"  # first occurrence wins
+
+
+def test_dedup_keeps_distinct_summaries_by_url() -> None:
+    a = {"id": None, "url": "u1", "kind": "summary", "title": "Code Review by Qodo"}
+    b = {"id": None, "url": "u2", "kind": "summary", "title": "PR Summary by Qodo"}
+    out = _providers._dedup([a, b])
+    assert len(out) == 2
 
 
 def test_require_tool_missing_raises() -> None:
@@ -105,30 +137,41 @@ def test_fetch_qodo_comments_filters_and_dedups() -> None:
                 }
             )
         if args[0] == "api":
+            # Two distinct Qodo inline comments that BOTH open with the same
+            # badge line — the exact shape that used to collapse to one.
+            badge = '<img alt="Action required">\n\n'
             return json.dumps(
                 [
                     {
                         "id": 111,
                         "user": {"login": "qodo-ai[bot]"},
-                        "body": "SQL injection risk",
+                        "body": badge + "1\\. SQL injection risk",
                         "path": "a.py",
                         "line": 10,
-                        "html_url": "h",
+                        "html_url": "h1",
                     },
-                    {"id": 112, "user": {"login": "someone"}, "body": "nit"},
+                    {
+                        "id": 222,
+                        "user": {"login": "qodo-code-review[bot]"},
+                        "body": badge + "2\\. Missing input validation",
+                        "path": "b.py",
+                        "line": 5,
+                        "html_url": "h2",
+                    },
+                    {"id": 333, "user": {"login": "someone"}, "body": "nit"},
                 ]
             )
         return "[]"
 
     with mock.patch("qodo.cli._providers._gh", side_effect=fake_gh):
         comments = _providers.fetch_qodo_comments(5)
-    # Two Qodo comments kept (summary + inline); the human/someone ones dropped.
-    assert len(comments) == 2
+    # 1 summary + 2 inline kept; human/someone dropped. The two same-badge
+    # inline comments must both survive (the under-report bug).
+    assert len(comments) == 3
     authors = {c["author"] for c in comments}
-    assert authors == {"qodo-merge[bot]", "qodo-ai[bot]"}
-    inline = next(c for c in comments if c["kind"] == "inline")
-    assert inline["id"] == 111
-    assert inline["path"] == "a.py"
+    assert authors == {"qodo-merge[bot]", "qodo-ai[bot]", "qodo-code-review[bot]"}
+    inline_titles = {c["title"] for c in comments if c["kind"] == "inline"}
+    assert inline_titles == {"SQL injection risk", "Missing input validation"}
 
 
 def test_find_open_pr_returns_first() -> None:
