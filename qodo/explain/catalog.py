@@ -1,4 +1,4 @@
-"""Markdown catalog for ``qodo-cli explain <path>``.
+"""Markdown catalog for ``qodo explain <path>``.
 
 Each entry is verbatim markdown. Keys are command-path tuples. The empty tuple
 and ``("qodo-cli",)`` both resolve to the root entry.
@@ -9,9 +9,11 @@ context without chaining reads.
 
 from __future__ import annotations
 
-# The console script is `qodo` while the CLI self-identifies (argparse prog) and
-# the dist are `qodo-cli`. The agent-first rubric runs `explain <script-name>`,
-# i.e. `explain qodo`, so the root entry is keyed under both spellings below.
+# The console script and the CLI's argparse `prog` are both `qodo`; only the
+# distribution/brand name is `qodo-cli` (used in titles and the dist name). The
+# agent-first rubric runs `explain <script-name>` (i.e. `explain qodo`), so the
+# root entry is keyed under `qodo` as well as the dist name `qodo-cli` below.
+# Command examples in every body therefore invoke `qodo`, never `qodo-cli`.
 _ROOT = """\
 # qodo-cli
 
@@ -23,19 +25,21 @@ we do not fork or vendor them). It also carries an agent-first introspection
 surface (`whoami`/`learn`/`explain`/`overview`/`doctor`) and a mesh identity
 (`culture.yaml` + `AGENTS.colleague.md`). Not affiliated with Qodo Ltd.
 
+The distribution is named `qodo-cli`; the installed command is `qodo`.
+
 ## Verbs
 
-- `qodo-cli rules get "<query>"` — semantic-search your org's Qodo rules.
-- `qodo-cli review list` — list the Qodo bot's PR review comments.
-- `qodo-cli review resolve <id>` — reply to and acknowledge a comment.
-- `qodo-cli pr ...` — alias for `review`.
-- `qodo-cli config show|validate|init` — manage the repo Qodo reviewer config.
-- `qodo-cli whoami` — identity probe from `culture.yaml`.
-- `qodo-cli learn` — structured self-teaching prompt.
-- `qodo-cli explain <path>` — markdown docs for any noun/verb.
-- `qodo-cli overview` — descriptive snapshot of the agent.
-- `qodo-cli doctor` — check the agent-identity invariants.
-- `qodo-cli cli overview` — describe the CLI surface.
+- `qodo rules get "<query>"` — semantic-search your org's Qodo rules.
+- `qodo review list` — list the Qodo bot's PR review comments.
+- `qodo review resolve <id>` — reply to and acknowledge a comment.
+- `qodo pr ...` — alias for `review`.
+- `qodo config show|validate|init` — manage the repo Qodo reviewer config.
+- `qodo whoami` — identity probe from `culture.yaml`.
+- `qodo learn` — structured self-teaching prompt.
+- `qodo explain <path>` — markdown docs for any noun/verb.
+- `qodo overview` — descriptive snapshot of the agent.
+- `qodo doctor` — check the agent-identity invariants.
+- `qodo cli overview` — describe the CLI surface.
 
 ## Exit-code policy
 
@@ -46,9 +50,9 @@ surface (`whoami`/`learn`/`explain`/`overview`/`doctor`) and a mesh identity
 
 ## See also
 
-- `qodo-cli explain rules`
-- `qodo-cli explain review`
-- `qodo-cli explain doctor`
+- `qodo explain rules`
+- `qodo explain review`
+- `qodo explain doctor`
 """
 
 _RULES = """\
@@ -71,15 +75,15 @@ omission.
 
 ## Usage
 
-    qodo-cli rules get "validate all user input at trust boundaries"
-    qodo-cli rules get "<query>" --top-k 10 --scope org/repo
-    qodo-cli rules get "<query>" --no-scope
-    qodo-cli rules get "<query>" --json
-    qodo-cli rules overview
+    qodo rules get "validate all user input at trust boundaries"
+    qodo rules get "<query>" --top-k 10 --scope org/repo
+    qodo rules get "<query>" --no-scope
+    qodo rules get "<query>" --json
+    qodo rules overview
 
 ## See also
 
-- `qodo-cli explain review`
+- `qodo explain review`
 - `docs/qodo-skills-sources.md` — the citation ledger
 """
 
@@ -115,12 +119,12 @@ reaction when no thread maps to the comment).
 
 ## Usage
 
-    qodo-cli review list
-    qodo-cli review list --pr 123 --kind inline --json
-    qodo-cli review resolve <comment-id> --reply "Fixed in <sha>." --sign
-    qodo-cli review resolve --all --severity HIGH
-    qodo-cli review resolve <id> --no-resolve-thread
-    qodo-cli review overview
+    qodo review list
+    qodo review list --pr 123 --kind inline --json
+    qodo review resolve <comment-id> --reply "Fixed in <sha>." --sign
+    qodo review resolve --all --severity HIGH
+    qodo review resolve <id> --no-resolve-thread
+    qodo review overview
 
 `--sign` appends the `culture.yaml` nick signature (`- <nick> (Claude)`) to
 `--reply`, at most once. `--all` / `--severity` resolve every matching inline
@@ -128,7 +132,7 @@ comment in one call.
 
 ## See also
 
-- `qodo-cli explain rules`
+- `qodo explain rules`
 - `docs/qodo-skills-sources.md` — the citation ledger
 """
 
@@ -147,16 +151,16 @@ and never overwrites without `--force`. Read from the current git repo root
 
 ## Usage
 
-    qodo-cli config show
-    qodo-cli config validate          # exit 1 if invalid
-    qodo-cli config init [--force]
-    qodo-cli config overview
-    qodo-cli config show --json
+    qodo config show
+    qodo config validate          # exit 1 if invalid
+    qodo config init [--force]
+    qodo config overview
+    qodo config show --json
 
 ## See also
 
-- `qodo-cli explain review`
-- `qodo-cli explain doctor` — `doctor` also reports whether these files exist
+- `qodo explain review`
+- `qodo explain doctor` — `doctor` also reports whether these files exist
 - `docs/qodo-skills-sources.md` — the citation ledger
 """
 
@@ -168,8 +172,8 @@ served model, and the package version. Read-only.
 
 ## Usage
 
-    qodo-cli whoami
-    qodo-cli whoami --json
+    qodo whoami
+    qodo whoami --json
 """
 
 _LEARN = """\
@@ -180,8 +184,8 @@ exit-code policy, `--json` support, and the `explain` pointer.
 
 ## Usage
 
-    qodo-cli learn
-    qodo-cli learn --json
+    qodo learn
+    qodo learn --json
 """
 
 _EXPLAIN = """\
@@ -192,9 +196,9 @@ positional), `explain` is global and addressable by path.
 
 ## Usage
 
-    qodo-cli explain qodo-cli
-    qodo-cli explain whoami
-    qodo-cli explain --json <path>
+    qodo explain qodo-cli
+    qodo explain whoami
+    qodo explain --json <path>
 """
 
 _OVERVIEW = """\
@@ -206,8 +210,8 @@ ignored `target` so a stray path never hard-fails.
 
 ## Usage
 
-    qodo-cli overview
-    qodo-cli overview --json
+    qodo overview
+    qodo overview --json
 """
 
 _DOCTOR = """\
@@ -231,8 +235,8 @@ an error-severity failure.
 
 ## Usage
 
-    qodo-cli doctor
-    qodo-cli doctor --json
+    qodo doctor
+    qodo doctor --json
 """
 
 _CLI = """\
@@ -243,8 +247,8 @@ itself (distinct from the global `overview`, which describes the agent).
 
 ## Usage
 
-    qodo-cli cli overview
-    qodo-cli cli overview --json
+    qodo cli overview
+    qodo cli overview --json
 """
 
 

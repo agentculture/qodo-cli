@@ -24,6 +24,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   backend / prompt file (`colleague` → `AGENTS.colleague.md`, not
   `claude`/`CLAUDE.md`), and reframed the repo from a bare "template" to a
   Qodo-management CLI (demoting the clone/rename notes to a short pointer).
+- **CLI name consistency** (Qodo review): the argparse `prog` is now `qodo` (the
+  installed console script), so `usage`, `--version`, and error remediation point
+  at a command that exists. Every typed-command example in `learn` and the
+  `explain` catalog now invokes `qodo`; `qodo-cli` remains only the
+  dist/brand name and in titles.
+- **`uv.lock`** now records the project at `0.9.1`, matching the bumped
+  `pyproject.toml` (the committed lock was stale at `0.9.0`).
 
 ## [0.9.0] - 2026-06-17
 
