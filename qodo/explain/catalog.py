@@ -29,6 +29,7 @@ surface (`whoami`/`learn`/`explain`/`overview`/`doctor`) and a mesh identity
 - `qodo-cli review list` — list the Qodo bot's PR review comments.
 - `qodo-cli review resolve <id>` — reply to and acknowledge a comment.
 - `qodo-cli pr ...` — alias for `review`.
+- `qodo-cli config show|validate|init` — manage the repo Qodo reviewer config.
 - `qodo-cli whoami` — identity probe from `culture.yaml`.
 - `qodo-cli learn` — structured self-teaching prompt.
 - `qodo-cli explain <path>` — markdown docs for any noun/verb.
@@ -62,10 +63,17 @@ returning the relevance-ranked rules with their severity
 Reuses existing credentials — it never prompts. Errors (exit 2) when no API key
 is available (`~/.qodo/config.json` absent and `QODO_API_KEY` unset).
 
+When `--scope` is omitted, the scope is **auto-detected** like `qodo-get-rules`
+does: the `org/repo` slug from the git `origin` (SSH + HTTPS forms) and the
+module name from a `modules/<name>/` path. Nothing detectable → `scopes` is
+omitted entirely (never sent empty). `--scope` overrides; `--no-scope` forces
+omission.
+
 ## Usage
 
     qodo-cli rules get "validate all user input at trust boundaries"
     qodo-cli rules get "<query>" --top-k 10 --scope org/repo
+    qodo-cli rules get "<query>" --no-scope
     qodo-cli rules get "<query>" --json
     qodo-cli rules overview
 
@@ -80,14 +88,16 @@ _REVIEW = """\
 
 Triage the Qodo bot's review comments on the current branch's PR. Native
 reimplementation of `qodo-ai/qodo-skills` `qodo-pr-resolver` (cited, not
-vendored): it drives your existing provider CLI (`gh`) to find the open PR, list
-the comments authored by a Qodo bot (`qodo-code-review`, `qodo-merge`,
-`qodo-ai`, `pr-agent-pro`), and reply to / acknowledge them. Reuses your
-provider-CLI auth — no new credentials.
+vendored): it drives your existing provider CLI (`gh` / `glab`) to find the open
+PR/MR, list the comments authored by a Qodo bot (`qodo-code-review`,
+`qodo-merge`, `qodo-ai`, `pr-agent-pro`), and reply to / acknowledge / resolve
+them. Reuses your provider-CLI auth — no new credentials.
 
-GitHub — including GitHub Enterprise, recognised via your `gh` host config — is
-wired; GitLab/Azure/Bitbucket are recognised but deferred (see the citation
-ledger). The code-fixing loop stays with the calling agent — this surface is the
+GitHub (incl. GitHub Enterprise via your `gh` host config) and GitLab (via
+`glab`) are wired; Azure/Bitbucket/Gerrit are recognised but deferred (see the
+citation ledger). On GitLab the resolvable unit is the MR *discussion*: `resolve`
+replies to and marks the note's discussion resolved (GitLab has no `+1` marker).
+The code-fixing loop stays with the calling agent — this surface is the
 deterministic detect/list/reply/acknowledge/resolve slice.
 
 `review list` parses each comment body into structured triage fields —
@@ -119,6 +129,34 @@ comment in one call.
 ## See also
 
 - `qodo-cli explain rules`
+- `docs/qodo-skills-sources.md` — the citation ledger
+"""
+
+_CONFIG = """\
+# qodo-cli config
+
+Manage the **repo-level** Qodo reviewer config — `.pr_agent.toml` (the Qodo Merge
+`[pr_reviewer]` section) and `best_practices.md`. These are the levers that make
+Qodo's reviews of *this* repo accurate: without them Qodo falls back to inferred
+conventions and raises false positives. Distinct from the *client*
+`~/.qodo/config.json` that `qodo rules` reads.
+
+`show` and `validate` are read-only; `init` scaffolds the two files when absent
+and never overwrites without `--force`. Read from the current git repo root
+(where Qodo reads its config). Cite-faithful to Qodo Merge's configuration docs.
+
+## Usage
+
+    qodo-cli config show
+    qodo-cli config validate          # exit 1 if invalid
+    qodo-cli config init [--force]
+    qodo-cli config overview
+    qodo-cli config show --json
+
+## See also
+
+- `qodo-cli explain review`
+- `qodo-cli explain doctor` — `doctor` also reports whether these files exist
 - `docs/qodo-skills-sources.md` — the citation ledger
 """
 
@@ -222,6 +260,11 @@ ENTRIES: dict[tuple[str, ...], str] = {
     ("review", "resolve"): _REVIEW,
     ("review", "overview"): _REVIEW,
     ("pr",): _REVIEW,  # `pr` is an alias for `review`
+    ("config",): _CONFIG,
+    ("config", "show"): _CONFIG,
+    ("config", "validate"): _CONFIG,
+    ("config", "init"): _CONFIG,
+    ("config", "overview"): _CONFIG,
     ("whoami",): _WHOAMI,
     ("learn",): _LEARN,
     ("explain",): _EXPLAIN,

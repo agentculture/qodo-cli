@@ -5,6 +5,124 @@ All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/). This project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-06-17
+
+### Added
+
+- **GitLab provider** for `qodo review` (via `glab`): find the open MR, list the
+  Qodo bot's notes across MR discussions (with the same parsed triage fields as
+  GitHub), reply, and resolve. GitLab's model is MR *discussions* (resolution is
+  at the discussion level — there is no `+1` marker, so resolving the discussion
+  *is* the acknowledgement). Implemented but **not live-tested** against a real
+  GitLab (we have none) — covered by mocked tests mirroring the GitHub ones, with
+  the `glab` REST shapes pinned in the citation ledger. (#10)
+
+### Changed
+
+- Generalized the provider gate: `require_provider` (supersedes the GitHub-only
+  `require_github` on the `review` surface) now allows **GitHub + GitLab**;
+  Azure/Bitbucket/Gerrit still error with a clear "not wired yet". `review`
+  dispatches find/fetch/resolve through a provider-aware seam
+  (`find_pr` / `fetch_comments` / `resolve` / `prefetch_threads`). (#10)
+
+### Fixed
+
+- **Self-hosted GitLab on a custom domain is now detected.** `resolve_provider`
+  gained a `glab_knows_host()` upgrade path mirroring the GHE `gh_knows_host()`
+  one: an `origin` whose host isn't `github.com`/`gitlab.com` is no longer
+  hard-failed as `unknown` when `glab auth status --hostname <host>` recognises
+  it — it resolves to `gitlab`. `gh` is consulted first (a host both CLIs know
+  resolves to `github`). Mocked-only, like the GHE path. (#10, PR #16 review)
+- **Live smokes are now explicitly opt-in and skip (don't fail) when their
+  prerequisites are missing.** Both `test_contracts.py` smokes require a
+  deliberate `QODO_LIVE_SMOKE=1` switch, so a shell that merely exports
+  `QODO_API_KEY` for real `qodo rules` use no longer fires a network call during
+  a normal `pytest` run. The GHE smoke additionally gates on `gh` being present
+  and authenticated to the remote's host (`gh_knows_host`), so a `gh`-less or
+  unauthenticated box *skips* rather than failing on `resolve_provider → unknown`.
+  (#8, PR #15 review)
+- **`qodo config init` is now symlink-safe.** It treats any existing path
+  (regular file, directory, FIFO, or a possibly-broken symlink) as occupied, and
+  under `--force` it refuses — with a structured `CliError` — to write *through* a
+  symlink (which could escape the repo root) or over a non-regular path (which
+  would crash). Targets are pre-scanned so a refusal aborts before any write,
+  never leaving a half-scaffold. (#7, PR #14 review)
+- **`qodo config show`/`validate` degrade gracefully on an unreadable
+  `best_practices.md`.** `_inspect()` now guards the `best_practices.md` read
+  (`OSError`/`UnicodeDecodeError`) the same way the `.pr_agent.toml` read was
+  already guarded, so a permission/encoding problem reports a controlled
+  `readable: false` status instead of crashing the read-only verb with a generic
+  exit 1. (#7, PR #14 review)
+- **Scope auto-detection is now truly non-raising.** `_origin_url()` wraps its
+  `subprocess.run(git …)` in `try/except OSError`, and `detect_scopes()` guards
+  `Path.cwd()` — so a git that vanishes mid-run or a deleted working directory
+  yields *no scope* (per the documented contract) instead of turning an optional
+  enhancement into a `qodo rules get` failure. (#9, PR #13 review)
+- **`repo_slug()` no longer leaves `.git` in the slug for a trailing-slash
+  remote.** A URL like `https://host/org/repo.git/` now correctly yields
+  `org/repo` (the path is stripped of surrounding slashes *before* the `.git`
+  suffix), not `org/repo.git`. (#9, PR #13 review)
+
+## [0.8.1] - 2026-06-17
+
+### Added
+
+- `tests/test_contracts.py` + `tests/fixtures/rules_search_response.json` — an
+  **offline contract test** that pins the Qodo `/rules/search` response shape
+  (relevance order, the `{id, name, content, severity}` fields, severities within
+  the known set, unknown extra fields passing through), so the parser is verified
+  without a Qodo subscription in CI. (#8)
+- **Opt-in live smokes** (skipped by default): `test_live_rules_search_smoke`
+  (runs when `QODO_API_KEY` is set) and `test_live_ghe_resolves_to_github` (runs
+  when `QODO_CLI_GHE_REMOTE` points at a real GitHub Enterprise origin). (#8)
+- `docs/manual-verification.md` — a manual checklist for the paths that need a
+  real system to exercise (live `qodo rules`, GitHub Enterprise resolution, the
+  non-GitHub provider gate), cross-referenced from the citation ledger. (#8)
+
+### Changed
+
+### Fixed
+
+## [0.8.0] - 2026-06-17
+
+### Added
+
+- `qodo config` — a new noun group to manage the **repo-level** Qodo reviewer
+  config (`.pr_agent.toml` + `best_practices.md`), distinct from the *client*
+  `~/.qodo/config.json` that `qodo rules` reads: (#7)
+  - `config show` — report presence, the parsed `.pr_agent.toml` sections, and
+    `best_practices.md` status (read-only).
+  - `config validate` — validate the config (valid TOML, a config present) and
+    exit 1 when invalid; warns (without failing) on a missing `[pr_reviewer]`
+    section or an empty `best_practices.md`. Emits the rubric-shaped
+    `{valid, checks: [...]}` in `--json`.
+  - `config init [--force]` — scaffold a minimal `.pr_agent.toml` +
+    `best_practices.md` when absent; never overwrites without `--force`.
+  - `config overview` — describe the noun (rubric-required).
+
+### Changed
+
+### Fixed
+
+## [0.7.0] - 2026-06-17
+
+### Added
+
+- `qodo rules get` now **auto-detects the rules scope** when `--scope` is
+  omitted, mirroring `qodo-get-rules`: the `org/repo` slug from the git `origin`
+  (SSH `git@host:org/repo(.git)`, HTTPS, and `ssh://` forms; multi-level
+  namespaces such as GitLab subgroups preserved) plus the module name from a
+  `modules/<name>/` path. Detection is non-raising — no git / no origin yields no
+  scope, and `scopes` is omitted entirely (never sent empty). The detected scope
+  is surfaced in `--json` (`scopes`) and the text header. (#9)
+- `qodo rules get --no-scope` forces scope omission (skips auto-detection);
+  `--scope` continues to override detection. `--scope` and `--no-scope` are
+  mutually exclusive. (#9)
+
+### Changed
+
+### Fixed
+
 ## [0.6.0] - 2026-06-17
 
 ### Added

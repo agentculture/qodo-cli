@@ -63,6 +63,7 @@ def _argv_has_json(argv: list[str] | None) -> bool:
 
 def _build_parser() -> argparse.ArgumentParser:
     from qodo.cli._commands import cli as _cli_group
+    from qodo.cli._commands import config as _config_group
     from qodo.cli._commands import doctor as _doctor_cmd
     from qodo.cli._commands import explain as _explain_cmd
     from qodo.cli._commands import learn as _learn_cmd
@@ -87,6 +88,7 @@ def _build_parser() -> argparse.ArgumentParser:
     # Qodo domain noun groups (the real surface):
     _rules_group.register(sub)
     _review_group.register(sub)
+    _config_group.register(sub)
     # Agent-first introspection verbs:
     _whoami_cmd.register(sub)
     _learn_cmd.register(sub)

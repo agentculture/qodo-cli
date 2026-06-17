@@ -50,6 +50,14 @@ calling agent — which keeps the CLI zero-dependency and model-agnostic.
 - **Request body:** `{"query": <str>, "top_k": <int>, "scopes": [<str>]}`.
   `scopes` is omitted entirely when empty (never `null` / `[]`). `top_k`
   defaults to `20`.
+- **Scope auto-detection:** when `--scope` is omitted, the CLI mirrors the
+  skill — it derives the repository scope as the `org/repo` slug from
+  `git remote get-url origin` (SSH `git@host:org/repo(.git)`, HTTPS
+  `https://host/org/repo(.git)`, `ssh://…` forms; multi-level namespaces such as
+  GitLab subgroups are preserved) and a module scope `<name>` when the working
+  path contains `modules/<name>/`. Detection is non-raising: no git / no origin
+  yields no scope (omitted, not empty). `--scope` overrides detection;
+  `--no-scope` forces omission.
 - **Response:** `{"rules": [{"id", "name", "content", "severity"}]}`, ranked by
   relevance (most relevant first). Severity is one of `ERROR`, `WARNING`,
   `RECOMMENDATION`.
@@ -94,14 +102,25 @@ calling agent — which keeps the CLI zero-dependency and model-agnostic.
   any other badge → `LOW`, no badge → `null`. Parsing is best-effort; an
   unrecognised body degrades to title-only with `null` fields.
 
+- **GitLab (wired now), via `glab`:** GitLab's model is MR **discussions** (each
+  holds one or more **notes**); resolution is at the discussion level (no `+1`
+  marker — resolving the discussion *is* the acknowledgement). The project path
+  is the `namespace/repo` slug from `origin`, URL-encoded for the API.
+  - find MR: `glab api "projects/<proj>/merge_requests?source_branch=<branch>&state=opened"`
+  - notes: `glab api "projects/<proj>/merge_requests/<iid>/discussions?per_page=100" --paginate`
+    (keep notes whose `author.username` is a Qodo bot; skip `system` notes)
+  - reply: `glab api projects/<proj>/merge_requests/<iid>/discussions/<disc>/notes -X POST -f body=<text>`
+  - resolve: `glab api projects/<proj>/merge_requests/<iid>/discussions/<disc> -X PUT -f resolved=true`
+  - **Implemented but NOT live-tested** against a real GitLab (we have none);
+    covered by mocked tests mirroring the GitHub ones (the `glab` REST shapes
+    above are the contract). The provider gate (`require_provider`) now allows
+    `github` + `gitlab`.
+
 ### Follow-up providers (recognised, not yet wired)
 
 These are captured from `resources/providers.md` so wiring them is a lookup, not
 a re-investigation. Today the CLI raises a clear "not wired yet" error for them.
 
-- **GitLab (`glab`):** find `glab mr list --source-branch <branch>`; fetch
-  `glab mr view <iid> --comments`; reply / resolve via
-  `glab api /projects/:id/merge_requests/<iid>/discussions/...`.
 - **Azure DevOps (`az`):** find `az repos pr list --source-branch <branch> --status active`;
   fetch / reply / resolve via `az devops invoke --resource pullRequestThreads`.
 - **Bitbucket (`curl`):** REST under
@@ -122,11 +141,22 @@ to skip), falling back to reaction-only when no thread maps to the comment.
 - `qodo rules` does not implement an interactive login — it reuses existing
   credentials and errors when they are absent.
 
+## Verifying the contracts
+
+The `/rules/search` response shape is pinned by an **offline contract test**
+(`tests/test_contracts.py`) against a recorded fixture
+(`tests/fixtures/rules_search_response.json`). Paths that need a real system to
+exercise — `qodo rules` against the live API, and GitHub Enterprise provider
+resolution — have **opt-in live smokes** (gated on `QODO_API_KEY` /
+`QODO_CLI_GHE_REMOTE`, skipped by default) plus a manual checklist in
+`docs/manual-verification.md`.
+
 ## Re-sync procedure
 
 1. Re-fetch the upstream `SKILL.md` and the `references/` / `resources/` files
    listed in the verb↔skill map above.
 2. Diff the resolved contract in this file against them (endpoint, headers,
    request/response schema, bot logins, provider commands).
-3. Update `qodo/cli/_qodo_api.py` / `qodo/cli/_providers.py` and this ledger
+3. Update `qodo/cli/_qodo_api.py` / `qodo/cli/_providers.py`, the contract
+   fixture (`tests/fixtures/rules_search_response.json`), and this ledger
    together, then bump the version.
