@@ -22,12 +22,15 @@ _ARTIFACTS = [
     ".claude/skills/ — the canonical guildmaster skill kit (cite-don't-import)",
     "docs/skill-sources.md — skill provenance ledger",
     "docs/qodo-skills-sources.md — Qodo-skills citation ledger (rules/review)",
+    "docs/manual-verification.md — manual checklist + offline contract test for "
+    "the real-system paths (GHE, live rules API)",
     "pyproject.toml + .github/workflows/ — buildable, deployable package baseline",
 ]
 
 _VERBS = [
     'rules get "<query>" — semantic-search your org\'s Qodo rules',
     "review (a.k.a. pr) — triage & resolve the Qodo bot's PR review comments",
+    "config show|validate|init — manage the repo-level Qodo reviewer config",
     "whoami — identity probe (nick, version, backend, model)",
     "learn — structured self-teaching prompt",
     "explain <path> — markdown docs for a topic",
@@ -78,7 +81,8 @@ def rules_sections() -> list[dict[str, object]]:
         {
             "title": "Verbs",
             "items": [
-                'rules get "<query>" — semantic-search your org\'s Qodo rules',
+                'rules get "<query>" [--scope S | --no-scope] — semantic-search '
+                "your org's Qodo rules (scope auto-detected from the git origin)",
                 "rules overview — describe the rules noun (this command)",
             ],
         },
@@ -87,6 +91,7 @@ def rules_sections() -> list[dict[str, object]]:
             "items": [
                 "cites qodo-ai/qodo-skills `qodo-get-rules` as the behavioral spec",
                 "POST {base}/rules/search, reusing ~/.qodo/config.json (API_KEY/ENVIRONMENT_NAME)",
+                "scope auto-detected from `git origin` org/repo + modules/<name>/ (cite-faithful)",
                 "severity labels: ERROR, WARNING, RECOMMENDATION (relevance-ranked)",
             ],
         },
@@ -106,8 +111,10 @@ def review_sections() -> list[dict[str, object]]:
         {
             "title": "Verbs",
             "items": [
-                "review list — list the Qodo bot's review comments on this branch's PR",
-                "review resolve <id> — reply to and acknowledge a Qodo review comment",
+                "review list [--kind inline|summary] — list the Qodo bot's PR comments, "
+                "with severity/type/description/agent_prompt parsed from each body",
+                "review resolve <id...> | --all [--severity S] — reply (--sign), "
+                "acknowledge, and resolve the review thread; best-effort per-action",
                 "review overview — describe the review noun (this command)",
             ],
         },
@@ -115,8 +122,8 @@ def review_sections() -> list[dict[str, object]]:
             "title": "Source",
             "items": [
                 "cites qodo-ai/qodo-skills `qodo-pr-resolver` as the behavioral spec",
-                "drives your existing gh — GitHub incl. Enterprise (via your gh host "
-                "config); glab/az are follow-ups",
+                "drives your existing gh / glab — GitHub (incl. Enterprise via your gh "
+                "host config) and GitLab are wired; azure/bitbucket/gerrit are follow-ups",
                 "Qodo bots: qodo-code-review, qodo-merge, qodo-ai, pr-agent-pro(-staging)",
             ],
         },
@@ -124,6 +131,7 @@ def review_sections() -> list[dict[str, object]]:
             "title": "Conventions",
             "items": [
                 "reuses your provider-CLI auth — no new credentials",
+                "thread resolution via GraphQL resolveReviewThread (--no-resolve-thread to skip)",
                 "also reachable as `qodo pr`; supports --json",
             ],
         },

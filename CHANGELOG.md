@@ -5,6 +5,175 @@ All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/). This project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-06-17
+
+### Added
+
+- **GitLab provider** for `qodo review` (via `glab`): find the open MR, list the
+  Qodo bot's notes across MR discussions (with the same parsed triage fields as
+  GitHub), reply, and resolve. GitLab's model is MR *discussions* (resolution is
+  at the discussion level — there is no `+1` marker, so resolving the discussion
+  *is* the acknowledgement). Implemented but **not live-tested** against a real
+  GitLab (we have none) — covered by mocked tests mirroring the GitHub ones, with
+  the `glab` REST shapes pinned in the citation ledger. (#10)
+
+### Changed
+
+- Generalized the provider gate: `require_provider` (supersedes the GitHub-only
+  `require_github` on the `review` surface) now allows **GitHub + GitLab**;
+  Azure/Bitbucket/Gerrit still error with a clear "not wired yet". `review`
+  dispatches find/fetch/resolve through a provider-aware seam
+  (`find_pr` / `fetch_comments` / `resolve` / `prefetch_threads`). (#10)
+- Internal refactor to clear SonarCloud maintainability findings on the stack —
+  no behavior change: split the `config` render/validate/init handlers and
+  `review._select_targets` into focused helpers (cognitive complexity ≤ 15),
+  de-nested the validate mark ternary, extracted `_parse_thread_node`, and named
+  the shared resolve-action labels (`_ACT_RESOLVE_THREAD` /
+  `_ACT_LOOKUP_DISCUSSION`) to drop duplicated literals. (PR #12 review)
+
+### Fixed
+
+- **Self-hosted GitLab on a custom domain is now detected.** `resolve_provider`
+  gained a `glab_knows_host()` upgrade path mirroring the GHE `gh_knows_host()`
+  one: an `origin` whose host isn't `github.com`/`gitlab.com` is no longer
+  hard-failed as `unknown` when `glab auth status --hostname <host>` recognises
+  it — it resolves to `gitlab`. `gh` is consulted first (a host both CLIs know
+  resolves to `github`). Mocked-only, like the GHE path. (#10, PR #16 review)
+- **Live smokes are now explicitly opt-in and skip (don't fail) when their
+  prerequisites are missing.** Both `test_contracts.py` smokes require a
+  deliberate `QODO_LIVE_SMOKE=1` switch, so a shell that merely exports
+  `QODO_API_KEY` for real `qodo rules` use no longer fires a network call during
+  a normal `pytest` run. The GHE smoke additionally gates on `gh` being present
+  and authenticated to the remote's host (`gh_knows_host`), so a `gh`-less or
+  unauthenticated box *skips* rather than failing on `resolve_provider → unknown`.
+  (#8, PR #15 review)
+- **`qodo config init` is now symlink-safe.** It treats any existing path
+  (regular file, directory, FIFO, or a possibly-broken symlink) as occupied, and
+  under `--force` it refuses — with a structured `CliError` — to write *through* a
+  symlink (which could escape the repo root) or over a non-regular path (which
+  would crash). Targets are pre-scanned so a refusal aborts before any write,
+  never leaving a half-scaffold. (#7, PR #14 review)
+- **`qodo config show`/`validate` degrade gracefully on an unreadable
+  `best_practices.md`.** `_inspect()` now guards the `best_practices.md` read
+  (`OSError`/`UnicodeDecodeError`) the same way the `.pr_agent.toml` read was
+  already guarded, so a permission/encoding problem reports a controlled
+  `readable: false` status instead of crashing the read-only verb with a generic
+  exit 1. (#7, PR #14 review)
+- **Scope auto-detection is now truly non-raising.** `_origin_url()` wraps its
+  `subprocess.run(git …)` in `try/except OSError`, and `detect_scopes()` guards
+  `Path.cwd()` — so a git that vanishes mid-run or a deleted working directory
+  yields *no scope* (per the documented contract) instead of turning an optional
+  enhancement into a `qodo rules get` failure. (#9, PR #13 review)
+- **`repo_slug()` no longer leaves `.git` in the slug for a trailing-slash
+  remote.** A URL like `https://host/org/repo.git/` now correctly yields
+  `org/repo` (the path is stripped of surrounding slashes *before* the `.git`
+  suffix), not `org/repo.git`. (#9, PR #13 review)
+- **`review resolve`'s reaction-only fallback no longer flips the exit code.**
+  When no GitHub review thread maps to a comment, the `+1` reaction stands as the
+  acknowledgement marker; that documented fallback is now reported `ok=True` with
+  `fallback: true` (instead of `ok=False`), so `review resolve --all` exits 0 when
+  every actionable step succeeded. A genuine thread-resolve error still reports
+  `ok=False`. (GitLab is unchanged — it has no `+1` marker, so a missing discussion
+  is a real failure there.) (#3–#6, PR #12 review)
+- **`review resolve --severity` rejects an invalid value instead of silently
+  resolving nothing.** A typo like `--severity HGIH` now fails at parse time with a
+  structured `error:`/`hint:` (exit 1) rather than matching no comments and exiting
+  0. Stays case-insensitive (`high` → `HIGH`). (#3–#6, PR #12 review)
+
+## [0.8.1] - 2026-06-17
+
+### Added
+
+- `tests/test_contracts.py` + `tests/fixtures/rules_search_response.json` — an
+  **offline contract test** that pins the Qodo `/rules/search` response shape
+  (relevance order, the `{id, name, content, severity}` fields, severities within
+  the known set, unknown extra fields passing through), so the parser is verified
+  without a Qodo subscription in CI. (#8)
+- **Opt-in live smokes** (skipped by default): `test_live_rules_search_smoke`
+  (runs when `QODO_API_KEY` is set) and `test_live_ghe_resolves_to_github` (runs
+  when `QODO_CLI_GHE_REMOTE` points at a real GitHub Enterprise origin). (#8)
+- `docs/manual-verification.md` — a manual checklist for the paths that need a
+  real system to exercise (live `qodo rules`, GitHub Enterprise resolution, the
+  non-GitHub provider gate), cross-referenced from the citation ledger. (#8)
+
+### Changed
+
+### Fixed
+
+## [0.8.0] - 2026-06-17
+
+### Added
+
+- `qodo config` — a new noun group to manage the **repo-level** Qodo reviewer
+  config (`.pr_agent.toml` + `best_practices.md`), distinct from the *client*
+  `~/.qodo/config.json` that `qodo rules` reads: (#7)
+  - `config show` — report presence, the parsed `.pr_agent.toml` sections, and
+    `best_practices.md` status (read-only).
+  - `config validate` — validate the config (valid TOML, a config present) and
+    exit 1 when invalid; warns (without failing) on a missing `[pr_reviewer]`
+    section or an empty `best_practices.md`. Emits the rubric-shaped
+    `{valid, checks: [...]}` in `--json`.
+  - `config init [--force]` — scaffold a minimal `.pr_agent.toml` +
+    `best_practices.md` when absent; never overwrites without `--force`.
+  - `config overview` — describe the noun (rubric-required).
+
+### Changed
+
+### Fixed
+
+## [0.7.0] - 2026-06-17
+
+### Added
+
+- `qodo rules get` now **auto-detects the rules scope** when `--scope` is
+  omitted, mirroring `qodo-get-rules`: the `org/repo` slug from the git `origin`
+  (SSH `git@host:org/repo(.git)`, HTTPS, and `ssh://` forms; multi-level
+  namespaces such as GitLab subgroups preserved) plus the module name from a
+  `modules/<name>/` path. Detection is non-raising — no git / no origin yields no
+  scope, and `scopes` is omitted entirely (never sent empty). The detected scope
+  is surfaced in `--json` (`scopes`) and the text header. (#9)
+- `qodo rules get --no-scope` forces scope omission (skips auto-detection);
+  `--scope` continues to override detection. `--scope` and `--no-scope` are
+  mutually exclusive. (#9)
+
+### Changed
+
+### Fixed
+
+## [0.6.0] - 2026-06-17
+
+### Added
+
+- `qodo review list` now parses each Qodo comment body into structured triage
+  fields surfaced in `--json` and the text table: `severity` (from the badge —
+  `Action required → HIGH`, `Review recommended → MEDIUM`, other → `LOW`, none →
+  `null`), `type` and `categories` (the `<code>` chips), `description` (the
+  `<pre>` block, HTML-entity-decoded), and `agent_prompt` (the remediation
+  block). Parsing is best-effort — an unrecognised body degrades to title-only.
+  (#3)
+- `qodo review list --kind {inline,summary,all}` filters by comment kind so the
+  non-actionable summary rollups can be excluded. (#3)
+- `qodo review resolve` now resolves the GitHub review **thread** via the GraphQL
+  `resolveReviewThread` mutation by default (mapping the REST comment id to its
+  thread node id), with `--no-resolve-thread` to skip and a graceful fallback to
+  the `+1` reaction when no thread maps to the comment. (#4)
+- `qodo review resolve --all` / `--severity <S>` and multiple positional ids
+  resolve several inline comments in one call. (#5)
+- `qodo review resolve --reply "..." --sign` appends the `culture.yaml` nick
+  signature (`- <nick> (Claude)`) to the reply, at most once (duplicate-guarded);
+  default stays unsigned. (#6)
+
+### Changed
+
+- `qodo review resolve` is now **best-effort and per-action**: it reports each of
+  reply / acknowledge / resolve-thread per comment, so a posted reply whose
+  acknowledgement failed reads as partial success (exit 1) rather than a blanket
+  failure. The `resolve_comment()` return type changed from `list[str]` to
+  `list[{action, ok, detail}]`, and the `resolve --json` payload now carries a
+  `resolved` list with per-action results. (#5)
+
+### Fixed
+
 ## [0.5.0] - 2026-06-17
 
 ### Added
