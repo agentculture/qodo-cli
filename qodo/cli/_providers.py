@@ -23,6 +23,7 @@ import json
 import re
 import shutil
 import subprocess  # nosec B404 - used only with resolved absolute paths, no shell
+import urllib.parse
 from typing import Any
 
 from qodo.cli._errors import EXIT_ENV_ERROR, CliError
@@ -109,20 +110,72 @@ def detect_provider(url: str) -> str:
 
 
 def require_github(provider: str) -> None:
-    """Guard: only GitHub is wired in this slice; everything else errors clearly."""
+    """Guard: only GitHub is wired in this slice; everything else errors clearly.
+
+    Takes the *resolved* provider (see :func:`resolve_provider`), so a GitHub
+    Enterprise host already reads as ``github`` here.
+    """
     if provider == "github":
         return
     if provider == "unknown":
         raise CliError(
             code=EXIT_ENV_ERROR,
             message="could not identify the git provider from 'origin'",
-            remediation="ensure `git remote get-url origin` points at a supported host",
+            remediation="point `git remote get-url origin` at GitHub (incl. a GitHub "
+            "Enterprise host you've run `gh auth login` for)",
         )
     raise CliError(
         code=EXIT_ENV_ERROR,
         message=f"provider '{provider}' is not wired yet — only GitHub (gh) is supported",
         remediation="use a GitHub remote; glab/az/bitbucket are tracked follow-ups",
     )
+
+
+def _host_from_remote(url: str) -> str | None:
+    """Extract the hostname from an https or scp-like (``git@host:path``) remote."""
+    u = (url or "").strip()
+    if not u:
+        return None
+    if "://" in u:
+        return urllib.parse.urlparse(u).hostname
+    # scp-like syntax: [user@]host:path
+    rest = u.split("@", 1)[-1]
+    host = rest.split(":", 1)[0]
+    return host or None
+
+
+def gh_knows_host(host: str) -> bool:
+    """True if ``gh`` is authenticated to ``host`` — i.e. a GitHub (Enterprise)
+    host gh can drive. Lets us recognise GHE remotes without guessing hostnames.
+
+    Non-raising: a missing ``gh`` or an unconfigured host is a plain ``False``.
+    """
+    gh = shutil.which("gh")
+    if not gh or not host:
+        return False
+    proc = subprocess.run(  # nosec B603 - resolved absolute path, no shell
+        [gh, "auth", "status", "--hostname", host],
+        capture_output=True,
+        text=True,
+    )
+    return proc.returncode == 0
+
+
+def resolve_provider(url: str) -> str:
+    """Classify the provider, upgrading an unknown host to ``github`` when it is a
+    GitHub Enterprise host ``gh`` is configured for.
+
+    GHE hostnames are arbitrary, so we don't guess from the URL — we ask ``gh``
+    (``gh auth status --hostname <host>``). The ``github.com`` path is unaffected
+    (no gh call). NOTE: GHE support is implemented but NOT live-tested against a
+    real GitHub Enterprise instance — we have none. Covered by mocked tests only.
+    """
+    provider = detect_provider(url)
+    if provider == "unknown":
+        host = _host_from_remote(url)
+        if host and gh_knows_host(host):
+            return "github"
+    return provider
 
 
 def find_open_pr(branch: str) -> dict[str, Any] | None:

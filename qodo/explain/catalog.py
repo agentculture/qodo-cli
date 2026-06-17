@@ -81,13 +81,14 @@ _REVIEW = """\
 Triage the Qodo bot's review comments on the current branch's PR. Native
 reimplementation of `qodo-ai/qodo-skills` `qodo-pr-resolver` (cited, not
 vendored): it drives your existing provider CLI (`gh`) to find the open PR, list
-the comments authored by a Qodo bot (`qodo-merge[bot]`, `qodo-ai[bot]`,
-`pr-agent-pro`), and reply to / acknowledge them. Reuses your provider-CLI auth —
-no new credentials.
+the comments authored by a Qodo bot (`qodo-code-review`, `qodo-merge`,
+`qodo-ai`, `pr-agent-pro`), and reply to / acknowledge them. Reuses your
+provider-CLI auth — no new credentials.
 
-GitHub is wired in this release; GitLab/Azure/Bitbucket are recognised but
-deferred (see the citation ledger). The code-fixing loop stays with the calling
-agent — this surface is the deterministic detect/list/reply/acknowledge slice.
+GitHub — including GitHub Enterprise, recognised via your `gh` host config — is
+wired; GitLab/Azure/Bitbucket are recognised but deferred (see the citation
+ledger). The code-fixing loop stays with the calling agent — this surface is the
+deterministic detect/list/reply/acknowledge slice.
 
 ## Usage
 

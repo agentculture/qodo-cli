@@ -115,8 +115,9 @@ def review_sections() -> list[dict[str, object]]:
             "title": "Source",
             "items": [
                 "cites qodo-ai/qodo-skills `qodo-pr-resolver` as the behavioral spec",
-                "drives your existing provider CLI (gh) — GitHub wired now; glab/az are follow-ups",
-                "Qodo bots: qodo-merge[bot], qodo-ai[bot], pr-agent-pro(-staging)",
+                "drives your existing gh — GitHub incl. Enterprise (via your gh host "
+                "config); glab/az are follow-ups",
+                "Qodo bots: qodo-code-review, qodo-merge, qodo-ai, pr-agent-pro(-staging)",
             ],
         },
         {

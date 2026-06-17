@@ -25,8 +25,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     `qodo-merge`, `qodo-ai`, `pr-agent-pro(-staging)` — matched as base names so
     both gh `[bot]`-suffix spellings hit), dedup by stable comment identity
     (id/url) so distinct same-badge inline comments never collapse, reply, and
-    acknowledge (`+1`). GitHub is wired; GitLab/Azure/Bitbucket/Gerrit are
-    recognised but raise a clear "not wired yet" error.
+    acknowledge (`+1`). GitHub is wired — including GitHub Enterprise, recognised
+    via your `gh` host config (`gh auth status --hostname`) rather than hostname
+    guessing (implemented but not live-tested against a real GHE instance);
+    GitLab/Azure/Bitbucket/Gerrit are recognised but raise a clear "not wired
+    yet" error.
 - `qodo/cli/_qodo_api.py` and `qodo/cli/_providers.py` — the zero-dep mechanics
   behind the two verbs (stdlib `urllib` / `subprocess` only).
 - `docs/qodo-skills-sources.md` — the Qodo-skills citation ledger: verb↔skill

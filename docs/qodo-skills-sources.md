@@ -67,6 +67,12 @@ calling agent — which keeps the CLI zero-dependency and model-agnostic.
   `pulls/<pr>/reviews` — the skill documents only the two surfaces above, and
   the reviews endpoint was empty on a live Qodo-reviewed PR.
 - **Provider detection:** `git remote get-url origin`, matched against the host.
+- **Provider detection upgrade (GitHub Enterprise):** `github.com` classifies as
+  GitHub directly. Any other host that is *unknown* to the well-known-host map is
+  re-checked against `gh auth status --hostname <host>` — if `gh` is
+  authenticated to it, it is treated as a GitHub Enterprise host (we don't guess
+  GHE hostnames). **Implemented but NOT live-tested** against a real GHE instance
+  (we have none); covered by mocked tests only.
 - **GitHub (wired now), via `gh`:**
   - find PR: `gh pr list --head <branch> --state open --json number,title,url`
   - summary comments: `gh pr view <pr> --json comments`

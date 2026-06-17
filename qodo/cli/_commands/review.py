@@ -59,7 +59,7 @@ def _render_comments(pr_number: int, pr: dict | None, comments: list[dict]) -> s
 
 def cmd_review_list(args: argparse.Namespace) -> int:
     json_mode = bool(getattr(args, "json", False))
-    provider = _providers.detect_provider(_providers.remote_url())
+    provider = _providers.resolve_provider(_providers.remote_url())
     _providers.require_github(provider)
     pr_number, pr = _resolve_pr_number(args)
     comments = _providers.fetch_qodo_comments(pr_number)
@@ -80,7 +80,7 @@ def cmd_review_list(args: argparse.Namespace) -> int:
 
 def cmd_review_resolve(args: argparse.Namespace) -> int:
     json_mode = bool(getattr(args, "json", False))
-    provider = _providers.detect_provider(_providers.remote_url())
+    provider = _providers.resolve_provider(_providers.remote_url())
     _providers.require_github(provider)
     pr_number, _ = _resolve_pr_number(args)
     actions = _providers.resolve_comment(pr_number, int(args.comment_id), reply=args.reply)

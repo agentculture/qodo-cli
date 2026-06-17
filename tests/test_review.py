@@ -48,6 +48,70 @@ def test_require_github_rejects_unknown() -> None:
     assert exc.value.code == 2
 
 
+# --- provider resolution / GitHub Enterprise -------------------------------
+
+
+@pytest.mark.parametrize(
+    "url,host",
+    [
+        ("https://github.com/o/r.git", "github.com"),
+        ("git@github.acme.com:o/r.git", "github.acme.com"),
+        ("ssh://git@github.acme.com:22/o/r.git", "github.acme.com"),
+        ("https://user@github.acme.com/o/r.git", "github.acme.com"),
+        ("", None),
+    ],
+)
+def test_host_from_remote(url: str, host: str | None) -> None:
+    assert _providers._host_from_remote(url) == host
+
+
+def test_resolve_provider_github_com_skips_gh() -> None:
+    # github.com resolves without consulting gh at all.
+    with mock.patch(
+        "qodo.cli._providers.gh_knows_host",
+        side_effect=AssertionError("gh must not be consulted for github.com"),
+    ):
+        assert _providers.resolve_provider("https://github.com/o/r.git") == "github"
+
+
+def test_resolve_provider_upgrades_ghe_host() -> None:
+    # An unknown host that gh is authenticated to is a GitHub Enterprise host.
+    with mock.patch("qodo.cli._providers.gh_knows_host", return_value=True):
+        assert _providers.resolve_provider("git@github.acme.com:o/r.git") == "github"
+
+
+def test_resolve_provider_unknown_when_gh_does_not_know_host() -> None:
+    with mock.patch("qodo.cli._providers.gh_knows_host", return_value=False):
+        assert _providers.resolve_provider("https://git.example.com/o/r.git") == "unknown"
+
+
+def test_resolve_provider_does_not_upgrade_other_providers() -> None:
+    # gitlab.com is detected by host and must never be upgraded to github.
+    with mock.patch("qodo.cli._providers.gh_knows_host", return_value=True):
+        assert _providers.resolve_provider("https://gitlab.com/o/r.git") == "gitlab"
+
+
+def test_gh_knows_host_true_on_zero_exit() -> None:
+    with (
+        mock.patch("qodo.cli._providers.shutil.which", return_value="/usr/bin/gh"),
+        mock.patch("qodo.cli._providers.subprocess.run", return_value=mock.Mock(returncode=0)),
+    ):
+        assert _providers.gh_knows_host("github.acme.com") is True
+
+
+def test_gh_knows_host_false_on_nonzero_exit() -> None:
+    with (
+        mock.patch("qodo.cli._providers.shutil.which", return_value="/usr/bin/gh"),
+        mock.patch("qodo.cli._providers.subprocess.run", return_value=mock.Mock(returncode=1)),
+    ):
+        assert _providers.gh_knows_host("github.acme.com") is False
+
+
+def test_gh_knows_host_false_when_gh_missing() -> None:
+    with mock.patch("qodo.cli._providers.shutil.which", return_value=None):
+        assert _providers.gh_knows_host("github.acme.com") is False
+
+
 @pytest.mark.parametrize(
     "login,expected",
     [
@@ -269,6 +333,18 @@ def test_review_list_no_pr_for_branch(capsys: pytest.CaptureFixture[str]) -> Non
     err = capsys.readouterr().err
     assert "no open PR" in err
     assert "hint:" in err
+
+
+def test_review_list_works_on_github_enterprise(capsys: pytest.CaptureFixture[str]) -> None:
+    # A GHE remote (arbitrary host) that gh is authenticated to should work.
+    with (
+        mock.patch("qodo.cli._providers.remote_url", return_value="git@github.acme.com:o/r.git"),
+        mock.patch("qodo.cli._providers.gh_knows_host", return_value=True),
+        mock.patch("qodo.cli._providers.fetch_qodo_comments", return_value=[]),
+    ):
+        rc = main(["review", "list", "--pr", "5"])
+    assert rc == 0
+    assert "No Qodo review comments" in capsys.readouterr().out
 
 
 def test_review_list_non_github_exits_env_error(capsys: pytest.CaptureFixture[str]) -> None:
