@@ -34,7 +34,7 @@ Commands
   qodo-cli learn                This self-teaching prompt.
   qodo-cli explain <path>...    Markdown docs for any noun/verb path.
   qodo-cli overview             Descriptive snapshot of the agent.
-  qodo-cli doctor               Check the agent-identity invariants.
+  qodo-cli doctor               Check agent-identity invariants + Qodo setup.
   qodo-cli cli overview         Describe the CLI surface itself.
 
 Machine-readable output
@@ -69,7 +69,7 @@ def _as_json_payload() -> dict[str, object]:
             {"path": ["learn"], "summary": "Self-teaching prompt."},
             {"path": ["explain"], "summary": "Markdown docs by path."},
             {"path": ["overview"], "summary": "Descriptive snapshot of the agent."},
-            {"path": ["doctor"], "summary": "Check the agent-identity invariants."},
+            {"path": ["doctor"], "summary": "Check agent-identity invariants + Qodo setup."},
             {"path": ["cli", "overview"], "summary": "Describe the CLI surface."},
         ],
         "exit_codes": {

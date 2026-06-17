@@ -145,10 +145,39 @@ def test_qodo_setup_checks_pass_when_present(tmp_path, monkeypatch: pytest.Monke
     (tmp_path / "best_practices.md").write_text("# bp\n", encoding="utf-8")
     home = tmp_path / "home"
     (home / ".qodo").mkdir(parents=True)
-    (home / ".qodo" / "config.json").write_text("{}", encoding="utf-8")
+    # A real API_KEY — not just an existing file (that was the bug Qodo caught).
+    (home / ".qodo" / "config.json").write_text('{"API_KEY": "k"}', encoding="utf-8")
     monkeypatch.delenv("QODO_API_KEY", raising=False)
     checks = {c["id"]: c for c in _doctor._qodo_setup_checks(tmp_path, home)}
     assert all(checks[k]["passed"] for k in checks)
+
+
+def test_qodo_client_config_fails_without_api_key(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # An existing config.json with no API_KEY must NOT pass — `qodo rules` needs the key.
+    home = tmp_path / "home"
+    (home / ".qodo").mkdir(parents=True)
+    (home / ".qodo" / "config.json").write_text("{}", encoding="utf-8")
+    monkeypatch.delenv("QODO_API_KEY", raising=False)
+    checks = {c["id"]: c for c in _doctor._qodo_setup_checks(tmp_path, home)}
+    cc = checks["qodo_client_config_present"]
+    assert cc["passed"] is False
+    assert cc["remediation"]
+
+
+def test_qodo_client_config_malformed_does_not_throw(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    (home / ".qodo").mkdir(parents=True)
+    (home / ".qodo" / "config.json").write_text("{not json", encoding="utf-8")
+    monkeypatch.delenv("QODO_API_KEY", raising=False)
+    # Must not raise; reports a failed advisory check with guidance.
+    checks = {c["id"]: c for c in _doctor._qodo_setup_checks(tmp_path, home)}
+    cc = checks["qodo_client_config_present"]
+    assert cc["passed"] is False
+    assert "JSON" in cc["message"] or "valid" in cc["message"]
 
 
 def test_qodo_client_config_satisfied_by_env(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
