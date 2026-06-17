@@ -871,6 +871,36 @@ def test_review_list_works_on_gitlab(capsys: pytest.CaptureFixture[str]) -> None
     assert out["comments"][0]["severity"] == "MEDIUM"
 
 
+def test_gitlab_prefetch_threads_returns_discussions() -> None:
+    discussions = json.dumps([{"id": "d1", "notes": [{"id": 7}]}])
+    with (
+        mock.patch("qodo.cli._providers.remote_url", return_value=_GL_URL),
+        mock.patch("qodo.cli._providers._glab", return_value=discussions),
+    ):
+        out = _providers.prefetch_threads("gitlab", 42)
+    assert out == [{"id": "d1", "notes": [{"id": 7}]}]
+
+
+def test_gitlab_resolve_uses_prefetched_discussions_no_refetch() -> None:
+    # With a pre-fetched discussion pool, the lookup must NOT re-GET discussions
+    # (the batch N+1 fix mirroring GitHub's thread prefetch).
+    discussions = [{"id": "d1", "notes": [{"id": 7, "resolved": False}]}]
+    calls: list[tuple[str, ...]] = []
+
+    def fake_glab(*args: str) -> str:
+        calls.append(args)
+        return ""
+
+    with (
+        mock.patch("qodo.cli._providers.remote_url", return_value=_GL_URL),
+        mock.patch("qodo.cli._providers._glab", side_effect=fake_glab),
+    ):
+        actions = _providers.gitlab_resolve_comment(42, 7, resolve_thread=True, threads=discussions)
+    by_action = {a["action"]: a for a in actions}
+    assert by_action["resolve thread"]["ok"] is True
+    assert not any("discussions?per_page" in c[1] for c in calls)  # no re-fetch
+
+
 def test_review_resolve_works_on_gitlab(capsys: pytest.CaptureFixture[str]) -> None:
     discussions = json.dumps([{"id": "d1", "notes": [{"id": 7, "resolved": False}]}])
 

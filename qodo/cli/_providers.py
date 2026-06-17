@@ -729,16 +729,21 @@ def _normalize_gitlab_note(discussion: dict[str, Any], note: dict[str, Any]) -> 
     }
 
 
-def gitlab_fetch_qodo_comments(mr_iid: int) -> list[dict[str, Any]]:
-    """Fetch the Qodo bot's notes on MR ``mr_iid`` (GitLab), across discussions."""
+def gitlab_discussions(mr_iid: int) -> list[dict[str, Any]]:
+    """All discussions on MR ``mr_iid`` (GitLab), paginated. Pre-fetchable for batches."""
     proj = _gitlab_project()
     raw = _glab(
         "api",
         f"projects/{proj}/merge_requests/{mr_iid}/discussions?per_page=100",
         "--paginate",
     )
+    return json.loads(raw or "[]")
+
+
+def gitlab_fetch_qodo_comments(mr_iid: int) -> list[dict[str, Any]]:
+    """Fetch the Qodo bot's notes on MR ``mr_iid`` (GitLab), across discussions."""
     collected: list[dict[str, Any]] = []
-    for discussion in json.loads(raw or "[]"):
+    for discussion in gitlab_discussions(mr_iid):
         for note in discussion.get("notes") or []:
             if note.get("system"):
                 continue  # skip GitLab's automated system notes
@@ -747,14 +752,19 @@ def gitlab_fetch_qodo_comments(mr_iid: int) -> list[dict[str, Any]]:
     return _dedup(collected)
 
 
-def _gitlab_discussion_for_note(proj: str, mr_iid: int, note_id: int) -> tuple[str | None, bool]:
-    """Map a note id to its ``(discussion_id, already_resolved)`` (or ``(None, False)``)."""
-    raw = _glab(
-        "api",
-        f"projects/{proj}/merge_requests/{mr_iid}/discussions?per_page=100",
-        "--paginate",
-    )
-    for discussion in json.loads(raw or "[]"):
+def _gitlab_discussion_for_note(
+    mr_iid: int,
+    note_id: int,
+    *,
+    discussions: list[dict[str, Any]] | None = None,
+) -> tuple[str | None, bool]:
+    """Map a note id to its ``(discussion_id, already_resolved)`` (or ``(None, False)``).
+
+    Pass a pre-fetched ``discussions`` list to avoid re-paginating per note in a
+    batch resolve (the GitLab analogue of GitHub's thread prefetch).
+    """
+    pool = gitlab_discussions(mr_iid) if discussions is None else discussions
+    for discussion in pool:
         for note in discussion.get("notes") or []:
             if note.get("id") == note_id:
                 return discussion.get("id"), bool(note.get("resolved"))
@@ -767,18 +777,19 @@ def gitlab_resolve_comment(
     *,
     reply: str | None = None,
     resolve_thread: bool = True,
-    threads: list[dict[str, Any]] | None = None,  # unused (GitHub-only); keeps the unified shape
+    threads: list[dict[str, Any]] | None = None,  # pre-fetched discussions (batch N+1 fix)
 ) -> list[dict[str, Any]]:
     """Reply to (optional) and resolve the GitLab discussion holding ``note_id``.
 
     Best-effort and non-raising per action (same contract as the GitHub path).
     GitLab acknowledges by resolving the *discussion* (there is no ``+1`` marker),
-    so ``resolve_thread`` controls the resolve; ``threads`` is ignored.
+    so ``resolve_thread`` controls the resolve. ``threads`` is the pre-fetched
+    discussion pool (from :func:`gitlab_discussions`) reused across a batch.
     """
     proj = _gitlab_project()
     results: list[dict[str, Any]] = []
     try:
-        disc_id, already = _gitlab_discussion_for_note(proj, mr_iid, note_id)
+        disc_id, already = _gitlab_discussion_for_note(mr_iid, note_id, discussions=threads)
     except CliError as err:
         return [{"action": "lookup discussion", "ok": False, "detail": err.message}]
     except Exception as err:  # noqa: BLE001 - best-effort: never crash the batch
@@ -873,9 +884,11 @@ def fetch_comments(provider: str, pr_number: int) -> list[dict[str, Any]]:
 
 
 def prefetch_threads(provider: str, pr_number: int) -> list[dict[str, Any]] | None:
-    """Pre-fetch the review threads for a batch resolve (GitHub only; None elsewhere)."""
+    """Pre-fetch the threads/discussions for a batch resolve (avoids the per-comment N+1)."""
     if provider == "github":
         return review_threads(pr_number)
+    if provider == "gitlab":
+        return gitlab_discussions(pr_number)
     return None
 
 
