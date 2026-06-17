@@ -156,9 +156,21 @@ ignored `target` so a stray path never hard-fails.
 _DOCTOR = """\
 # qodo-cli doctor
 
-Checks the agent-identity invariants `steward doctor` verifies:
-prompt-file-present and backend-consistency (`claude` → `CLAUDE.md`), plus a
-skills-present check. Exits 1 when unhealthy.
+Two groups of checks, emitted as
+`{healthy, checks: [{id, passed, severity, message, remediation}]}`:
+
+- **agent identity** (in a source checkout) — prompt-file-present and
+  backend-consistency, mirroring `steward doctor` (this repo's backend is
+  `colleague` → `AGENTS.colleague.md`), plus a `.claude/skills/` check.
+- **Qodo setup** (any repo, against the current git root) — whether
+  `.pr_agent.toml` and `best_practices.md` are present (tune Qodo's PR reviews)
+  and whether `~/.qodo/config.json` / `QODO_API_KEY` is available (for
+  `qodo rules`). These are advisory; each carries a `remediation` that guides
+  setup.
+
+`healthy` is true when every **error**-severity check passes; advisory
+(`warning`/`info`) checks surface guidance without flipping it. Exits 1 only on
+an error-severity failure.
 
 ## Usage
 

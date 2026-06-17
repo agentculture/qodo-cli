@@ -1,0 +1,26 @@
+# Qodo Merge / PR-Agent configuration for qodo-cli.
+# Docs: https://docs.qodo.ai/qodo-documentation/qodo-merge/configuration/configuration-file
+#
+# Kept minimal on purpose (per Qodo's guidance: only override what you need).
+# The repo's coding conventions live in best_practices.md at the root, which the
+# reviewer auto-references; this file just reinforces a few intentional patterns
+# that an earlier review flagged as false positives.
+
+[pr_reviewer]
+extra_instructions = """
+qodo-cli is an unofficial, community CLI to manage Qodo, built as a
+zero-runtime-dependency, stdlib-only Python package. Intentional patterns (do
+not flag these as issues):
+- Command handlers return a bare 0/1/None for the exit code. The EXIT_* constants
+  in qodo/cli/_errors.py are for CliError codes (the failure path), not for
+  handler return values. `return 0` in a handler is intentional and consistent
+  across every command.
+- Nested argparse subparsers inherit the structured-error parser class via
+  `add_subparsers(parser_class=type(p))` (see qodo/cli/_commands/cli.py). Passing
+  `type(p)` is the established idiom and is equivalent to naming
+  `_CliArgumentParser` directly — it is not a missing parser_class.
+- `qodo review resolve --reply` drives the user's own `gh` with their own auth;
+  the reply text belongs to the caller, so the tool must not auto-append an agent
+  signature.
+See best_practices.md at the repo root for the full conventions.
+"""
