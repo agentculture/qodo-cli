@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/). This project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-06-17
+
+### Added
+
+- First real Qodo-management surface — two native, zero-dependency noun groups,
+  each citing `qodo-ai/qodo-skills` as its behavioral source of truth (cite,
+  don't fork/vendor/npx):
+  - `qodo rules get "<query>"` — semantic-search your org's Qodo coding rules.
+    Reimplements `qodo-get-rules` over the stdlib (`urllib`): reads the API key
+    already in `~/.qodo/config.json` (env `QODO_API_KEY`/`QODO_ENVIRONMENT_NAME`/
+    `QODO_API_URL` win), POSTs `{base}/rules/search`, and prints the
+    relevance-ranked rules with `ERROR`/`WARNING`/`RECOMMENDATION` severity.
+    Errors (never prompts) when no credentials are present.
+  - `qodo review` (alias `qodo pr`) — `list` and `resolve` the Qodo bot's PR
+    review comments. Reimplements `qodo-pr-resolver` by driving the user's
+    existing provider CLI (`gh`): detect provider, find the open PR for the
+    branch, fetch and filter the Qodo bot's comments (`qodo-merge[bot]`,
+    `qodo-ai[bot]`, `pr-agent-pro(-staging)`), dedup by title, reply, and
+    acknowledge (`+1`). GitHub is wired; GitLab/Azure/Bitbucket/Gerrit are
+    recognised but raise a clear "not wired yet" error.
+- `qodo/cli/_qodo_api.py` and `qodo/cli/_providers.py` — the zero-dep mechanics
+  behind the two verbs (stdlib `urllib` / `subprocess` only).
+- `docs/qodo-skills-sources.md` — the Qodo-skills citation ledger: verb↔skill
+  map, the resolved API/provider contract, follow-up providers, and a re-sync
+  procedure.
+- `docs/specs/…-qodo-cli-now-does-qodo-s-two-core-jobs-natively-fr.md` — the
+  converged `/think` spec this slice was built from.
+
+### Changed
+
+- `learn`, `overview`, the explain catalog root, and the parser description now
+  describe the real Qodo surface instead of self-describing as "a clonable
+  template" (the drift CLAUDE.md flagged); `overview`'s artifact list now names
+  `AGENTS.colleague.md` (the colleague-backend prompt file) rather than
+  `CLAUDE.md`.
+- `.markdownlint-cli2.yaml` ignores `docs/specs/**` — devague-exported specs are
+  generated artifacts (verbatim-announcement H1, literal `<placeholders>`) and
+  are not reformatted, mirroring the vendored-skills exclusion.
+
 ## [0.3.2] - 2026-06-16
 
 ### Fixed
