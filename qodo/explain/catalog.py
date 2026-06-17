@@ -29,6 +29,7 @@ surface (`whoami`/`learn`/`explain`/`overview`/`doctor`) and a mesh identity
 - `qodo-cli review list` — list the Qodo bot's PR review comments.
 - `qodo-cli review resolve <id>` — reply to and acknowledge a comment.
 - `qodo-cli pr ...` — alias for `review`.
+- `qodo-cli config show|validate|init` — manage the repo Qodo reviewer config.
 - `qodo-cli whoami` — identity probe from `culture.yaml`.
 - `qodo-cli learn` — structured self-teaching prompt.
 - `qodo-cli explain <path>` — markdown docs for any noun/verb.
@@ -126,6 +127,34 @@ comment in one call.
 ## See also
 
 - `qodo-cli explain rules`
+- `docs/qodo-skills-sources.md` — the citation ledger
+"""
+
+_CONFIG = """\
+# qodo-cli config
+
+Manage the **repo-level** Qodo reviewer config — `.pr_agent.toml` (the Qodo Merge
+`[pr_reviewer]` section) and `best_practices.md`. These are the levers that make
+Qodo's reviews of *this* repo accurate: without them Qodo falls back to inferred
+conventions and raises false positives. Distinct from the *client*
+`~/.qodo/config.json` that `qodo rules` reads.
+
+`show` and `validate` are read-only; `init` scaffolds the two files when absent
+and never overwrites without `--force`. Read from the current git repo root
+(where Qodo reads its config). Cite-faithful to Qodo Merge's configuration docs.
+
+## Usage
+
+    qodo-cli config show
+    qodo-cli config validate          # exit 1 if invalid
+    qodo-cli config init [--force]
+    qodo-cli config overview
+    qodo-cli config show --json
+
+## See also
+
+- `qodo-cli explain review`
+- `qodo-cli explain doctor` — `doctor` also reports whether these files exist
 - `docs/qodo-skills-sources.md` — the citation ledger
 """
 
@@ -229,6 +258,11 @@ ENTRIES: dict[tuple[str, ...], str] = {
     ("review", "resolve"): _REVIEW,
     ("review", "overview"): _REVIEW,
     ("pr",): _REVIEW,  # `pr` is an alias for `review`
+    ("config",): _CONFIG,
+    ("config", "show"): _CONFIG,
+    ("config", "validate"): _CONFIG,
+    ("config", "init"): _CONFIG,
+    ("config", "overview"): _CONFIG,
     ("whoami",): _WHOAMI,
     ("learn",): _LEARN,
     ("explain",): _EXPLAIN,

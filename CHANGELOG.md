@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/). This project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-06-17
+
+### Added
+
+- `qodo config` — a new noun group to manage the **repo-level** Qodo reviewer
+  config (`.pr_agent.toml` + `best_practices.md`), distinct from the *client*
+  `~/.qodo/config.json` that `qodo rules` reads: (#7)
+  - `config show` — report presence, the parsed `.pr_agent.toml` sections, and
+    `best_practices.md` status (read-only).
+  - `config validate` — validate the config (valid TOML, a config present) and
+    exit 1 when invalid; warns (without failing) on a missing `[pr_reviewer]`
+    section or an empty `best_practices.md`. Emits the rubric-shaped
+    `{valid, checks: [...]}` in `--json`.
+  - `config init [--force]` — scaffold a minimal `.pr_agent.toml` +
+    `best_practices.md` when absent; never overwrites without `--force`.
+  - `config overview` — describe the noun (rubric-required).
+
+### Changed
+
+### Fixed
+
 ## [0.7.0] - 2026-06-17
 
 ### Added

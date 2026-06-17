@@ -28,6 +28,7 @@ _ARTIFACTS = [
 _VERBS = [
     'rules get "<query>" — semantic-search your org\'s Qodo rules',
     "review (a.k.a. pr) — triage & resolve the Qodo bot's PR review comments",
+    "config show|validate|init — manage the repo-level Qodo reviewer config",
     "whoami — identity probe (nick, version, backend, model)",
     "learn — structured self-teaching prompt",
     "explain <path> — markdown docs for a topic",
