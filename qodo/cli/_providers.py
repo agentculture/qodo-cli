@@ -504,6 +504,20 @@ def _repo_owner_name() -> tuple[str, str]:
     return owner, name
 
 
+def _parse_thread_node(node: dict[str, Any]) -> dict[str, Any]:
+    """One ``reviewThreads`` node → ``{id, resolved, comment_ids}``."""
+    comment_ids = {
+        c.get("databaseId")
+        for c in (node.get("comments") or {}).get("nodes") or []
+        if c.get("databaseId") is not None
+    }
+    return {
+        "id": node.get("id"),
+        "resolved": bool(node.get("isResolved")),
+        "comment_ids": comment_ids,
+    }
+
+
 def review_threads(pr_number: int) -> list[dict[str, Any]]:
     """All review threads on ``pr_number`` as ``{id, resolved, comment_ids}``.
 
@@ -531,19 +545,7 @@ def review_threads(pr_number: int) -> list[dict[str, Any]]:
         data = json.loads(_gh(*args) or "{}")
         pull = ((data.get("data") or {}).get("repository") or {}).get("pullRequest") or {}
         rt = pull.get("reviewThreads") or {}
-        for node in rt.get("nodes") or []:
-            comment_ids = {
-                c.get("databaseId")
-                for c in (node.get("comments") or {}).get("nodes") or []
-                if c.get("databaseId") is not None
-            }
-            threads.append(
-                {
-                    "id": node.get("id"),
-                    "resolved": bool(node.get("isResolved")),
-                    "comment_ids": comment_ids,
-                }
-            )
+        threads.extend(_parse_thread_node(node) for node in rt.get("nodes") or [])
         page = rt.get("pageInfo") or {}
         if page.get("hasNextPage") and page.get("endCursor"):
             cursor = page["endCursor"]
@@ -583,6 +585,11 @@ def resolve_review_thread(thread_id: str) -> None:
 
 # --- best-effort, per-action acknowledgement -------------------------------
 
+# Action labels shared across the GitHub + GitLab resolve paths — named so the
+# per-action records read consistently and the literal isn't duplicated.
+_ACT_RESOLVE_THREAD = "resolve thread"
+_ACT_LOOKUP_DISCUSSION = "lookup discussion"
+
 
 def _attempt(action: str, fn: Any) -> dict[str, Any]:
     """Run ``fn`` and record the outcome as ``{action, ok, detail}`` — never raises.
@@ -619,23 +626,23 @@ def _resolve_thread_action(
     try:
         thread_id, already = thread_for_comment(pr_number, comment_id, threads=threads)
     except CliError as err:
-        return {"action": "resolve thread", "ok": False, "detail": err.message}
+        return {"action": _ACT_RESOLVE_THREAD, "ok": False, "detail": err.message}
     except Exception as err:  # noqa: BLE001 - best-effort: never crash the batch on a thread lookup
         return {
-            "action": "resolve thread",
+            "action": _ACT_RESOLVE_THREAD,
             "ok": False,
             "detail": f"{err.__class__.__name__}: {err}",
         }
     if thread_id is None:
         return {
-            "action": "resolve thread",
+            "action": _ACT_RESOLVE_THREAD,
             "ok": True,
             "fallback": True,
             "detail": "no review thread for this comment; the +1 reaction stands as the marker",
         }
     if already:
-        return {"action": "resolve thread", "ok": True, "detail": "already resolved"}
-    return _attempt("resolve thread", lambda: resolve_review_thread(thread_id))
+        return {"action": _ACT_RESOLVE_THREAD, "ok": True, "detail": "already resolved"}
+    return _attempt(_ACT_RESOLVE_THREAD, lambda: resolve_review_thread(thread_id))
 
 
 def resolve_comment(
@@ -818,11 +825,11 @@ def gitlab_resolve_comment(
     try:
         disc_id, already = _gitlab_discussion_for_note(mr_iid, note_id, discussions=threads)
     except CliError as err:
-        return [{"action": "lookup discussion", "ok": False, "detail": err.message}]
+        return [{"action": _ACT_LOOKUP_DISCUSSION, "ok": False, "detail": err.message}]
     except Exception as err:  # noqa: BLE001 - best-effort: never crash the batch
         return [
             {
-                "action": "lookup discussion",
+                "action": _ACT_LOOKUP_DISCUSSION,
                 "ok": False,
                 "detail": f"{err.__class__.__name__}: {err}",
             }
@@ -830,7 +837,7 @@ def gitlab_resolve_comment(
     if disc_id is None:
         return [
             {
-                "action": "lookup discussion",
+                "action": _ACT_LOOKUP_DISCUSSION,
                 "ok": False,
                 "detail": "no discussion found for this note id",
             }
@@ -851,11 +858,13 @@ def gitlab_resolve_comment(
         )
     if resolve_thread:
         if already:
-            results.append({"action": "resolve thread", "ok": True, "detail": "already resolved"})
+            results.append(
+                {"action": _ACT_RESOLVE_THREAD, "ok": True, "detail": "already resolved"}
+            )
         else:
             results.append(
                 _attempt(
-                    "resolve thread",
+                    _ACT_RESOLVE_THREAD,
                     lambda: _glab(
                         "api",
                         f"projects/{proj}/merge_requests/{mr_iid}/discussions/{disc_id}",

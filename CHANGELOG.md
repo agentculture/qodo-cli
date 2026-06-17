@@ -24,6 +24,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Azure/Bitbucket/Gerrit still error with a clear "not wired yet". `review`
   dispatches find/fetch/resolve through a provider-aware seam
   (`find_pr` / `fetch_comments` / `resolve` / `prefetch_threads`). (#10)
+- Internal refactor to clear SonarCloud maintainability findings on the stack —
+  no behavior change: split the `config` render/validate/init handlers and
+  `review._select_targets` into focused helpers (cognitive complexity ≤ 15),
+  de-nested the validate mark ternary, extracted `_parse_thread_node`, and named
+  the shared resolve-action labels (`_ACT_RESOLVE_THREAD` /
+  `_ACT_LOOKUP_DISCUSSION`) to drop duplicated literals. (PR #12 review)
 
 ### Fixed
 

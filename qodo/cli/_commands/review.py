@@ -123,6 +123,31 @@ def _maybe_sign(args: argparse.Namespace) -> str | None:
     return f"{reply.rstrip()}\n\n{signature}"
 
 
+def _explicit_ids(raw: list[str]) -> list[int]:
+    """Parse explicit comment ids, raising a structured error on a non-integer."""
+    try:
+        return [int(c) for c in raw]
+    except ValueError as err:
+        raise CliError(
+            code=EXIT_USER_ERROR,
+            message=f"comment id must be an integer: {err}",
+            remediation="pass numeric inline review comment id(s)",
+        ) from err
+
+
+def _filtered_comment_ids(provider: str, pr_number: int, severity: str | None) -> list[int]:
+    """Inline Qodo comment ids on the PR, optionally filtered by severity."""
+    targets: list[int] = []
+    for comment in _providers.fetch_comments(provider, pr_number):
+        # only inline review comments are individually resolvable (summaries have no id)
+        if comment.get("kind") != "inline" or comment.get("id") is None:
+            continue
+        if severity and (comment.get("severity") or "").upper() != severity.upper():
+            continue
+        targets.append(int(comment["id"]))
+    return targets
+
+
 def _select_targets(args: argparse.Namespace, pr_number: int, provider: str) -> list[int]:
     """Resolve which inline comment ids to act on, from explicit ids or filters."""
     raw = list(getattr(args, "comment_id", None) or [])
@@ -135,29 +160,14 @@ def _select_targets(args: argparse.Namespace, pr_number: int, provider: str) -> 
             remediation="give explicit ids, or select with --all / --severity",
         )
     if raw:
-        try:
-            return [int(c) for c in raw]
-        except ValueError as err:
-            raise CliError(
-                code=EXIT_USER_ERROR,
-                message=f"comment id must be an integer: {err}",
-                remediation="pass numeric inline review comment id(s)",
-            ) from err
+        return _explicit_ids(raw)
     if not (use_all or severity):
         raise CliError(
             code=EXIT_USER_ERROR,
             message="no comment selected",
             remediation="give a comment id, or use --all / --severity to select inline comments",
         )
-    targets: list[int] = []
-    for comment in _providers.fetch_comments(provider, pr_number):
-        # only inline review comments are individually resolvable (summaries have no id)
-        if comment.get("kind") != "inline" or comment.get("id") is None:
-            continue
-        if severity and (comment.get("severity") or "").upper() != severity.upper():
-            continue
-        targets.append(int(comment["id"]))
-    return targets
+    return _filtered_comment_ids(provider, pr_number, severity)
 
 
 def _render_resolve(pr_number: int, items: list[dict]) -> str:

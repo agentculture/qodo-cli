@@ -104,26 +104,32 @@ def _inspect(repo_root: Path) -> dict[str, object]:
     }
 
 
+def _show_pr_agent_lines(pr_agent: dict[str, object]) -> list[str]:
+    if not pr_agent["present"]:
+        return [f"{_PR_AGENT_FILE}: absent"]
+    toml_ok = "valid" if pr_agent.get("valid_toml") else "INVALID TOML"
+    lines = [f"{_PR_AGENT_FILE}: present ({toml_ok})"]
+    if pr_agent.get("valid_toml"):
+        sections = ", ".join(pr_agent.get("sections") or []) or "(none)"
+        lines.append(f"  sections: {sections}")
+    return lines
+
+
+def _show_bp_line(bp: dict[str, object]) -> str:
+    if not bp["present"]:
+        return f"{_BEST_PRACTICES_FILE}: absent"
+    if bp.get("readable") is False:
+        return f"{_BEST_PRACTICES_FILE}: present, UNREADABLE ({bp.get('error')})"
+    empty = "" if bp.get("non_empty") else " (empty)"
+    return f"{_BEST_PRACTICES_FILE}: present, {bp.get('bytes')} bytes{empty}"
+
+
 def _render_show(info: dict[str, object]) -> str:
     pr_agent = info["pr_agent"]
     bp = info["best_practices"]
     lines = [f"# Qodo reviewer config — {info['repo_root']}", ""]
-    if pr_agent["present"]:
-        toml_ok = "valid" if pr_agent.get("valid_toml") else "INVALID TOML"
-        lines.append(f"{_PR_AGENT_FILE}: present ({toml_ok})")
-        if pr_agent.get("valid_toml"):
-            sections = ", ".join(pr_agent.get("sections") or []) or "(none)"
-            lines.append(f"  sections: {sections}")
-    else:
-        lines.append(f"{_PR_AGENT_FILE}: absent")
-    if bp["present"]:
-        if bp.get("readable") is False:
-            lines.append(f"{_BEST_PRACTICES_FILE}: present, UNREADABLE ({bp.get('error')})")
-        else:
-            empty = "" if bp.get("non_empty") else " (empty)"
-            lines.append(f"{_BEST_PRACTICES_FILE}: present, {bp.get('bytes')} bytes{empty}")
-    else:
-        lines.append(f"{_BEST_PRACTICES_FILE}: absent")
+    lines.extend(_show_pr_agent_lines(pr_agent))
+    lines.append(_show_bp_line(bp))
     if not pr_agent["present"] and not bp["present"]:
         lines.append("")
         lines.append("No reviewer config — run `qodo config init` to scaffold it.")
@@ -219,6 +225,21 @@ def _validation_checks(info: dict[str, object]) -> list[dict[str, object]]:
     return checks
 
 
+def _check_mark(check: dict[str, object]) -> str:
+    if check["ok"]:
+        return "ok"
+    return "FAIL" if check["severity"] == "error" else "warn"
+
+
+def _render_validate(valid: bool, checks: list[dict[str, object]]) -> str:
+    lines = [f"qodo config: {'valid' if valid else 'invalid'}", ""]
+    for check in checks:
+        lines.append(f"[{_check_mark(check)}] {check['id']}: {check['message']}")
+        if not check["ok"] and check["remediation"]:
+            lines.append(f"  hint: {check['remediation']}")
+    return "\n".join(lines)
+
+
 def cmd_config_validate(args: argparse.Namespace) -> int:
     checks = _validation_checks(_inspect(_repo_root(Path.cwd())))
     valid = all(c["ok"] for c in checks if c["severity"] == "error")
@@ -226,14 +247,50 @@ def cmd_config_validate(args: argparse.Namespace) -> int:
     if json_mode:
         emit_result({"valid": valid, "checks": checks}, json_mode=True)
     else:
-        lines = [f"qodo config: {'valid' if valid else 'invalid'}", ""]
-        for check in checks:
-            mark = "ok" if check["ok"] else ("FAIL" if check["severity"] == "error" else "warn")
-            lines.append(f"[{mark}] {check['id']}: {check['message']}")
-            if not check["ok"] and check["remediation"]:
-                lines.append(f"  hint: {check['remediation']}")
-        emit_result("\n".join(lines), json_mode=False)
+        emit_result(_render_validate(valid, checks), json_mode=False)
     return EXIT_SUCCESS if valid else EXIT_USER_ERROR
+
+
+def _plan_init_writes(
+    repo_root: Path, targets: dict[str, str], force: bool
+) -> tuple[list[tuple[str, str]], list[str]]:
+    """Classify each target into (to_write, skipped) *before* any write happens.
+
+    Raises ``CliError`` on a path we must not clobber (a symlink — which could
+    escape the repo root — or a non-regular path), so a refusal aborts the whole
+    init cleanly rather than leaving a half-scaffold.
+    """
+    skipped: list[str] = []
+    to_write: list[tuple[str, str]] = []
+    for name, content in targets.items():
+        path = repo_root / name
+        # `is_symlink()` catches broken symlinks that `exists()` (which follows
+        # links) misses; together they mean "something is already here".
+        occupied = path.is_symlink() or path.exists()
+        if occupied and not force:
+            skipped.append(name)
+            continue
+        if occupied and (path.is_symlink() or not path.is_file()):
+            kind = "symlink" if path.is_symlink() else "non-regular path"
+            raise CliError(
+                code=EXIT_USER_ERROR,
+                message=f"refusing to overwrite {name}: it is a {kind}, not a regular file",
+                remediation=f"remove {name} from {repo_root} by hand, then re-run "
+                "`qodo config init`",
+            )
+        to_write.append((name, content))
+    return to_write, skipped
+
+
+def _render_init(repo_root: Path, written: list[str], skipped: list[str]) -> str:
+    lines = [f"# Qodo reviewer config — {repo_root}", ""]
+    for name in written:
+        lines.append(f"wrote {name}")
+    for name in skipped:
+        lines.append(f"skipped {name} (exists; use --force to overwrite)")
+    if not written:
+        lines.append("nothing written — both files already exist (use --force to overwrite)")
+    return "\n".join(lines)
 
 
 def cmd_config_init(args: argparse.Namespace) -> int:
@@ -245,32 +302,7 @@ def cmd_config_init(args: argparse.Namespace) -> int:
         ),
         _BEST_PRACTICES_FILE: _BEST_PRACTICES_TEMPLATE.format(repo=repo_root.name),
     }
-    # Pre-scan every target before writing anything, so a refusal (symlink /
-    # non-regular path) aborts cleanly instead of leaving a half-scaffold.
-    skipped: list[str] = []
-    to_write: list[tuple[str, str]] = []
-    for name, content in targets.items():
-        path = repo_root / name
-        # Treat anything already at the path — a regular file, a directory, a
-        # FIFO, or a (possibly broken) symlink — as "exists". `is_symlink()`
-        # catches broken symlinks that `exists()` (which follows links) misses.
-        occupied = path.is_symlink() or path.exists()
-        if occupied and not force:
-            skipped.append(name)
-            continue
-        if occupied and (path.is_symlink() or not path.is_file()):
-            # --force overwrites a *regular* file in place. Refuse to write
-            # through a symlink (it could escape the repo root) or over a
-            # non-regular path (would crash on write); never silently follow it.
-            kind = "symlink" if path.is_symlink() else "non-regular path"
-            raise CliError(
-                code=EXIT_USER_ERROR,
-                message=f"refusing to overwrite {name}: it is a {kind}, not a regular file",
-                remediation=f"remove {name} from {repo_root} by hand, then re-run "
-                "`qodo config init`",
-            )
-        to_write.append((name, content))
-
+    to_write, skipped = _plan_init_writes(repo_root, targets, force)
     written: list[str] = []
     for name, content in to_write:
         (repo_root / name).write_text(content, encoding="utf-8")
@@ -283,14 +315,7 @@ def cmd_config_init(args: argparse.Namespace) -> int:
             json_mode=True,
         )
     else:
-        lines = [f"# Qodo reviewer config — {repo_root}", ""]
-        for name in written:
-            lines.append(f"wrote {name}")
-        for name in skipped:
-            lines.append(f"skipped {name} (exists; use --force to overwrite)")
-        if not written:
-            lines.append("nothing written — both files already exist (use --force to overwrite)")
-        emit_result("\n".join(lines), json_mode=False)
+        emit_result(_render_init(repo_root, written, skipped), json_mode=False)
     return EXIT_SUCCESS
 
 
