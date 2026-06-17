@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/). This project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-06-17
+
+### Added
+
+- **GitLab provider** for `qodo review` (via `glab`): find the open MR, list the
+  Qodo bot's notes across MR discussions (with the same parsed triage fields as
+  GitHub), reply, and resolve. GitLab's model is MR *discussions* (resolution is
+  at the discussion level — there is no `+1` marker, so resolving the discussion
+  *is* the acknowledgement). Implemented but **not live-tested** against a real
+  GitLab (we have none) — covered by mocked tests mirroring the GitHub ones, with
+  the `glab` REST shapes pinned in the citation ledger. (#10)
+
+### Changed
+
+- Generalized the provider gate: `require_provider` (supersedes the GitHub-only
+  `require_github` on the `review` surface) now allows **GitHub + GitLab**;
+  Azure/Bitbucket/Gerrit still error with a clear "not wired yet". `review`
+  dispatches find/fetch/resolve through a provider-aware seam
+  (`find_pr` / `fetch_comments` / `resolve` / `prefetch_threads`). (#10)
+
+### Fixed
+
 ## [0.8.1] - 2026-06-17
 
 ### Added

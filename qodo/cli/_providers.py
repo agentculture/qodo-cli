@@ -3,18 +3,18 @@
 Cites ``qodo-ai/qodo-skills`` ``qodo-pr-resolver`` as the behavioral source of
 truth: the provider detection, the Qodo bot identities, and the provider-CLI
 commands below mirror that skill's ``resources/providers.md`` and ``SKILL.md``.
-We drive the user's *existing* provider CLI (``gh``) — reusing its auth, adding
-no new credentials — rather than vendoring or forking the skill. See
-``docs/qodo-skills-sources.md`` for the provenance ledger.
+We drive the user's *existing* provider CLI (``gh`` / ``glab``) — reusing its
+auth, adding no new credentials — rather than vendoring or forking the skill.
+See ``docs/qodo-skills-sources.md`` for the provenance ledger.
 
-Scope of this slice: GitHub (``gh``) is wired end to end. Other detected
-providers (GitLab/Azure/Bitbucket/Gerrit) are recognised but raise a clear
-"not wired yet" error rather than silently misbehaving — the per-provider
-commands are captured in the provenance ledger as the follow-up map.
+Scope: GitHub (``gh``, incl. GitHub Enterprise) and GitLab (``glab``) are wired
+end to end. Azure/Bitbucket/Gerrit are recognised but :func:`require_provider`
+raises a clear "not wired yet" error rather than silently misbehaving — their
+per-provider commands are captured in the provenance ledger as the follow-up map.
 
-This module owns the deterministic mechanics — detect, find the PR, fetch and
-filter the Qodo bot's comments, reply, acknowledge. The *fixing* loop the skill
-performs (read files, generate a fix, edit, commit) is the calling agent's job.
+This module owns the deterministic mechanics — detect, find the PR/MR, fetch and
+filter the Qodo bot's comments, reply, acknowledge, resolve. The *fixing* loop
+the skill performs (read files, generate a fix, edit, commit) is the agent's job.
 """
 
 from __future__ import annotations
@@ -660,3 +660,239 @@ def resolve_comment(
     if resolve_thread:
         results.append(_resolve_thread_action(pr_number, comment_id, threads=threads))
     return results
+
+
+# --- GitLab (glab) ---------------------------------------------------------
+#
+# GitLab's review model differs from GitHub's: an MR *discussion* holds one or
+# more *notes*, and resolution is at the discussion level (not the individual
+# note). We mirror the GitHub surface — list the Qodo bot's notes (carrying the
+# parsed triage fields), and resolve = reply to + mark resolved the note's
+# discussion. Commands follow qodo-pr-resolver/resources/providers.md (the
+# `glab` column). IMPLEMENTED but NOT live-tested against a real GitLab (we have
+# none) — covered by mocked tests mirroring the GitHub ones; the `glab` REST
+# shapes are the documented contract. See docs/qodo-skills-sources.md.
+
+
+def _glab(*args: str) -> str:
+    return _run([require_tool("glab"), *args])
+
+
+def _gitlab_project() -> str:
+    """URL-encoded GitLab project path (``namespace/repo``) from the origin remote."""
+    from qodo.cli._qodo_api import repo_slug  # pure helper; reuse-don't-duplicate
+
+    path = repo_slug(remote_url())
+    if not path:
+        raise CliError(
+            code=EXIT_ENV_ERROR,
+            message="could not resolve the GitLab project from 'origin'",
+            remediation="ensure 'origin' points at a GitLab project (namespace/repo)",
+        )
+    return urllib.parse.quote(path, safe="")
+
+
+def gitlab_find_open_pr(branch: str) -> dict[str, Any] | None:
+    """Return the open GitLab MR for ``branch`` (``{number(iid), title, url}``) or None."""
+    proj = _gitlab_project()
+    out = _glab(
+        "api",
+        f"projects/{proj}/merge_requests"
+        f"?source_branch={urllib.parse.quote(branch)}&state=opened",
+    )
+    items = json.loads(out or "[]")
+    if not items:
+        return None
+    mr = items[0]
+    return {"number": mr.get("iid"), "title": mr.get("title", ""), "url": mr.get("web_url", "")}
+
+
+def _normalize_gitlab_note(discussion: dict[str, Any], note: dict[str, Any]) -> dict[str, Any]:
+    body = note.get("body", "")
+    parsed = _parse_body(body)
+    position = note.get("position") or {}
+    return {
+        "id": note.get("id"),
+        "discussion_id": discussion.get("id"),
+        "kind": "inline" if position else "summary",
+        "author": (note.get("author") or {}).get("username", ""),
+        "title": _title(body),
+        "severity": parsed["severity"],
+        "type": parsed["type"],
+        "categories": parsed["categories"],
+        "description": parsed["description"],
+        "agent_prompt": parsed["agent_prompt"],
+        "body": body,
+        "path": position.get("new_path"),
+        "line": position.get("new_line"),
+        "url": None,  # not present in the discussions payload
+    }
+
+
+def gitlab_fetch_qodo_comments(mr_iid: int) -> list[dict[str, Any]]:
+    """Fetch the Qodo bot's notes on MR ``mr_iid`` (GitLab), across discussions."""
+    proj = _gitlab_project()
+    raw = _glab(
+        "api",
+        f"projects/{proj}/merge_requests/{mr_iid}/discussions?per_page=100",
+        "--paginate",
+    )
+    collected: list[dict[str, Any]] = []
+    for discussion in json.loads(raw or "[]"):
+        for note in discussion.get("notes") or []:
+            if note.get("system"):
+                continue  # skip GitLab's automated system notes
+            if _is_qodo((note.get("author") or {}).get("username", "")):
+                collected.append(_normalize_gitlab_note(discussion, note))
+    return _dedup(collected)
+
+
+def _gitlab_discussion_for_note(proj: str, mr_iid: int, note_id: int) -> tuple[str | None, bool]:
+    """Map a note id to its ``(discussion_id, already_resolved)`` (or ``(None, False)``)."""
+    raw = _glab(
+        "api",
+        f"projects/{proj}/merge_requests/{mr_iid}/discussions?per_page=100",
+        "--paginate",
+    )
+    for discussion in json.loads(raw or "[]"):
+        for note in discussion.get("notes") or []:
+            if note.get("id") == note_id:
+                return discussion.get("id"), bool(note.get("resolved"))
+    return None, False
+
+
+def gitlab_resolve_comment(
+    mr_iid: int,
+    note_id: int,
+    *,
+    reply: str | None = None,
+    resolve_thread: bool = True,
+    threads: list[dict[str, Any]] | None = None,  # unused (GitHub-only); keeps the unified shape
+) -> list[dict[str, Any]]:
+    """Reply to (optional) and resolve the GitLab discussion holding ``note_id``.
+
+    Best-effort and non-raising per action (same contract as the GitHub path).
+    GitLab acknowledges by resolving the *discussion* (there is no ``+1`` marker),
+    so ``resolve_thread`` controls the resolve; ``threads`` is ignored.
+    """
+    proj = _gitlab_project()
+    results: list[dict[str, Any]] = []
+    try:
+        disc_id, already = _gitlab_discussion_for_note(proj, mr_iid, note_id)
+    except CliError as err:
+        return [{"action": "lookup discussion", "ok": False, "detail": err.message}]
+    except Exception as err:  # noqa: BLE001 - best-effort: never crash the batch
+        return [
+            {
+                "action": "lookup discussion",
+                "ok": False,
+                "detail": f"{err.__class__.__name__}: {err}",
+            }
+        ]
+    if disc_id is None:
+        return [
+            {
+                "action": "lookup discussion",
+                "ok": False,
+                "detail": "no discussion found for this note id",
+            }
+        ]
+    if reply:
+        results.append(
+            _attempt(
+                "reply",
+                lambda: _glab(
+                    "api",
+                    f"projects/{proj}/merge_requests/{mr_iid}/discussions/{disc_id}/notes",
+                    "-X",
+                    "POST",
+                    "-f",
+                    f"body={reply}",
+                ),
+            )
+        )
+    if resolve_thread:
+        if already:
+            results.append({"action": "resolve thread", "ok": True, "detail": "already resolved"})
+        else:
+            results.append(
+                _attempt(
+                    "resolve thread",
+                    lambda: _glab(
+                        "api",
+                        f"projects/{proj}/merge_requests/{mr_iid}/discussions/{disc_id}",
+                        "-X",
+                        "PUT",
+                        "-f",
+                        "resolved=true",
+                    ),
+                )
+            )
+    return results
+
+
+# --- provider gate + dispatch ----------------------------------------------
+
+_SUPPORTED_PROVIDERS = ("github", "gitlab")
+
+
+def require_provider(provider: str) -> None:
+    """Generalized provider gate: allow the wired providers, error clearly otherwise.
+
+    Supersedes the GitHub-only :func:`require_github` for the ``review`` surface
+    now that GitLab is wired. Azure/Bitbucket/Gerrit remain tracked follow-ups.
+    """
+    if provider in _SUPPORTED_PROVIDERS:
+        return
+    if provider == "unknown":
+        raise CliError(
+            code=EXIT_ENV_ERROR,
+            message="could not identify the git provider from 'origin'",
+            remediation="point 'origin' at GitHub (incl. a GHE host you've run "
+            "`gh auth login` for) or GitLab",
+        )
+    raise CliError(
+        code=EXIT_ENV_ERROR,
+        message=f"provider '{provider}' is not wired yet — supported: GitHub (gh), GitLab (glab)",
+        remediation="use a GitHub or GitLab remote; azure/bitbucket/gerrit are tracked follow-ups",
+    )
+
+
+def find_pr(provider: str, branch: str) -> dict[str, Any] | None:
+    """Find the open PR/MR for ``branch`` on ``provider``."""
+    if provider == "gitlab":
+        return gitlab_find_open_pr(branch)
+    return find_open_pr(branch)
+
+
+def fetch_comments(provider: str, pr_number: int) -> list[dict[str, Any]]:
+    """Fetch the Qodo bot's comments on ``pr_number`` for ``provider``."""
+    if provider == "gitlab":
+        return gitlab_fetch_qodo_comments(pr_number)
+    return fetch_qodo_comments(pr_number)
+
+
+def prefetch_threads(provider: str, pr_number: int) -> list[dict[str, Any]] | None:
+    """Pre-fetch the review threads for a batch resolve (GitHub only; None elsewhere)."""
+    if provider == "github":
+        return review_threads(pr_number)
+    return None
+
+
+def resolve(
+    provider: str,
+    pr_number: int,
+    comment_id: int,
+    *,
+    reply: str | None = None,
+    resolve_thread: bool = True,
+    threads: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    """Reply to / acknowledge / resolve a comment on ``provider`` (best-effort)."""
+    if provider == "gitlab":
+        return gitlab_resolve_comment(
+            pr_number, comment_id, reply=reply, resolve_thread=resolve_thread, threads=threads
+        )
+    return resolve_comment(
+        pr_number, comment_id, reply=reply, resolve_thread=resolve_thread, threads=threads
+    )
