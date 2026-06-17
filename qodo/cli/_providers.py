@@ -610,9 +610,11 @@ def _resolve_thread_action(
     """Map the comment to its review thread and resolve it (best-effort).
 
     Falls back gracefully: if no thread is found, the ``+1`` reaction already
-    posted stands as the marker and this is reported (``ok=False``) rather than
-    raised. An already-resolved thread is a no-op success. ``threads`` may be a
-    pre-fetched thread pool to avoid re-fetching per comment.
+    posted stands as the marker. That documented reaction-only fallback is a
+    *success* (``ok=True`` with ``fallback=True``), not a failure — so it does
+    not flip the batch exit code; only a genuine thread-resolve error reports
+    ``ok=False``. An already-resolved thread is a no-op success. ``threads`` may
+    be a pre-fetched thread pool to avoid re-fetching per comment.
     """
     try:
         thread_id, already = thread_for_comment(pr_number, comment_id, threads=threads)
@@ -627,8 +629,9 @@ def _resolve_thread_action(
     if thread_id is None:
         return {
             "action": "resolve thread",
-            "ok": False,
-            "detail": "no review thread for this comment (the +1 reaction stands as the marker)",
+            "ok": True,
+            "fallback": True,
+            "detail": "no review thread for this comment; the +1 reaction stands as the marker",
         }
     if already:
         return {"action": "resolve thread", "ok": True, "detail": "already resolved"}

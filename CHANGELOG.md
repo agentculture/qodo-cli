@@ -62,6 +62,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   remote.** A URL like `https://host/org/repo.git/` now correctly yields
   `org/repo` (the path is stripped of surrounding slashes *before* the `.git`
   suffix), not `org/repo.git`. (#9, PR #13 review)
+- **`review resolve`'s reaction-only fallback no longer flips the exit code.**
+  When no GitHub review thread maps to a comment, the `+1` reaction stands as the
+  acknowledgement marker; that documented fallback is now reported `ok=True` with
+  `fallback: true` (instead of `ok=False`), so `review resolve --all` exits 0 when
+  every actionable step succeeded. A genuine thread-resolve error still reports
+  `ok=False`. (GitLab is unchanged — it has no `+1` marker, so a missing discussion
+  is a real failure there.) (#3–#6, PR #12 review)
+- **`review resolve --severity` rejects an invalid value instead of silently
+  resolving nothing.** A typo like `--severity HGIH` now fails at parse time with a
+  structured `error:`/`hint:` (exit 1) rather than matching no comments and exiting
+  0. Stays case-insensitive (`high` → `HIGH`). (#3–#6, PR #12 review)
 
 ## [0.8.1] - 2026-06-17
 

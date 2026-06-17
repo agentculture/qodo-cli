@@ -494,7 +494,9 @@ def test_resolve_comment_resolves_thread_via_graphql() -> None:
 
 
 def test_resolve_comment_thread_fallback_when_no_thread() -> None:
-    # No thread matches the comment -> reaction stands, reported ok=False (not raised).
+    # No thread matches the comment -> the +1 reaction stands as the marker. The
+    # documented reaction-only fallback is a SUCCESS (ok=True, fallback=True), so
+    # it does not flip the batch exit code; only a real resolve error is ok=False.
     def fake_gh(*args: str) -> str:
         if args[:2] == ("repo", "view"):
             return json.dumps({"owner": {"login": "o"}, "name": "r"})
@@ -505,8 +507,32 @@ def test_resolve_comment_thread_fallback_when_no_thread() -> None:
     with mock.patch("qodo.cli._providers._gh", side_effect=fake_gh):
         actions = _providers.resolve_comment(5, 222, resolve_thread=True)
     thread_action = next(a for a in actions if a["action"] == "resolve thread")
-    assert thread_action["ok"] is False
+    assert thread_action["ok"] is True
+    assert thread_action["fallback"] is True
     assert "no review thread" in thread_action["detail"]
+
+
+def test_resolve_no_thread_fallback_keeps_exit_zero(capsys: pytest.CaptureFixture[str]) -> None:
+    # End-to-end: a comment whose thread doesn't map must still exit 0 when the
+    # +1 reaction succeeded (the reaction-only fallback), not exit 1.
+    canned = [{"id": 222, "kind": "inline", "severity": "HIGH", "title": "x"}]
+
+    def fake_gh(*args: str) -> str:
+        if args[:2] == ("repo", "view"):
+            return json.dumps({"owner": {"login": "o"}, "name": "r"})
+        if args[:2] == ("api", "graphql"):
+            return _threads_payload()  # 222 is NOT in any thread
+        return ""
+
+    with (
+        mock.patch("qodo.cli._providers.remote_url", return_value=_GH_URL),
+        mock.patch("qodo.cli._providers.fetch_qodo_comments", return_value=canned),
+        mock.patch("qodo.cli._providers._gh", side_effect=fake_gh),
+    ):
+        rc = main(["review", "resolve", "222", "--pr", "5", "--json"])
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["ok"] is True
 
 
 # --- the `review` / `pr` command surface -----------------------------------
@@ -709,6 +735,18 @@ def test_review_resolve_severity_filter(capsys: pytest.CaptureFixture[str]) -> N
         rc = main(["review", "resolve", "--severity", "high", "--pr", "5"])
     assert rc == 0
     assert resolved_ids == [11]  # case-insensitive severity match
+
+
+def test_review_resolve_invalid_severity_rejected(capsys: pytest.CaptureFixture[str]) -> None:
+    # A typo'd --severity must fail loudly at parse time (structured error, exit 1),
+    # NOT silently select nothing and exit 0.
+    with pytest.raises(SystemExit) as exc:
+        main(["review", "resolve", "--severity", "HGIH", "--pr", "5"])
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert err.startswith("error:")
+    assert "invalid severity" in err
+    assert "hint:" in err
 
 
 def test_review_resolve_rejects_ids_and_all() -> None:

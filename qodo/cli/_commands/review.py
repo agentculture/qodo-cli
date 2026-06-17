@@ -19,6 +19,24 @@ from qodo.cli._commands.whoami import read_agent_fields
 from qodo.cli._errors import EXIT_SUCCESS, EXIT_USER_ERROR, CliError
 from qodo.cli._output import add_json_flag, emit_result
 
+# The inline-comment severities parsed from the Qodo badge (see _providers._severity).
+_SEVERITIES = ("HIGH", "MEDIUM", "LOW")
+
+
+def _severity_arg(value: str) -> str:
+    """Argparse ``type`` for ``--severity``: normalise to upper-case and validate.
+
+    Rejecting a typo at parse time (rather than silently selecting nothing and
+    exiting 0) is the fix for the “``--severity HGIH`` resolves nothing yet
+    succeeds” footgun. Stays case-insensitive — ``high`` is accepted as ``HIGH``.
+    """
+    norm = value.strip().upper()
+    if norm not in _SEVERITIES:
+        raise argparse.ArgumentTypeError(
+            f"invalid severity {value!r}; choose from {', '.join(_SEVERITIES)} (case-insensitive)"
+        )
+    return norm
+
 
 def _resolve_pr_number(args: argparse.Namespace, provider: str) -> tuple[int, dict | None]:
     """Return ``(pr_number, pr_record)``; honour an explicit ``--pr`` override."""
@@ -256,7 +274,8 @@ def register(sub: argparse._SubParsersAction) -> None:
     )
     resolvep.add_argument(
         "--severity",
-        help="Only resolve inline comments of this severity (HIGH/MEDIUM/LOW).",
+        type=_severity_arg,
+        help="Only resolve inline comments of this severity (HIGH/MEDIUM/LOW; case-insensitive).",
     )
     resolvep.add_argument("--reply", help="Optional reply body to post before acknowledging.")
     resolvep.add_argument(
