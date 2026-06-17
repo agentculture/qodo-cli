@@ -229,12 +229,12 @@ _DEFAULT_SEVERITY = "LOW"
 _BADGE_ALT_RE = re.compile(r'<img\b[^>]*?\balt="([^"]*)"', re.IGNORECASE)
 _CHIP_RE = re.compile(r"<code>(.*?)</code>", re.IGNORECASE | re.DOTALL)
 _PRE_RE = re.compile(r"<pre>(.*?)</pre>", re.IGNORECASE | re.DOTALL)
-_AGENT_PROMPT_RE = re.compile(
-    r"<summary>\s*(?:<strong>)?\s*Agent Prompt.*?```(.*?)```",
-    re.IGNORECASE | re.DOTALL,
-)
 # A leading emoji/symbol (+ following space) on a chip, e.g. "📘 Rule violation".
 _LEAD_SYMBOL_RE = re.compile(r"^[^\w]+")
+# The "Agent Prompt" block is scanned with plain string ops, not a regex: two
+# lazy quantifiers around a ``` fence is a ReDoS footgun (Sonar python:S5852).
+_AGENT_PROMPT_MARKER = "agent prompt"
+_FENCE = "```"
 
 
 def _first_prose_line(body: str) -> str:
@@ -305,12 +305,24 @@ def _description(body: str) -> str | None:
 
 
 def _agent_prompt(body: str) -> str | None:
-    """The fenced remediation block under the "Agent Prompt" ``<details>``."""
-    match = _AGENT_PROMPT_RE.search(body or "")
-    if match is None:
+    """The fenced remediation block under the "Agent Prompt" ``<details>``.
+
+    Scanned with plain ``str.find`` (linear time) rather than a regex with two
+    lazy quantifiers around the ``` fence, which is a catastrophic-backtracking
+    risk (Sonar python:S5852).
+    """
+    text = body or ""
+    marker = text.lower().find(_AGENT_PROMPT_MARKER)
+    if marker == -1:
         return None
-    text = html.unescape(match.group(1)).strip()
-    return text or None
+    open_fence = text.find(_FENCE, marker)
+    if open_fence == -1:
+        return None
+    start = open_fence + len(_FENCE)
+    close_fence = text.find(_FENCE, start)
+    if close_fence == -1:
+        return None
+    return html.unescape(text[start:close_fence]).strip() or None
 
 
 def _parse_body(body: str) -> dict[str, Any]:
