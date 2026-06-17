@@ -1,6 +1,6 @@
 [project]
 name = "qodo-cli"
-version = "0.9.0"
+version = "0.9.1"
 description = "Community CLI and agent to manage Qodo — the AI code reviewer and Qodo's other agents (requires a Qodo subscription). Unofficial: not affiliated with, authorized, or endorsed by Qodo; the Qodo name and trademark belong to Qodo Ltd."
 readme = "README.md"
 license = "MIT"
