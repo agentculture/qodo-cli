@@ -88,14 +88,16 @@ _REVIEW = """\
 
 Triage the Qodo bot's review comments on the current branch's PR. Native
 reimplementation of `qodo-ai/qodo-skills` `qodo-pr-resolver` (cited, not
-vendored): it drives your existing provider CLI (`gh`) to find the open PR, list
-the comments authored by a Qodo bot (`qodo-code-review`, `qodo-merge`,
-`qodo-ai`, `pr-agent-pro`), and reply to / acknowledge them. Reuses your
-provider-CLI auth — no new credentials.
+vendored): it drives your existing provider CLI (`gh` / `glab`) to find the open
+PR/MR, list the comments authored by a Qodo bot (`qodo-code-review`,
+`qodo-merge`, `qodo-ai`, `pr-agent-pro`), and reply to / acknowledge / resolve
+them. Reuses your provider-CLI auth — no new credentials.
 
-GitHub — including GitHub Enterprise, recognised via your `gh` host config — is
-wired; GitLab/Azure/Bitbucket are recognised but deferred (see the citation
-ledger). The code-fixing loop stays with the calling agent — this surface is the
+GitHub (incl. GitHub Enterprise via your `gh` host config) and GitLab (via
+`glab`) are wired; Azure/Bitbucket/Gerrit are recognised but deferred (see the
+citation ledger). On GitLab the resolvable unit is the MR *discussion*: `resolve`
+replies to and marks the note's discussion resolved (GitLab has no `+1` marker).
+The code-fixing loop stays with the calling agent — this surface is the
 deterministic detect/list/reply/acknowledge/resolve slice.
 
 `review list` parses each comment body into structured triage fields —

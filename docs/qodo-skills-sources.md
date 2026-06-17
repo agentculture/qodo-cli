@@ -102,14 +102,25 @@ calling agent — which keeps the CLI zero-dependency and model-agnostic.
   any other badge → `LOW`, no badge → `null`. Parsing is best-effort; an
   unrecognised body degrades to title-only with `null` fields.
 
+- **GitLab (wired now), via `glab`:** GitLab's model is MR **discussions** (each
+  holds one or more **notes**); resolution is at the discussion level (no `+1`
+  marker — resolving the discussion *is* the acknowledgement). The project path
+  is the `namespace/repo` slug from `origin`, URL-encoded for the API.
+  - find MR: `glab api "projects/<proj>/merge_requests?source_branch=<branch>&state=opened"`
+  - notes: `glab api "projects/<proj>/merge_requests/<iid>/discussions?per_page=100" --paginate`
+    (keep notes whose `author.username` is a Qodo bot; skip `system` notes)
+  - reply: `glab api projects/<proj>/merge_requests/<iid>/discussions/<disc>/notes -X POST -f body=<text>`
+  - resolve: `glab api projects/<proj>/merge_requests/<iid>/discussions/<disc> -X PUT -f resolved=true`
+  - **Implemented but NOT live-tested** against a real GitLab (we have none);
+    covered by mocked tests mirroring the GitHub ones (the `glab` REST shapes
+    above are the contract). The provider gate (`require_provider`) now allows
+    `github` + `gitlab`.
+
 ### Follow-up providers (recognised, not yet wired)
 
 These are captured from `resources/providers.md` so wiring them is a lookup, not
 a re-investigation. Today the CLI raises a clear "not wired yet" error for them.
 
-- **GitLab (`glab`):** find `glab mr list --source-branch <branch>`; fetch
-  `glab mr view <iid> --comments`; reply / resolve via
-  `glab api /projects/:id/merge_requests/<iid>/discussions/...`.
 - **Azure DevOps (`az`):** find `az repos pr list --source-branch <branch> --status active`;
   fetch / reply / resolve via `az devops invoke --resource pullRequestThreads`.
 - **Bitbucket (`curl`):** REST under
