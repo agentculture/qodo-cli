@@ -41,10 +41,13 @@ Expected: relevance-ranked rules with `ERROR` / `WARNING` / `RECOMMENDATION`
 severities; `--json` carries `scopes` (the auto-detected `org/repo`, or `null`
 under `--no-scope`); a missing key exits `2` with a `hint:` and never prompts.
 
-Opt-in smoke (runs only when the key is set):
+Opt-in smoke (runs only when explicitly enabled — `QODO_LIVE_SMOKE` gates it so a
+shell that merely exports `QODO_API_KEY` for real `qodo rules` use never fires a
+network call during a normal `pytest` run):
 
 ```bash
-QODO_API_KEY=… uv run pytest tests/test_contracts.py::test_live_rules_search_smoke -v
+QODO_LIVE_SMOKE=1 QODO_API_KEY=… \
+  uv run pytest tests/test_contracts.py::test_live_rules_search_smoke -v
 ```
 
 ## 3. `qodo review` against a real GitHub Enterprise host
@@ -73,10 +76,12 @@ Expected: the reply posts, the `+1` reaction lands, and the GitHub review thread
 is marked resolved (via the GraphQL `resolveReviewThread` mutation); a comment
 with no mappable thread falls back to reaction-only and is reported, not failed.
 
-Opt-in smoke (runs only when the remote is provided):
+Opt-in smoke (runs only when opted in *and* `gh` is authenticated to the host —
+otherwise it skips cleanly rather than failing on a `gh`-less / unauthenticated
+box):
 
 ```bash
-QODO_CLI_GHE_REMOTE=git@ghe.your-company.com:org/repo.git \
+QODO_LIVE_SMOKE=1 QODO_CLI_GHE_REMOTE=git@ghe.your-company.com:org/repo.git \
   uv run pytest tests/test_contracts.py::test_live_ghe_resolves_to_github -v
 ```
 

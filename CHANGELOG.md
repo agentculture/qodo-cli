@@ -33,6 +33,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   hard-failed as `unknown` when `glab auth status --hostname <host>` recognises
   it — it resolves to `gitlab`. `gh` is consulted first (a host both CLIs know
   resolves to `github`). Mocked-only, like the GHE path. (#10, PR #16 review)
+- **Live smokes are now explicitly opt-in and skip (don't fail) when their
+  prerequisites are missing.** Both `test_contracts.py` smokes require a
+  deliberate `QODO_LIVE_SMOKE=1` switch, so a shell that merely exports
+  `QODO_API_KEY` for real `qodo rules` use no longer fires a network call during
+  a normal `pytest` run. The GHE smoke additionally gates on `gh` being present
+  and authenticated to the remote's host (`gh_knows_host`), so a `gh`-less or
+  unauthenticated box *skips* rather than failing on `resolve_provider → unknown`.
+  (#8, PR #15 review)
 
 ## [0.8.1] - 2026-06-17
 

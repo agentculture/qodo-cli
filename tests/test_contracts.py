@@ -96,14 +96,50 @@ def test_rules_search_tolerates_missing_rules_key(monkeypatch: pytest.MonkeyPatc
 
 
 # --- opt-in live smokes (skipped by default) -------------------------------
+#
+# Live smokes are gated on an explicit opt-in switch, *not* merely on the
+# presence of credentials. A qodo-cli developer almost always exports
+# ``QODO_API_KEY`` so real ``qodo rules`` works, so gating only on the key would
+# fire a real network call during every ``pytest`` run in that shell —
+# non-deterministic and flaky. ``QODO_LIVE_SMOKE`` is the deliberate switch.
+
+
+def _live_smoke_opt_in() -> bool:
+    """True only when live smokes are explicitly requested via ``QODO_LIVE_SMOKE``.
+
+    Treats unset / ``""`` / ``0`` / ``false`` / ``no`` as off so a stray export
+    doesn't enable network calls.
+    """
+    return os.environ.get("QODO_LIVE_SMOKE", "").strip().lower() not in (
+        "",
+        "0",
+        "false",
+        "no",
+    )
+
+
+def _ghe_smoke_ready() -> bool:
+    """True only when the GHE smoke's *full* prerequisites are met.
+
+    ``resolve_provider()`` shells out to ``gh`` (``gh auth status --hostname``),
+    so without ``gh`` on PATH and authenticated to the remote's host the test
+    would *fail* (resolution → ``"unknown"``) rather than skip. Gate on the
+    whole chain — opt-in, remote set, and ``gh`` actually able to drive the host
+    — so an unprepared environment skips cleanly instead of erroring.
+    """
+    if not _live_smoke_opt_in():
+        return False
+    url = os.environ.get("QODO_CLI_GHE_REMOTE", "")
+    host = _providers._host_from_remote(url)
+    return bool(host and _providers.gh_knows_host(host))
 
 
 @pytest.mark.skipif(
-    not os.environ.get("QODO_API_KEY"),
-    reason="live smoke: set QODO_API_KEY to hit the real Qodo /rules/search",
+    not (_live_smoke_opt_in() and os.environ.get("QODO_API_KEY")),
+    reason="live smoke: set QODO_LIVE_SMOKE=1 and QODO_API_KEY to hit the real Qodo /rules/search",
 )
 def test_live_rules_search_smoke() -> None:
-    """Hits the real Qodo rules API (only when QODO_API_KEY is set)."""
+    """Hits the real Qodo rules API (only when explicitly opted in via QODO_LIVE_SMOKE)."""
     rules = _qodo_api.search_rules("validate user input", top_k=1)
     assert isinstance(rules, list)
     for rule in rules:
@@ -111,8 +147,9 @@ def test_live_rules_search_smoke() -> None:
 
 
 @pytest.mark.skipif(
-    not os.environ.get("QODO_CLI_GHE_REMOTE"),
-    reason="live smoke: set QODO_CLI_GHE_REMOTE to a real GitHub Enterprise origin URL",
+    not _ghe_smoke_ready(),
+    reason="live smoke: set QODO_LIVE_SMOKE=1 + QODO_CLI_GHE_REMOTE to a GHE origin URL "
+    "that `gh` is authenticated to",
 )
 def test_live_ghe_resolves_to_github() -> None:
     """A real GHE remote (that `gh` is authenticated to) resolves to `github`."""
