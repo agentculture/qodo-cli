@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/). This project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1] - 2026-06-17
+
+### Added
+
+- `tests/test_contracts.py` + `tests/fixtures/rules_search_response.json` — an
+  **offline contract test** that pins the Qodo `/rules/search` response shape
+  (relevance order, the `{id, name, content, severity}` fields, severities within
+  the known set, unknown extra fields passing through), so the parser is verified
+  without a Qodo subscription in CI. (#8)
+- **Opt-in live smokes** (skipped by default): `test_live_rules_search_smoke`
+  (runs when `QODO_API_KEY` is set) and `test_live_ghe_resolves_to_github` (runs
+  when `QODO_CLI_GHE_REMOTE` points at a real GitHub Enterprise origin). (#8)
+- `docs/manual-verification.md` — a manual checklist for the paths that need a
+  real system to exercise (live `qodo rules`, GitHub Enterprise resolution, the
+  non-GitHub provider gate), cross-referenced from the citation ledger. (#8)
+
+### Changed
+
+### Fixed
+
 ## [0.8.0] - 2026-06-17
 
 ### Added

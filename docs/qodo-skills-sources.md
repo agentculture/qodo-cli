@@ -130,11 +130,22 @@ to skip), falling back to reaction-only when no thread maps to the comment.
 - `qodo rules` does not implement an interactive login — it reuses existing
   credentials and errors when they are absent.
 
+## Verifying the contracts
+
+The `/rules/search` response shape is pinned by an **offline contract test**
+(`tests/test_contracts.py`) against a recorded fixture
+(`tests/fixtures/rules_search_response.json`). Paths that need a real system to
+exercise — `qodo rules` against the live API, and GitHub Enterprise provider
+resolution — have **opt-in live smokes** (gated on `QODO_API_KEY` /
+`QODO_CLI_GHE_REMOTE`, skipped by default) plus a manual checklist in
+`docs/manual-verification.md`.
+
 ## Re-sync procedure
 
 1. Re-fetch the upstream `SKILL.md` and the `references/` / `resources/` files
    listed in the verb↔skill map above.
 2. Diff the resolved contract in this file against them (endpoint, headers,
    request/response schema, bot logins, provider commands).
-3. Update `qodo/cli/_qodo_api.py` / `qodo/cli/_providers.py` and this ledger
+3. Update `qodo/cli/_qodo_api.py` / `qodo/cli/_providers.py`, the contract
+   fixture (`tests/fixtures/rules_search_response.json`), and this ledger
    together, then bump the version.
