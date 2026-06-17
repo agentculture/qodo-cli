@@ -26,11 +26,16 @@ from typing import Any
 
 from qodo.cli._errors import EXIT_ENV_ERROR, CliError
 
-# Cited from qodo-pr-resolver/SKILL.md — the logins the Qodo reviewer posts under.
+# Logins the Qodo reviewer posts under, stored as **base names** (no `[bot]`
+# suffix). Cited from qodo-pr-resolver/SKILL.md (qodo-merge, qodo-ai,
+# pr-agent-pro[-staging]) plus `qodo-code-review`, observed live on GitHub.
+# Why base names: `gh pr view --json comments` returns the login WITHOUT `[bot]`
+# while `gh api` returns it WITH `[bot]` — _is_qodo() normalises before matching.
 QODO_BOT_LOGINS = frozenset(
     {
-        "qodo-merge[bot]",
-        "qodo-ai[bot]",
+        "qodo-code-review",
+        "qodo-merge",
+        "qodo-ai",
         "pr-agent-pro",
         "pr-agent-pro-staging",
     }
@@ -127,7 +132,8 @@ def find_open_pr(branch: str) -> dict[str, Any] | None:
 
 
 def _is_qodo(login: str) -> bool:
-    return login in QODO_BOT_LOGINS
+    # Normalise the `[bot]` suffix gh's two surfaces disagree on (see above).
+    return (login or "").removesuffix("[bot]") in QODO_BOT_LOGINS
 
 
 def _title(body: str) -> str:
@@ -170,7 +176,14 @@ def _normalize_inline(comment: dict[str, Any]) -> dict[str, Any]:
 
 
 def _dedup(comments: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Merge duplicate issues by title, preferring inline (located) over summary."""
+    """Merge duplicate issues by title, preferring inline (located) over summary.
+
+    Dedup key is the lowercased title, mirroring qodo-pr-resolver's "match by
+    title". Trade-off: near-but-not-equal titles (e.g. "SQL injection risk" vs
+    "SQL injection vulnerability") will NOT collapse, and two genuinely distinct
+    issues that happen to share a title WILL — we accept that over fuzzy matching
+    to stay deterministic and dependency-free.
+    """
     by_title: dict[str, dict[str, Any]] = {}
     for comment in comments:
         key = comment["title"].lower()

@@ -25,7 +25,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from qodo.cli._errors import EXIT_ENV_ERROR, CliError
+from qodo.cli._errors import EXIT_ENV_ERROR, EXIT_USER_ERROR, CliError
 
 # Cited from qodo-get-rules/references/search-endpoint.md + output-format.md.
 DEFAULT_TOP_K = 20
@@ -125,6 +125,12 @@ def search_rules(
     of :data:`SEVERITIES`. Raises :class:`CliError` (exit 2) on a missing key,
     network failure, or non-2xx response.
     """
+    if top_k <= 0:
+        raise CliError(
+            code=EXIT_USER_ERROR,
+            message=f"--top-k must be a positive integer, got {top_k}",
+            remediation="pass --top-k with a value >= 1",
+        )
     cfg = load_qodo_config() if config is None else config
     api_key = resolve_api_key(cfg)
     base = resolve_base_url(cfg)

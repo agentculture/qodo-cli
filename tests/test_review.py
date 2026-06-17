@@ -48,6 +48,24 @@ def test_require_github_rejects_unknown() -> None:
     assert exc.value.code == 2
 
 
+@pytest.mark.parametrize(
+    "login,expected",
+    [
+        ("qodo-code-review", True),  # gh pr view spelling (no [bot])
+        ("qodo-code-review[bot]", True),  # gh api spelling (with [bot])
+        ("qodo-merge[bot]", True),
+        ("qodo-ai", True),
+        ("pr-agent-pro", True),
+        ("pr-agent-pro-staging", True),
+        ("a-human", False),
+        ("", False),
+    ],
+)
+def test_is_qodo_normalizes_bot_suffix(login: str, expected: bool) -> None:
+    # gh's two surfaces disagree on the `[bot]` suffix; both must match.
+    assert _providers._is_qodo(login) is expected
+
+
 def test_title_from_body() -> None:
     assert _providers._title("## SQL injection risk\nmore") == "SQL injection risk"
     assert _providers._title("\n\n") == "(no title)"

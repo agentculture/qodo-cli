@@ -126,6 +126,21 @@ def test_search_rules_http_error_is_env_error(monkeypatch: pytest.MonkeyPatch) -
     assert exc.value.code == 2
 
 
+def test_search_rules_rejects_nonpositive_top_k(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("QODO_API_KEY", "k")
+    with pytest.raises(CliError) as exc:
+        _qodo_api.search_rules("q", top_k=0)
+    assert exc.value.code == 1  # user-input error
+
+
+def test_search_rules_rejects_non_https(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("QODO_API_KEY", "k")
+    monkeypatch.setenv("QODO_API_URL", "http://insecure.test")
+    with pytest.raises(CliError) as exc:
+        _qodo_api.search_rules("q")
+    assert exc.value.code == 2  # refuses a non-HTTPS endpoint before any request
+
+
 # --- the `rules` command surface ------------------------------------------
 
 

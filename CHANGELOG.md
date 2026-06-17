@@ -21,8 +21,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - `qodo review` (alias `qodo pr`) — `list` and `resolve` the Qodo bot's PR
     review comments. Reimplements `qodo-pr-resolver` by driving the user's
     existing provider CLI (`gh`): detect provider, find the open PR for the
-    branch, fetch and filter the Qodo bot's comments (`qodo-merge[bot]`,
-    `qodo-ai[bot]`, `pr-agent-pro(-staging)`), dedup by title, reply, and
+    branch, fetch and filter the Qodo bot's comments (`qodo-code-review`,
+    `qodo-merge`, `qodo-ai`, `pr-agent-pro(-staging)` — matched as base names so
+    both gh `[bot]`-suffix spellings hit), dedup by title, reply, and
     acknowledge (`+1`). GitHub is wired; GitLab/Azure/Bitbucket/Gerrit are
     recognised but raise a clear "not wired yet" error.
 - `qodo/cli/_qodo_api.py` and `qodo/cli/_providers.py` — the zero-dep mechanics
