@@ -2,15 +2,39 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 from unittest import mock
 
 import pytest
 
 from qodo.cli import _providers, main
+from qodo.cli._commands import review as _review
 from qodo.cli._errors import CliError
 
 _GH_URL = "https://github.com/owner/repo.git"
+
+# A live-shaped Qodo inline comment body (from this repo's own PR #2).
+_QODO_BODY = (
+    '<img src="https://img.shields.io/badge/Action_required-x" alt="Action required">\n'
+    "\n"
+    "1\\. Unsigned <b><i>resolve_comment()</i></b> reply body "
+    "<code>📜 Skill insight</code> <code>✧ Quality</code>\n"
+    "\n"
+    "<pre>\n"
+    "<b><i>resolve_comment()</i></b> posts reply without the signature line "
+    "`- &lt;nick&gt; (Claude)`.\n"
+    "</pre>\n"
+    "\n"
+    "<details>\n"
+    "<summary><strong>Agent Prompt</strong></summary>\n"
+    "\n"
+    "```\n"
+    "## Issue description\n"
+    "Append the signature.\n"
+    "```\n"
+    "</details>\n"
+)
 
 
 # --- pure helpers ----------------------------------------------------------
@@ -151,6 +175,44 @@ def test_title_strips_h3_summary_header() -> None:
     assert _providers._title("<h3>Code Review by Qodo</h3>") == "Code Review by Qodo"
 
 
+# --- structured-field parsing (issue #3) -----------------------------------
+
+
+def test_parse_body_extracts_structured_fields() -> None:
+    parsed = _providers._parse_body(_QODO_BODY)
+    assert parsed["severity"] == "HIGH"  # "Action required" badge
+    assert parsed["type"] == "Skill insight"  # first chip, emoji stripped
+    assert parsed["categories"] == ["Skill insight", "Quality"]
+    assert "signature line" in parsed["description"]
+    assert "&lt;" not in parsed["description"]  # HTML entities decoded
+    assert "<nick>" in parsed["description"]
+    assert "## Issue description" in parsed["agent_prompt"]
+
+
+def test_severity_maps_badges() -> None:
+    review = '<img alt="Review recommended">'
+    other = '<img alt="Something else">'
+    assert _providers._severity(review) == "MEDIUM"
+    assert _providers._severity(other) == "LOW"  # badge present but unknown
+    assert _providers._severity("no badge here") is None  # no badge -> None
+
+
+def test_parse_body_degrades_to_none_on_plain_text() -> None:
+    parsed = _providers._parse_body("just a plain title line")
+    assert parsed["severity"] is None
+    assert parsed["type"] is None
+    assert parsed["categories"] == []
+    assert parsed["description"] is None
+    assert parsed["agent_prompt"] is None
+
+
+def test_normalize_inline_carries_parsed_fields() -> None:
+    raw = {"id": 1, "user": {"login": "qodo-ai[bot]"}, "body": _QODO_BODY, "html_url": "h"}
+    norm = _providers._normalize_inline(raw)
+    assert norm["severity"] == "HIGH"
+    assert norm["type"] == "Skill insight"
+
+
 def test_dedup_keeps_distinct_inline_comments() -> None:
     # Qodo inline bodies share a leading badge line -> identical titles; keyed on
     # id, distinct comments must NOT collapse (this is the under-report bug fix).
@@ -253,16 +315,144 @@ def test_find_open_pr_none_when_empty() -> None:
 
 def test_resolve_comment_reply_then_react() -> None:
     with mock.patch("qodo.cli._providers._gh", return_value="") as gh:
-        actions = _providers.resolve_comment(5, 111, reply="fixed")
-    assert actions == ["replied", "acknowledged (+1)"]
+        actions = _providers.resolve_comment(5, 111, reply="fixed", resolve_thread=False)
+    assert [a["action"] for a in actions] == ["reply", "acknowledge (+1)"]
+    assert all(a["ok"] for a in actions)
     assert gh.call_count == 2
 
 
 def test_resolve_comment_react_only() -> None:
     with mock.patch("qodo.cli._providers._gh", return_value="") as gh:
-        actions = _providers.resolve_comment(5, 111)
-    assert actions == ["acknowledged (+1)"]
+        actions = _providers.resolve_comment(5, 111, resolve_thread=False)
+    assert [a["action"] for a in actions] == ["acknowledge (+1)"]
+    assert all(a["ok"] for a in actions)
     assert gh.call_count == 1
+
+
+def test_attempt_catches_non_clierror() -> None:
+    # The "never raises" contract must hold for ANY exception, not just CliError
+    # (e.g. malformed gh JSON -> json.JSONDecodeError, or a vanished gh -> OSError).
+    def boom() -> None:
+        raise RuntimeError("gh exploded")
+
+    result = _providers._attempt("acknowledge (+1)", boom)
+    assert result["ok"] is False
+    assert "RuntimeError" in result["detail"]
+
+
+def test_resolve_comment_thread_lookup_non_clierror_is_reported() -> None:
+    # A non-CliError from the thread lookup must not crash resolve (best-effort).
+    def fake_gh(*args: str) -> str:
+        if "reactions" in args[1]:
+            return ""  # the +1 succeeds
+        raise ValueError("malformed graphql")  # owner/name or threads lookup blows up
+
+    with mock.patch("qodo.cli._providers._gh", side_effect=fake_gh):
+        actions = _providers.resolve_comment(5, 111, resolve_thread=True)
+    thread_action = next(a for a in actions if a["action"] == "resolve thread")
+    assert thread_action["ok"] is False
+    assert "ValueError" in thread_action["detail"]
+
+
+def test_resolve_comment_partial_success_when_ack_fails() -> None:
+    # The reply lands but the +1 reaction fails -> reported per-action, not a
+    # blanket failure (issue #5). _gh raises only on the reaction call.
+    def fake_gh(*args: str) -> str:
+        if "reactions" in args[1]:
+            raise CliError(code=2, message="reaction boom", remediation="x")
+        return ""
+
+    with mock.patch("qodo.cli._providers._gh", side_effect=fake_gh):
+        actions = _providers.resolve_comment(5, 111, reply="fixed", resolve_thread=False)
+    by_action = {a["action"]: a for a in actions}
+    assert by_action["reply"]["ok"] is True
+    assert by_action["acknowledge (+1)"]["ok"] is False
+    assert "boom" in by_action["acknowledge (+1)"]["detail"]
+
+
+# --- GraphQL review-thread resolution (issue #4) ---------------------------
+
+
+def _threads_payload(*, resolved: bool = False) -> str:
+    return json.dumps(
+        {
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {
+                            "nodes": [
+                                {
+                                    "id": "THREAD_NODE_1",
+                                    "isResolved": resolved,
+                                    "comments": {"nodes": [{"databaseId": 111}]},
+                                }
+                            ],
+                            "pageInfo": {"hasNextPage": False, "endCursor": None},
+                        }
+                    }
+                }
+            }
+        }
+    )
+
+
+def test_thread_for_comment_maps_comment_to_thread_node_id() -> None:
+    def fake_gh(*args: str) -> str:
+        if args[:2] == ("repo", "view"):
+            return json.dumps({"owner": {"login": "o"}, "name": "r"})
+        return _threads_payload()
+
+    with mock.patch("qodo.cli._providers._gh", side_effect=fake_gh):
+        thread_id, already = _providers.thread_for_comment(5, 111)
+    assert thread_id == "THREAD_NODE_1"
+    assert already is False
+
+
+def test_thread_for_comment_none_when_unmatched() -> None:
+    def fake_gh(*args: str) -> str:
+        if args[:2] == ("repo", "view"):
+            return json.dumps({"owner": {"login": "o"}, "name": "r"})
+        return _threads_payload()
+
+    with mock.patch("qodo.cli._providers._gh", side_effect=fake_gh):
+        thread_id, already = _providers.thread_for_comment(5, 999)
+    assert thread_id is None
+
+
+def test_resolve_comment_resolves_thread_via_graphql() -> None:
+    calls: list[tuple[str, ...]] = []
+
+    def fake_gh(*args: str) -> str:
+        calls.append(args)
+        if args[:2] == ("repo", "view"):
+            return json.dumps({"owner": {"login": "o"}, "name": "r"})
+        if args[:2] == ("api", "graphql") and "resolveReviewThread" in args[3]:
+            return json.dumps({"data": {"resolveReviewThread": {"thread": {"isResolved": True}}}})
+        if args[:2] == ("api", "graphql"):
+            return _threads_payload()
+        return ""  # the +1 reaction
+
+    with mock.patch("qodo.cli._providers._gh", side_effect=fake_gh):
+        actions = _providers.resolve_comment(5, 111, resolve_thread=True)
+    by_action = {a["action"]: a for a in actions}
+    assert by_action["resolve thread"]["ok"] is True
+    assert any("resolveReviewThread" in c[3] for c in calls if c[:2] == ("api", "graphql"))
+
+
+def test_resolve_comment_thread_fallback_when_no_thread() -> None:
+    # No thread matches the comment -> reaction stands, reported ok=False (not raised).
+    def fake_gh(*args: str) -> str:
+        if args[:2] == ("repo", "view"):
+            return json.dumps({"owner": {"login": "o"}, "name": "r"})
+        if args[:2] == ("api", "graphql"):
+            return _threads_payload()  # only comment 111 is in a thread
+        return ""
+
+    with mock.patch("qodo.cli._providers._gh", side_effect=fake_gh):
+        actions = _providers.resolve_comment(5, 222, resolve_thread=True)
+    thread_action = next(a for a in actions if a["action"] == "resolve thread")
+    assert thread_action["ok"] is False
+    assert "no review thread" in thread_action["detail"]
 
 
 # --- the `review` / `pr` command surface -----------------------------------
@@ -312,6 +502,35 @@ def test_review_list_text(capsys: pytest.CaptureFixture[str]) -> None:
     assert "SQLi" in out
 
 
+def test_review_list_kind_inline_hides_summaries(capsys: pytest.CaptureFixture[str]) -> None:
+    canned = [
+        {"id": 1, "kind": "inline", "title": "real", "severity": "HIGH", "type": "Bug"},
+        {"id": None, "kind": "summary", "title": "rollup", "severity": None, "type": None},
+    ]
+    with (
+        mock.patch("qodo.cli._providers.remote_url", return_value=_GH_URL),
+        mock.patch("qodo.cli._providers.fetch_qodo_comments", return_value=canned),
+    ):
+        rc = main(["review", "list", "--pr", "5", "--kind", "inline", "--json"])
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["count"] == 1
+    assert out["comments"][0]["kind"] == "inline"
+
+
+def test_review_list_text_shows_severity_and_type(capsys: pytest.CaptureFixture[str]) -> None:
+    canned = [{"id": 1, "kind": "inline", "title": "T", "severity": "HIGH", "type": "Bug"}]
+    with (
+        mock.patch("qodo.cli._providers.remote_url", return_value=_GH_URL),
+        mock.patch("qodo.cli._providers.fetch_qodo_comments", return_value=canned),
+    ):
+        rc = main(["review", "list", "--pr", "5"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "HIGH" in out
+    assert "Bug" in out
+
+
 def test_pr_alias_lists(capsys: pytest.CaptureFixture[str]) -> None:
     with (
         mock.patch("qodo.cli._providers.remote_url", return_value=_GH_URL),
@@ -355,15 +574,146 @@ def test_review_list_non_github_exits_env_error(capsys: pytest.CaptureFixture[st
 
 
 def test_review_resolve_json(capsys: pytest.CaptureFixture[str]) -> None:
+    ok_actions = [{"action": "acknowledge (+1)", "ok": True, "detail": ""}]
     with (
         mock.patch("qodo.cli._providers.remote_url", return_value=_GH_URL),
-        mock.patch("qodo.cli._providers.resolve_comment", return_value=["acknowledged (+1)"]),
+        mock.patch("qodo.cli._providers.resolve_comment", return_value=ok_actions),
     ):
         rc = main(["review", "resolve", "111", "--pr", "5", "--json"])
     assert rc == 0
     out = json.loads(capsys.readouterr().out)
-    assert out["comment_id"] == 111
-    assert out["actions"] == ["acknowledged (+1)"]
+    assert out["ok"] is True
+    assert out["resolved"][0]["comment_id"] == 111
+    assert out["resolved"][0]["actions"] == ok_actions
+
+
+def test_review_resolve_partial_exit_one(capsys: pytest.CaptureFixture[str]) -> None:
+    # An action failed -> overall ok False, exit 1, but the success is still shown.
+    mixed = [
+        {"action": "reply", "ok": True, "detail": ""},
+        {"action": "acknowledge (+1)", "ok": False, "detail": "boom"},
+    ]
+    with (
+        mock.patch("qodo.cli._providers.remote_url", return_value=_GH_URL),
+        mock.patch("qodo.cli._providers.resolve_comment", return_value=mixed),
+    ):
+        rc = main(["review", "resolve", "111", "--pr", "5"])
+    assert rc == 1
+    out = capsys.readouterr().out
+    assert "[ok] reply" in out
+    assert "[fail] acknowledge (+1)" in out
+
+
+def test_review_resolve_all_batches_inline(capsys: pytest.CaptureFixture[str]) -> None:
+    canned = [
+        {"id": 11, "kind": "inline", "severity": "HIGH", "title": "a"},
+        {"id": 12, "kind": "inline", "severity": "LOW", "title": "b"},
+        {"id": None, "kind": "summary", "severity": None, "title": "rollup"},
+    ]
+    resolved_ids: list[int] = []
+
+    def fake_resolve(pr: int, cid: int, **kw: object) -> list[dict]:
+        resolved_ids.append(cid)
+        return [{"action": "acknowledge (+1)", "ok": True, "detail": ""}]
+
+    with (
+        mock.patch("qodo.cli._providers.remote_url", return_value=_GH_URL),
+        mock.patch("qodo.cli._providers.fetch_qodo_comments", return_value=canned),
+        mock.patch("qodo.cli._providers.review_threads", return_value=[]) as threads,
+        mock.patch("qodo.cli._providers.resolve_comment", side_effect=fake_resolve),
+    ):
+        rc = main(["review", "resolve", "--all", "--pr", "5", "--json"])
+    assert rc == 0
+    # both inline comments resolved; the summary (id None) skipped
+    assert sorted(resolved_ids) == [11, 12]
+    assert json.loads(capsys.readouterr().out)["count"] == 2
+    # threads are pre-fetched ONCE for the batch, not once per comment (N+1 fix)
+    assert threads.call_count == 1
+
+
+def test_review_resolve_severity_filter(capsys: pytest.CaptureFixture[str]) -> None:
+    canned = [
+        {"id": 11, "kind": "inline", "severity": "HIGH", "title": "a"},
+        {"id": 12, "kind": "inline", "severity": "LOW", "title": "b"},
+    ]
+    resolved_ids: list[int] = []
+
+    def fake_resolve(pr: int, cid: int, **kw: object) -> list[dict]:
+        resolved_ids.append(cid)
+        return [{"action": "acknowledge (+1)", "ok": True, "detail": ""}]
+
+    with (
+        mock.patch("qodo.cli._providers.remote_url", return_value=_GH_URL),
+        mock.patch("qodo.cli._providers.fetch_qodo_comments", return_value=canned),
+        mock.patch("qodo.cli._providers.resolve_comment", side_effect=fake_resolve),
+    ):
+        rc = main(["review", "resolve", "--severity", "high", "--pr", "5"])
+    assert rc == 0
+    assert resolved_ids == [11]  # case-insensitive severity match
+
+
+def test_review_resolve_rejects_ids_and_all() -> None:
+    with mock.patch("qodo.cli._providers.remote_url", return_value=_GH_URL):
+        rc = main(["review", "resolve", "111", "--all", "--pr", "5"])
+    assert rc == 1  # user error: ids OR filters, not both
+
+
+def test_review_resolve_no_selection_errors(capsys: pytest.CaptureFixture[str]) -> None:
+    with mock.patch("qodo.cli._providers.remote_url", return_value=_GH_URL):
+        rc = main(["review", "resolve", "--pr", "5"])
+    assert rc == 1
+    assert "hint:" in capsys.readouterr().err
+
+
+def test_review_resolve_no_thread_flag_skips_graphql() -> None:
+    captured: dict[str, object] = {}
+
+    def fake_resolve(pr: int, cid: int, **kw: object) -> list[dict]:
+        captured.update(kw)
+        return [{"action": "acknowledge (+1)", "ok": True, "detail": ""}]
+
+    with (
+        mock.patch("qodo.cli._providers.remote_url", return_value=_GH_URL),
+        mock.patch("qodo.cli._providers.resolve_comment", side_effect=fake_resolve),
+    ):
+        rc = main(["review", "resolve", "111", "--pr", "5", "--no-resolve-thread"])
+    assert rc == 0
+    assert captured["resolve_thread"] is False
+
+
+# --- signing (issue #6) ----------------------------------------------------
+
+
+def test_sign_appends_nick_signature_once() -> None:
+    args = argparse.Namespace(reply="Fixed in abc123.", sign=True)
+    with mock.patch(
+        "qodo.cli._commands.review.read_agent_fields", return_value={"nick": "qodo-cli"}
+    ):
+        signed = _review._maybe_sign(args)
+    assert signed.endswith("- qodo-cli (Claude)")
+    assert signed.count("- qodo-cli (Claude)") == 1
+
+
+def test_sign_is_idempotent_when_already_signed() -> None:
+    body = "Fixed.\n\n- qodo-cli (Claude)"
+    args = argparse.Namespace(reply=body, sign=True)
+    with mock.patch(
+        "qodo.cli._commands.review.read_agent_fields", return_value={"nick": "qodo-cli"}
+    ):
+        signed = _review._maybe_sign(args)
+    assert signed == body  # duplicate-guarded
+
+
+def test_no_sign_leaves_reply_unchanged() -> None:
+    args = argparse.Namespace(reply="Fixed.", sign=False)
+    assert _review._maybe_sign(args) == "Fixed."
+
+
+def test_sign_without_reply_errors() -> None:
+    args = argparse.Namespace(reply=None, sign=True)
+    with pytest.raises(CliError) as exc:
+        _review._maybe_sign(args)
+    assert exc.value.code == 1
 
 
 def test_review_overview(capsys: pytest.CaptureFixture[str]) -> None:

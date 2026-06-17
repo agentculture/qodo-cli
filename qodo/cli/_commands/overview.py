@@ -106,8 +106,10 @@ def review_sections() -> list[dict[str, object]]:
         {
             "title": "Verbs",
             "items": [
-                "review list — list the Qodo bot's review comments on this branch's PR",
-                "review resolve <id> — reply to and acknowledge a Qodo review comment",
+                "review list [--kind inline|summary] — list the Qodo bot's PR comments, "
+                "with severity/type/description/agent_prompt parsed from each body",
+                "review resolve <id...> | --all [--severity S] — reply (--sign), "
+                "acknowledge, and resolve the review thread; best-effort per-action",
                 "review overview — describe the review noun (this command)",
             ],
         },
@@ -124,6 +126,7 @@ def review_sections() -> list[dict[str, object]]:
             "title": "Conventions",
             "items": [
                 "reuses your provider-CLI auth — no new credentials",
+                "thread resolution via GraphQL resolveReviewThread (--no-resolve-thread to skip)",
                 "also reachable as `qodo pr`; supports --json",
             ],
         },

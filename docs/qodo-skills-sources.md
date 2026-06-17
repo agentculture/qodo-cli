@@ -30,8 +30,9 @@ calling agent — which keeps the CLI zero-dependency and model-agnostic.
   generates (call `rules get` once per query and merge).
 - **`qodo review`** — we own: detect the provider, find the open PR, fetch and
   filter the Qodo bot's comments, dedup by stable comment identity (id/url),
-  reply, acknowledge. The agent owns: reading the flagged files, generating a
-  fix, editing, and committing.
+  parse each body into structured triage fields, reply, acknowledge, and resolve
+  the review thread. The agent owns: reading the flagged files, generating a fix,
+  editing, and committing.
 
 ## Resolved contract — `qodo-get-rules`
 
@@ -79,6 +80,19 @@ calling agent — which keeps the CLI zero-dependency and model-agnostic.
   - inline comments: `gh api repos/{owner}/{repo}/pulls/<pr>/comments --paginate`
   - reply: `gh api repos/{owner}/{repo}/pulls/<pr>/comments/<id>/replies -X POST -f body=<text>`
   - acknowledge: `gh api repos/{owner}/{repo}/pulls/comments/<id>/reactions -X POST -f content='+1'`
+  - resolve thread: map the comment's REST id to its review-thread node id via
+    `gh api graphql` (`repository.pullRequest.reviewThreads` → match
+    `comments.nodes.databaseId`), then `resolveReviewThread(input:{threadId})`.
+
+- **Comment body structure (parsed by `qodo review list`):** a Qodo inline body
+  opens with a severity badge `<img ... alt="Action required">` (or
+  `"Review recommended"`); the title line carries `<code>` category chips
+  (e.g. `📘 Rule violation`, `≡ Correctness`); the `<pre>` block is the issue
+  description (HTML-entity-encoded); and a `<details><summary>Agent Prompt</summary>`
+  fenced block holds the remediation prompt. Severity map (the lever — extend as
+  Qodo adds badges): `Action required → HIGH`, `Review recommended → MEDIUM`,
+  any other badge → `LOW`, no badge → `null`. Parsing is best-effort; an
+  unrecognised body degrades to title-only with `null` fields.
 
 ### Follow-up providers (recognised, not yet wired)
 
@@ -96,8 +110,9 @@ a re-investigation. Today the CLI raises a clear "not wired yet" error for them.
   `git push origin HEAD:refs/for/<branch>`.
 
 True GitHub review-thread resolution (the GraphQL `resolveReviewThread`
-mutation) is also a follow-up; today `resolve` posts the `+1` reaction the
-upstream skill uses as a lightweight acknowledgement.
+mutation) is **now wired**: `resolve` posts the `+1` reaction the upstream skill
+uses *and* resolves the GitHub review thread by default (`--no-resolve-thread`
+to skip), falling back to reaction-only when no thread maps to the comment.
 
 ## Non-goals (enforced)
 

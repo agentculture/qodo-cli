@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/). This project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-06-17
+
+### Added
+
+- `qodo review list` now parses each Qodo comment body into structured triage
+  fields surfaced in `--json` and the text table: `severity` (from the badge —
+  `Action required → HIGH`, `Review recommended → MEDIUM`, other → `LOW`, none →
+  `null`), `type` and `categories` (the `<code>` chips), `description` (the
+  `<pre>` block, HTML-entity-decoded), and `agent_prompt` (the remediation
+  block). Parsing is best-effort — an unrecognised body degrades to title-only.
+  (#3)
+- `qodo review list --kind {inline,summary,all}` filters by comment kind so the
+  non-actionable summary rollups can be excluded. (#3)
+- `qodo review resolve` now resolves the GitHub review **thread** via the GraphQL
+  `resolveReviewThread` mutation by default (mapping the REST comment id to its
+  thread node id), with `--no-resolve-thread` to skip and a graceful fallback to
+  the `+1` reaction when no thread maps to the comment. (#4)
+- `qodo review resolve --all` / `--severity <S>` and multiple positional ids
+  resolve several inline comments in one call. (#5)
+- `qodo review resolve --reply "..." --sign` appends the `culture.yaml` nick
+  signature (`- <nick> (Claude)`) to the reply, at most once (duplicate-guarded);
+  default stays unsigned. (#6)
+
+### Changed
+
+- `qodo review resolve` is now **best-effort and per-action**: it reports each of
+  reply / acknowledge / resolve-thread per comment, so a posted reply whose
+  acknowledgement failed reads as partial success (exit 1) rather than a blanket
+  failure. The `resolve_comment()` return type changed from `list[str]` to
+  `list[{action, ok, detail}]`, and the `resolve --json` payload now carries a
+  `resolved` list with per-action results. (#5)
+
+### Fixed
+
 ## [0.5.0] - 2026-06-17
 
 ### Added

@@ -88,14 +88,33 @@ provider-CLI auth — no new credentials.
 GitHub — including GitHub Enterprise, recognised via your `gh` host config — is
 wired; GitLab/Azure/Bitbucket are recognised but deferred (see the citation
 ledger). The code-fixing loop stays with the calling agent — this surface is the
-deterministic detect/list/reply/acknowledge slice.
+deterministic detect/list/reply/acknowledge/resolve slice.
+
+`review list` parses each comment body into structured triage fields —
+`severity` (from the badge: HIGH/MEDIUM/LOW), `type` and `categories` (the
+`<code>` chips), `description` (the `<pre>` block), and `agent_prompt` (the
+remediation block) — degrading to title-only when a body isn't recognised.
+`--kind {inline,summary,all}` filters out the non-actionable summary rollups.
+
+`review resolve` is best-effort and reports every action (reply / acknowledge /
+resolve-thread) per comment, so a posted reply whose acknowledgement failed
+reads as partial success, not total failure (exit 1). It posts the `+1` reaction
+and, by default, resolves the GitHub review **thread** via the GraphQL
+`resolveReviewThread` mutation (`--no-resolve-thread` to skip; falls back to the
+reaction when no thread maps to the comment).
 
 ## Usage
 
     qodo-cli review list
-    qodo-cli review list --pr 123 --json
-    qodo-cli review resolve <comment-id> --reply "Fixed in <sha>."
+    qodo-cli review list --pr 123 --kind inline --json
+    qodo-cli review resolve <comment-id> --reply "Fixed in <sha>." --sign
+    qodo-cli review resolve --all --severity HIGH
+    qodo-cli review resolve <id> --no-resolve-thread
     qodo-cli review overview
+
+`--sign` appends the `culture.yaml` nick signature (`- <nick> (Claude)`) to
+`--reply`, at most once. `--all` / `--severity` resolve every matching inline
+comment in one call.
 
 ## See also
 
