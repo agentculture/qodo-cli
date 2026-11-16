@@ -160,6 +160,14 @@ def _serve_and_get(command, env, port, paths):
         proc.stderr.close()
 
 
+def _skip(reason: str):
+    """Skip on a developer's machine; in CI (``CI`` set) the same condition is a failure, so a
+    broken build or build hook can never pass as a skip."""
+    if os.environ.get("CI"):
+        pytest.fail(reason)
+    pytest.skip(reason)
+
+
 def _run(*argv, **kw):
     return subprocess.run(argv, capture_output=True, text=True, check=False, **kw)
 
@@ -172,17 +180,19 @@ def _install_wheel(tmp_path, *, with_ui: bool):
     if uv is None:
         pytest.skip("uv is not installed")
     build_env = {**os.environ, "QODO_REQUIRE_WEB": "", "QODO_SKIP_WEB": "" if with_ui else "1"}
-    built = _run(uv, "build", "--wheel", "--out-dir", str(tmp_path / "dist"), str(ROOT),
+    # with the UI: the release path, a source distribution and then the wheel built from it
+    how = [] if with_ui else ["--wheel"]
+    built = _run(uv, "build", *how, "--out-dir", str(tmp_path / "dist"), str(ROOT),
                  env=build_env)  # fmt: skip
     if built.returncode != 0:
-        pytest.skip(f"the build needs the network: {built.stderr.strip()[-200:]}")
+        _skip(f"the build failed (it needs the network): {built.stderr.strip()[-400:]}")
     wheel = next((tmp_path / "dist").glob("qodo_cli-*.whl"))
     venv = tmp_path / "venv"
     python = venv / "bin" / "python"
     assert _run(uv, "venv", "-q", str(venv)).returncode == 0
     installed = _run(uv, "pip", "install", "-q", "--python", str(python), f"{wheel}[server]")
     if installed.returncode != 0:
-        pytest.skip(f"the extra's packages need the network: {installed.stderr.strip()[-200:]}")
+        _skip(f"the extra's packages need the network: {installed.stderr.strip()[-200:]}")
 
     # nothing but the new environment's own bin on PATH: no node, no npm
     path = str(venv / "bin")
@@ -252,8 +262,8 @@ def test_the_wheel_ships_the_built_ui_and_serve_returns_it_at_the_root(tmp_path)
     of its hashed assets."""
     dist = _built_ui()
     if dist is None:
-        pytest.skip("web/dist is absent and npm is unavailable (or cannot build): "
-                    "run `npm ci && npm run build` in web/ first")  # fmt: skip
+        _skip("web/dist is absent and npm is unavailable (or cannot build): "
+              "run `npm ci && npm run build` in web/ first")  # fmt: skip
     command, python, env, bearer = _install_wheel(tmp_path, with_ui=True)
     site = _run(
         str(python), "-I", "-c", "import qodo, pathlib; print(pathlib.Path(qodo.__file__).parent)",
