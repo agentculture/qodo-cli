@@ -72,6 +72,8 @@ def _build_parser() -> argparse.ArgumentParser:
     from qodo.cli._commands import overview as _overview_cmd
     from qodo.cli._commands import review as _review_group
     from qodo.cli._commands import rules as _rules_group
+    from qodo.cli._commands import serve as _serve_cmd
+    from qodo.cli._commands import tokens as _tokens_group
     from qodo.cli._commands import whoami as _whoami_cmd
 
     parser = _CliArgumentParser(
@@ -96,6 +98,9 @@ def _build_parser() -> argparse.ArgumentParser:
     _config_group.register(sub)
     _findings_group.register(sub)
     _history_group.register(sub)
+    # The HTTP API and its service tokens:
+    _serve_cmd.register(sub)
+    _tokens_group.register(sub)
     # Agent-first introspection verbs:
     _whoami_cmd.register(sub)
     _learn_cmd.register(sub)

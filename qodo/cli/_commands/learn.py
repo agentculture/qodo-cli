@@ -34,6 +34,12 @@ Commands
   qodo-cli config show          Show/validate/init the repo Qodo reviewer config.
   qodo-cli config propose       Check a committed Qodo config change against a base and
                                 return it only if safe (read-only; never opens a PR).
+  qodo-cli serve                Run the HTTP API (the 'server' extra): every verb on the api
+                                surface is POST /verbs/<noun>/<name>; loopback, and a LAN
+                                listener when configured.
+  qodo-cli tokens issue         Issue an API service token (printed once; --name, --role).
+  qodo-cli tokens list          List tokens (never a token or its hash).
+  qodo-cli tokens revoke <id>   Revoke a token.
   qodo-cli whoami               Identity from culture.yaml.
   qodo-cli learn                This self-teaching prompt.
   qodo-cli explain <path>...    Markdown docs for any noun/verb path.
@@ -58,6 +64,8 @@ More detail
   qodo-cli explain rules
   qodo-cli explain review
   qodo-cli explain config propose
+  qodo-cli explain serve
+  qodo-cli explain tokens
 """
 
 
@@ -76,6 +84,14 @@ def _as_json_payload() -> dict[str, object]:
                 "summary": "Check a committed Qodo config change against a base; return it "
                 "only if safe (read-only).",
             },
+            {
+                "path": ["serve"],
+                "summary": "Run the HTTP API: POST /verbs/<noun>/<name> per api verb (needs the "
+                "'server' extra).",
+            },
+            {"path": ["tokens", "issue"], "summary": "Issue an API service token (shown once)."},
+            {"path": ["tokens", "list"], "summary": "List API service tokens."},
+            {"path": ["tokens", "revoke"], "summary": "Revoke an API service token."},
             {"path": ["whoami"], "summary": "Identity probe from culture.yaml."},
             {"path": ["learn"], "summary": "Self-teaching prompt."},
             {"path": ["explain"], "summary": "Markdown docs by path."},

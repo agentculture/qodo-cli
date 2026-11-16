@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
+import socket
 import subprocess
 import sys
+import time
 import tomllib
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 import pytest
@@ -28,6 +33,10 @@ VERBS = [
     ["rules", "--help"],
     ["review", "--help"],
     ["config", "--help"],
+    ["serve", "--help"],
+    ["tokens", "--help"],
+    ["tokens", "list"],
+    ["explain", "serve"],
 ]
 
 
@@ -66,7 +75,8 @@ print(json.dumps({{'results': results, 'loaded': loaded}}))
     results = payload["results"]
     for verb in ("whoami", "learn", "overview", "cli overview", "explain whoami"):
         assert results[verb] == 0, (verb, results)
-    for verb in ("rules --help", "review --help", "config --help"):
+    for verb in ("rules --help", "review --help", "config --help", "serve --help",
+                 "tokens --help", "explain serve"):  # fmt: skip
         assert results[verb] == 0, (verb, results)
     assert results["doctor"] in (0, 1), results  # a health verdict, not a crash
 
@@ -106,3 +116,104 @@ def test_a_clean_base_install_holds_no_third_party_package(tmp_path):
         allowed = (0, 1) if verb == ["doctor"] else (0,)
         assert done.returncode in allowed, (verb, done.stderr)
         assert "Traceback" not in done.stderr, (verb, done.stderr)
+
+
+def _free_port() -> int:
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        return sock.getsockname()[1]
+
+
+def _get(url: str, headers: dict[str, str] | None = None) -> tuple[int, str]:
+    request = urllib.request.Request(url, headers=headers or {})
+    try:
+        with urllib.request.urlopen(request, timeout=3) as resp:  # nosec B310 - loopback only
+            return resp.status, resp.read().decode()
+    except urllib.error.HTTPError as err:
+        return err.code, err.read().decode()
+
+
+def _serve_and_get(command, env, port, paths):
+    """Start ``qodo-cli serve``, fetch each (path, headers), stop it; return the replies."""
+    proc = subprocess.Popen(
+        [str(command), "serve", "--port", str(port)],
+        env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+    )  # fmt: skip
+    try:
+        deadline = time.monotonic() + 30
+        while True:
+            try:
+                replies = [_get(f"http://127.0.0.1:{port}{p}", h) for p, h in paths]
+                break
+            except (urllib.error.URLError, ConnectionError, TimeoutError):
+                if proc.poll() is not None or time.monotonic() > deadline:
+                    raise AssertionError(f"serve did not answer: {proc.stderr.read()[-800:]}")
+                time.sleep(0.2)
+        proc.terminate()
+        assert proc.wait(timeout=15) == 0
+        return replies
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait()
+        proc.stdout.close()
+        proc.stderr.close()
+
+
+def test_the_wheel_with_the_server_extra_serves_with_no_node_on_the_path(tmp_path):
+    """Build the wheel, install it with the ``server`` extra into a new environment and run
+    ``qodo-cli serve`` from there, on a PATH that holds no ``node``: ``/health`` answers, a token
+    issued by the same install opens ``/verbs``, and a UI build placed in the installed package
+    is served."""
+    uv = shutil.which("uv")
+    if uv is None:
+        pytest.skip("uv is not installed")
+
+    def run(*argv, **kw):
+        return subprocess.run(argv, capture_output=True, text=True, check=False, **kw)
+
+    built = run(uv, "build", "--wheel", "--out-dir", str(tmp_path / "dist"), str(ROOT))
+    if built.returncode != 0:
+        pytest.skip(f"the build needs the network: {built.stderr.strip()[-200:]}")
+    wheel = next((tmp_path / "dist").glob("qodo_cli-*.whl"))
+    venv = tmp_path / "venv"
+    python = venv / "bin" / "python"
+    assert run(uv, "venv", "-q", str(venv)).returncode == 0
+    installed = run(uv, "pip", "install", "-q", "--python", str(python), f"{wheel}[server]")
+    if installed.returncode != 0:
+        pytest.skip(f"the extra's packages need the network: {installed.stderr.strip()[-200:]}")
+
+    # nothing but the new environment's own bin on PATH: no node, no npm
+    path = str(venv / "bin")
+    assert shutil.which("node", path=path) is None
+    env = {
+        "PATH": path,
+        "HOME": str(tmp_path / "home"),
+        "QODO_SERVER_TOKENS": str(tmp_path / "tokens.json"),
+        "QODO_CHANGE_LOG": str(tmp_path / "changes.jsonl"),
+    }
+    os.makedirs(env["HOME"])
+    command = venv / "bin" / "qodo-cli"
+    issued = run(str(command), "tokens", "issue", "--name", "t", "--role", "viewer", "--json",
+                 env=env)  # fmt: skip
+    assert issued.returncode == 0, issued.stderr
+    bearer = {"Authorization": f"Bearer {json.loads(issued.stdout)['token']}"}
+
+    health, verbs, root = _serve_and_get(
+        command, env, _free_port(),
+        [("/health", None), ("/verbs", bearer), ("/", bearer)],
+    )  # fmt: skip
+    assert health[0] == 200 and json.loads(health[1])["service"] == "qodo-cli"
+    assert verbs[0] == 200 and "findings" in verbs[1]
+    assert root[0] == 404  # no UI build in the wheel yet: API only
+
+    site = run(
+        str(python), "-I", "-c", "import qodo, pathlib; print(pathlib.Path(qodo.__file__).parent)",
+        cwd=tmp_path,
+    )  # fmt: skip
+    assert "site-packages" in site.stdout, site.stdout
+    dist = Path(site.stdout.strip()) / "web_dist"
+    dist.mkdir()
+    (dist / "index.html").write_text("<!doctype html><title>ui</title>", encoding="utf-8")
+    (page,) = _serve_and_get(command, env, _free_port(), [("/", {**bearer, "Accept": "text/html"})])
+    assert page[0] == 200 and "<title>ui</title>" in page[1]

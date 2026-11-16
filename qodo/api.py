@@ -140,6 +140,15 @@ def key_status() -> dict[str, Any]:
     return _health.key_status()
 
 
+def changes(limit: int | None = 50) -> list[dict[str, Any]]:
+    """The newest ``limit`` entries of the change log, oldest first (all when ``None``).
+
+    What a UI reads to show what was changed through qodo-cli: kinds, ids, new statuses,
+    dismiss reasons and config paths, never finding text or the key (see ``qodo.changelog``).
+    """
+    return _changelog.read(limit)
+
+
 def findings_dismiss(ids: list[str], reason: str, *, actor: str | None = None) -> dict[str, Any]:
     """Dismiss findings with a reason (``pr-review-dismiss``): one of ``DISMISS_REASONS``.
 
