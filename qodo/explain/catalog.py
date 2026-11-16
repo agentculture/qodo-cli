@@ -268,7 +268,8 @@ The findings are not looked up first: the agent reads them itself.
 Type `qodo.fix.requested`, source `app://qodo-cli`, topic `events/qodo/fix/requested`, id
 events-cli's `evt_` + ULID (unique per request; consumers dedupe on it). `data`:
 `{pr_url, repo, number, finding_ids, note, requested_by}`, identifiers only (`requested_by` is
-the calling surface; `note` is null when none was given). Never the API key, never finding
+the calling surface, and over HTTP also the caller: `api:<person>` or `api:token:<name>`; `note`
+is null when none was given). Never the API key, never finding
 text. The broker is events-cli's own setting: `EVENTS_BROKER_HOST` / `EVENTS_BROKER_PORT`
 (default `127.0.0.1:1883`).
 

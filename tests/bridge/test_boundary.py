@@ -11,7 +11,7 @@ import pytest
 
 BRIDGE = Path(__file__).resolve().parents[2] / "qodo" / "bridge"
 CITED = ("access", "resolve", "tokens", "principal", "static", "caching", "guards", "mcpserver")
-ORIGINAL = ("policy", "filetokens")
+ORIGINAL = ("policy", "filetokens", "caller")
 SOURCE_PATH = re.compile(r"culture_rules/[\w/]+\.py")
 COMMIT = re.compile(r"\b[0-9a-f]{40}\b")
 NAME = re.compile("qodo", re.IGNORECASE)

@@ -231,7 +231,7 @@ def test_changes_returns_the_newest_entries(client, auth, gateway):
     assert r.status_code == 200
     entries = r.json()["entries"]
     assert len(entries) == 3 and entries[0]["kind"] == "finding.status_changed"
-    assert entries[0]["actor"] == "api"
+    assert entries[0]["actor"] == "api:token:editor"  # the surface and the caller
     assert len(client.get("/changes?limit=2", headers=auth["viewer"]).json()["entries"]) == 2
     for bad in ("0", "-1", "x", "501"):
         assert client.get(f"/changes?limit={bad}", headers=auth["viewer"]).status_code == 400, bad

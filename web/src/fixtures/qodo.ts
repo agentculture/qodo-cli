@@ -241,3 +241,36 @@ export const CONFIG_STATUS: ConfigStatus = {
 };
 
 export const NOT_CONFIGURED: ConfigStatus = { configured: false, truncated: false, repos: [] };
+
+/**
+ * DERIVED: a second open finding (the open one with another id and a hand-written title), so a
+ * test can select more than one finding for a fix request.
+ */
+export const SECOND_OPEN_FINDING: Finding = {
+  ...OPEN_FINDING,
+  id: "00000000-0000-0000-0000-000000000003",
+  title: "The cursor moves before the saves land",
+  description: "A failed save leaves the cursor past the messages it never stored.",
+};
+
+/** DERIVED: `n` distinct open findings (ids `...-1000` on), for the 20-finding limit. */
+export function manyOpenFindings(n: number): Finding[] {
+  return Array.from({ length: n }, (_, i) => ({
+    ...OPEN_FINDING,
+    id: `00000000-0000-0000-0000-${String(1000 + i).padStart(12, "0")}`,
+    title: `Open finding ${i + 1}`,
+  }));
+}
+
+/**
+ * DERIVED from qodo/changelog.py `record_fix_request`: one `fix.requested` line as `GET /changes`
+ * returns it (`time` in the log's `%Y-%m-%dT%H:%M:%SZ` form, `actor` as the server records it
+ * over HTTP, `api:token:<name>`). Never the note.
+ */
+export function fixRequestedEntry(
+  findingIds: string[],
+  { prUrl = PR_URL, ago = 0, actor = "api:token:editor", eventId = "evt_01TEST" } = {},
+) {
+  const time = new Date(Date.now() - ago * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
+  return { time, kind: "fix.requested", actor, pr_url: prUrl, finding_ids: findingIds, event_id: eventId };
+}

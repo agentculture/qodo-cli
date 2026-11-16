@@ -53,7 +53,9 @@ the exposure policy. Arguments after `*` are keyword-only.
 | `rules_scopes(*, scopes=None, auto_scope=True)` | The scopes `rules_get` would send, or `None` |
 
 `actor` labels who made the change in the change log (`cli`, `api`, `mcp` or any
-short string you choose). The verbs `rules show`, `rules metadata`,
+short string you choose). Over HTTP the server passes the surface and the caller,
+`api:<person>` or `api:token:<token name>` (cleaned of control characters, at most
+120 characters after `api:`). The verbs `rules show`, `rules metadata`,
 `history similar` and `history stats` have no function in `qodo.api`; reach them
 over HTTP or MCP, or through the registry (below).
 

@@ -259,7 +259,9 @@ A Vite + React + TypeScript app (Findings | Configuration | Rules) whose shell i
 culture-rules' `web/`. The screens read `config status` (the allowlisted repos), `prs list`
 (Qodo's `litegit-list-prs`, reply never recorded: parsed defensively), `findings list
 --offset/--limit` (pages under 64 KiB), `findings implement|dismiss` (editor, behind a
-confirmation) and `rules search|show`; their tests run against fixtures copied from
+confirmation), `findings fix` ("Send an agent to fix", one finding or up to 20 selected, editor,
+behind a confirmation with an optional note; its "Fix requested" marker is read from `GET
+/changes?limit=500`, never assumed) and `rules search|show`; their tests run against fixtures copied from
 `tests/fixtures/qodo_mcp/` (`web/src/fixtures/`); every cited file carries a provenance header with the
 source path and commit. Commands, from `web/`: `npm ci`, `npm run typecheck`, `npm test`,
 `npm run check` (the design tokens), `npm run build`. The browser calls the same-origin `/api`

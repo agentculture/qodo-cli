@@ -35,8 +35,9 @@ envelope carrying them), and ``data``::
 
     {"pr_url", "repo", "number", "finding_ids", "note", "requested_by"}
 
-``requested_by`` is the calling surface (``cli``, ``api`` or ``mcp``); the HTTP principal's
-identity is not passed to a verb handler today.
+``requested_by`` is the ``actor`` the registry passes: the calling surface (``cli`` or ``mcp``),
+or over HTTP the surface and the caller (``api:person@example.org``, ``api:token:<name>``), a
+label :mod:`qodo.bridge.caller` has cleaned of control characters and capped in length.
 
 events-cli is imported lazily inside :func:`publish` (the ``events`` extra): the base install
 keeps zero third-party dependencies. The broker address is events-cli's own setting,

@@ -465,7 +465,7 @@ def test_http_needs_a_token_and_the_editor_role(pub, http):
     assert pub.calls == []
     r = client.post("/verbs/findings/fix", json=body, headers=auth["editor"])
     assert r.status_code == 200 and r.json()["event_id"] == "evt_TEST1"
-    assert pub.calls[0][1]["requested_by"] == "api"
+    assert pub.calls[0][1]["requested_by"] == "api:token:editor"
 
 
 def test_http_refuses_a_repo_outside_the_allowlist_with_400(pub, http):

@@ -27,7 +27,9 @@ runs: no credential is 401, a role that is too low is 403. Errors are one JSON e
 carries ``Cache-Control: no-store`` (except the built UI's own files).
 
 Handlers call the registry's handlers (which call :mod:`qodo.api`) with ``surface="api"`` and
-nothing else. FastAPI is imported inside :func:`create_app` only (the ``server`` extra).
+nothing else; the request's principal reaches what they record only as a cleaned caller label
+(:mod:`qodo.bridge.caller`), so a write is logged as ``api:<person>`` or ``api:token:<name>``.
+FastAPI is imported inside :func:`create_app` only (the ``server`` extra).
 """
 
 # No `from __future__ import annotations`: FastAPI reads the handlers' annotations at runtime,
@@ -39,6 +41,7 @@ from pathlib import Path
 from typing import Any
 
 from qodo import api
+from qodo.bridge import caller
 from qodo.bridge.policy import RoutePolicy
 from qodo.bridge.principal import AuthError
 from qodo.bridge.resolve import AuthSettings, Resolver, TokenAuthenticator
@@ -269,7 +272,10 @@ def create_app(
         async def endpoint(request: Request) -> Any:
             try:
                 params = await read_params(request)
-                result = await run_in_threadpool(verb.handler, params, surface="api")
+                principal = getattr(request.state, "principal", None)
+                # who asked, for the change log and the fix-request event (a label, no secret)
+                with caller.acting_as(caller.label(principal) if principal else None):
+                    result = await run_in_threadpool(verb.handler, params, surface="api")
             except _Refused as err:
                 return fail(err.status, err.code, err.message, err.remediation)
             except CliError as err:
