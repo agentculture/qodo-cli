@@ -196,6 +196,10 @@ def build_listeners(
     return built
 
 
+class ListenerFailed(RuntimeError):
+    """A listener did not start (for example its port is taken)."""
+
+
 def serve(
     listeners: list[Listener],
     *,
@@ -234,7 +238,15 @@ def serve(
 
         for sig in (signal.SIGINT, signal.SIGTERM):
             loop.add_signal_handler(sig, stop)
-        tasks = [asyncio.ensure_future(server.serve()) for server in servers]
+
+        async def run(server: Any) -> None:
+            try:
+                await server.serve()
+            except SystemExit as stop_now:  # uvicorn exits when its listener cannot start
+                failed.append(stop_now.code)
+                stop()
+
+        tasks = [asyncio.ensure_future(run(server)) for server in servers]
         # "ready" means every listener has bound its socket, not that startup began
         while not all(server.started for server in servers):
             if any(task.done() for task in tasks):  # one failed to start: stop the others
@@ -246,4 +258,9 @@ def serve(
                 ready()
         await asyncio.gather(*tasks)
 
+    failed: list[Any] = []
     asyncio.run(main())
+    if any(code not in (0, None) for code in failed):
+        raise ListenerFailed(
+            "a listener could not start; the address may be in use (see the log above)"
+        )
