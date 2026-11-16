@@ -66,6 +66,8 @@ def _build_parser() -> argparse.ArgumentParser:
     from qodo.cli._commands import config as _config_group
     from qodo.cli._commands import doctor as _doctor_cmd
     from qodo.cli._commands import explain as _explain_cmd
+    from qodo.cli._commands import findings as _findings_group
+    from qodo.cli._commands import history as _history_group
     from qodo.cli._commands import learn as _learn_cmd
     from qodo.cli._commands import overview as _overview_cmd
     from qodo.cli._commands import review as _review_group
@@ -92,6 +94,8 @@ def _build_parser() -> argparse.ArgumentParser:
     _rules_group.register(sub)
     _review_group.register(sub)
     _config_group.register(sub)
+    _findings_group.register(sub)
+    _history_group.register(sub)
     # Agent-first introspection verbs:
     _whoami_cmd.register(sub)
     _learn_cmd.register(sub)

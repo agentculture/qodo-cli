@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 
+from qodo.cli import _build
 from qodo.cli._commands.whoami import report
 from qodo.cli._output import add_json_flag, emit_result
 
@@ -39,6 +40,11 @@ _VERBS = [
 ]
 
 
+def _all_verbs() -> list[str]:
+    """The hand-written verb lines plus the verb registry's verbs they do not name."""
+    return list(_VERBS) + _build.missing_lines("\n".join(_VERBS))
+
+
 def agent_sections() -> list[dict[str, object]]:
     """Sections describing the agent (used by the global verb)."""
     ident = report()
@@ -52,7 +58,7 @@ def agent_sections() -> list[dict[str, object]]:
                 f"model: {ident['model']}",
             ],
         },
-        {"title": "Verbs", "items": list(_VERBS)},
+        {"title": "Verbs", "items": _all_verbs()},
         {"title": "Sibling-pattern artifacts", "items": list(_ARTIFACTS)},
     ]
 
@@ -62,7 +68,7 @@ def cli_sections() -> list[dict[str, object]]:
     return [
         {
             "title": "Verbs",
-            "items": list(_VERBS) + ["cli overview — describe the CLI surface (this command)"],
+            "items": _all_verbs() + ["cli overview — describe the CLI surface (this command)"],
         },
         {
             "title": "Conventions",
@@ -83,6 +89,7 @@ def rules_sections() -> list[dict[str, object]]:
             "items": [
                 'rules get "<query>" [--scope S | --no-scope] — semantic-search '
                 "your org's Qodo rules (scope auto-detected from the git origin)",
+                *_build.noun_items("rules", ['rules get "<query>"']),
                 "rules overview — describe the rules noun (this command)",
             ],
         },

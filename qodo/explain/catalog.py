@@ -275,3 +275,77 @@ ENTRIES: dict[tuple[str, ...], str] = {
     ("cli",): _CLI,
     ("cli", "overview"): _CLI,
 }
+
+
+# --- verbs from the verb registry (qodo.registry) -------------------------------------------------
+# Built from the registry, so an entry cannot drift from the verb's params; an entry written above
+# is never replaced.
+
+
+def _flag_usage(verb, params) -> str:
+    required = set(verb.params.get("required", []))
+    parts = []
+    for name, prop in params:
+        flag = "--" + name.replace("_", "-")
+        arg = "" if prop.get("type") == "boolean" else f" {name.upper()}"
+        parts.append(f"{flag}{arg}" if name in required else f"[{flag}{arg}]")
+    return " ".join(parts + ["[--json]"])
+
+
+def _verb_entry(verb) -> str:
+    props = [
+        (n, p) for n, p in verb.params.get("properties", {}).items() if not p.get("deprecated")
+    ]
+    where = f"`{verb.tool}`" if verb.tool else "a local verb"
+    out = [f"# qodo-cli {verb.verb}", "", verb.summary, ""]
+    if verb.kind == "upstream":
+        out += [
+            f"Calls Qodo's upstream tool {where} through the exposure policy "
+            f"(surfaces: {', '.join(verb.surfaces)}); a tool the policy does not name is refused.",
+            "It **writes** (the policy allows it)." if verb.writes else "It is read-only.",
+            "Needs `QODO_API_KEY` or `~/.qodo/config.json`; exit 2 when Qodo cannot be reached.",
+            "",
+        ]
+    out += ["## Usage", "", f"    qodo-cli {verb.verb} {_flag_usage(verb, props)}", ""]
+    if props:
+        out.append("## Parameters")
+        out.append("")
+        for name, prop in props:
+            need = "required" if name in verb.params.get("required", []) else "optional"
+            text = " ".join(str(prop.get("description", "")).split())
+            out.append(
+                f"- `--{name.replace('_', '-')}` ({need}, {prop.get('type', 'json')}): {text}"
+            )
+        out.append("")
+    out += ["## See also", "", f"- `qodo-cli explain {verb.noun}`"]
+    return "\n".join(out) + "\n"
+
+
+def _noun_entry(noun: str, verbs) -> str:
+    lines = [f"# qodo-cli {noun}", ""]
+    lines += [f"- `qodo-cli {v.verb}` — {v.summary}" for v in verbs]
+    lines += [f"- `qodo-cli {noun} overview` — describe this noun", ""]
+    lines += ["Built from the exposure policy: a tool it does not name has no verb here.", ""]
+    lines += ["Every verb supports `--json`; exit 1 on bad input or a refused call, 2 when"]
+    lines += ["Qodo cannot be reached.", ""]
+    return "\n".join(lines)
+
+
+def _add_registry_entries() -> None:
+    from qodo import registry
+    from qodo.cli._errors import CliError
+
+    try:
+        verbs = registry.default_registry().on_surface("cli")
+    except CliError:  # a broken policy must not take `explain` down with it
+        return
+    for noun in dict.fromkeys(v.noun for v in verbs):
+        members = [v for v in verbs if v.noun == noun]
+        text = _noun_entry(noun, members)
+        for key in ((noun,), (noun, "overview")):
+            ENTRIES.setdefault(key, text)
+        for verb in members:
+            ENTRIES.setdefault(verb.path, _verb_entry(verb))
+
+
+_add_registry_entries()

@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 
 from qodo import __version__
+from qodo.cli import _build
 from qodo.cli._output import add_json_flag, emit_result
 
 _TEXT = """\
@@ -84,11 +85,33 @@ def _as_json_payload() -> dict[str, object]:
     }
 
 
+def _bridge_text() -> str:
+    """The registry's verbs that the text above does not name (built from the exposure policy)."""
+    lines = _build.missing_lines(_TEXT)
+    if not lines:
+        return ""
+    return "\nMore verbs (from the verb registry)\n-----------------------------------\n" + "".join(
+        f"  qodo-cli {line}\n" for line in lines
+    )
+
+
+def _bridge_commands(payload: dict[str, object]) -> list[dict[str, object]]:
+    known = {tuple(c["path"]) for c in payload["commands"]}  # type: ignore[union-attr]
+    return [
+        {"path": [v.noun, v.name], "summary": v.summary}
+        for v in _build.cli_verbs()
+        if (v.noun, v.name) not in known
+    ]
+
+
 def cmd_learn(args: argparse.Namespace) -> int:
     if getattr(args, "json", False):
-        emit_result(_as_json_payload(), json_mode=True)
+        payload = _as_json_payload()
+        commands = [*payload["commands"], *_bridge_commands(payload)]  # type: ignore[misc]
+        payload["commands"] = commands
+        emit_result(payload, json_mode=True)
     else:
-        emit_result(_TEXT, json_mode=False)
+        emit_result(_TEXT + _bridge_text(), json_mode=False)
     return 0
 
 

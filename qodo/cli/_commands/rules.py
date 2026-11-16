@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 
 from qodo import api
+from qodo.cli import _build
 from qodo.cli._commands.overview import emit_overview, rules_sections
 from qodo.cli._output import add_json_flag, emit_result
 
@@ -104,6 +105,8 @@ def register(sub: argparse._SubParsersAction) -> None:
     )
     add_json_flag(get)
     get.set_defaults(func=cmd_rules_get)
+
+    _build.attach(verb, "rules")  # search, list, show, metadata: from the verb registry
 
     ov = verb.add_parser("overview", help="Describe the qodo-cli rules noun.")
     ov.add_argument("target", nargs="?", help="Ignored — overview describes the rules noun.")
