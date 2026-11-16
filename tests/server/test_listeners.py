@@ -128,3 +128,27 @@ def test_serve_starts_both_listeners_answers_and_stops_on_sigterm(tmp_path):
             proc.wait()
         proc.stdout.close()
         proc.stderr.close()
+
+
+def test_serve_does_not_say_listening_when_a_port_is_taken(tmp_path):
+    import socket
+
+    held = socket.socket()
+    held.bind(("127.0.0.1", 0))
+    held.listen(1)
+    taken = held.getsockname()[1]
+    env = {
+        **os.environ,
+        "HOME": str(tmp_path),
+        "QODO_SERVER_TOKENS": str(tmp_path / "tokens.json"),
+        "QODO_CHANGE_LOG": str(tmp_path / "changes.jsonl"),
+    }
+    try:
+        done = subprocess.run(
+            [sys.executable, "-m", "qodo", "serve", "--port", str(taken)],
+            cwd=ROOT, env=env, capture_output=True, text=True, timeout=30, check=False,
+        )  # fmt: skip
+    finally:
+        held.close()
+    assert done.returncode != 0
+    assert "listening" not in done.stdout and "listening" not in done.stderr

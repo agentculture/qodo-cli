@@ -234,8 +234,16 @@ def serve(
 
         for sig in (signal.SIGINT, signal.SIGTERM):
             loop.add_signal_handler(sig, stop)
-        if ready is not None:
-            ready()
-        await asyncio.gather(*(server.serve() for server in servers))
+        tasks = [asyncio.ensure_future(server.serve()) for server in servers]
+        # "ready" means every listener has bound its socket, not that startup began
+        while not all(server.started for server in servers):
+            if any(task.done() for task in tasks):  # one failed to start: stop the others
+                stop()
+                break
+            await asyncio.sleep(0.02)
+        else:
+            if ready is not None:
+                ready()
+        await asyncio.gather(*tasks)
 
     asyncio.run(main())
