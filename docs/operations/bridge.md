@@ -310,8 +310,12 @@ because Qodo's current reference does not mention them.
 
 ## The change log
 
-Every change made through the bridge adds one line to an append-only log, so a
-person or the web UI can see what happened. Only successful changes are logged.
+Two kinds of change add a line to an append-only log, so a person or the web UI
+can see what happened: a finding marked implemented or dismissed (one line per
+finding), and a configuration change that `config propose` accepted. Only
+successful changes are logged. It is not a complete audit trail: `review resolve`
+and `config init` write nothing to it, and if the log cannot be written the
+change still succeeds with a warning.
 
 - **Where:** `$QODO_CHANGE_LOG`, else `$XDG_STATE_HOME/qodo-cli/changes.jsonl`,
   else `~/.local/state/qodo-cli/changes.jsonl`. The directory is mode 0700 and
