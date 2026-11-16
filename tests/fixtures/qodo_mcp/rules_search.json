@@ -1,0 +1,19 @@
+{
+  "isError": false,
+  "structuredContent": {
+    "rules": [
+      {
+        "content": "sample content",
+        "id": 1,
+        "name": "sample name",
+        "severity": "warning"
+      },
+      {
+        "content": "sample content",
+        "id": 1,
+        "name": "sample name",
+        "severity": "warning"
+      }
+    ]
+  }
+}
