@@ -12,23 +12,9 @@ from __future__ import annotations
 
 import argparse
 
-from qodo.cli import _qodo_api
+from qodo import api
 from qodo.cli._commands.overview import emit_overview, rules_sections
 from qodo.cli._output import add_json_flag, emit_result
-
-
-def _resolve_scopes(args: argparse.Namespace) -> list[str] | None:
-    """Decide the scopes to send: explicit ``--scope`` > ``--no-scope`` > auto-detect.
-
-    Returns ``None`` (omit ``scopes`` entirely) when forced off or nothing is
-    detected — never an empty list.
-    """
-    if getattr(args, "no_scope", False):
-        return None
-    if getattr(args, "scopes", None):
-        return args.scopes
-    detected = _qodo_api.detect_scopes()
-    return detected or None
 
 
 def _render_rules(query: str, rules: list[dict[str, object]], scopes: list[str] | None) -> str:
@@ -53,8 +39,10 @@ def _render_rules(query: str, rules: list[dict[str, object]], scopes: list[str] 
 def cmd_rules_get(args: argparse.Namespace) -> int:
     query = args.query
     json_mode = bool(getattr(args, "json", False))
-    scopes = _resolve_scopes(args)
-    rules = _qodo_api.search_rules(query, top_k=args.top_k, scopes=scopes)
+    scopes = api.rules_scopes(
+        scopes=getattr(args, "scopes", None), auto_scope=not getattr(args, "no_scope", False)
+    )
+    rules = api.rules_get(query, top_k=args.top_k, scopes=scopes, auto_scope=False)
     if json_mode:
         emit_result(
             {"query": query, "scopes": scopes, "count": len(rules), "rules": rules},
@@ -97,8 +85,8 @@ def register(sub: argparse._SubParsersAction) -> None:
     get.add_argument(
         "--top-k",
         type=int,
-        default=_qodo_api.DEFAULT_TOP_K,
-        help=f"Max rules to request (default {_qodo_api.DEFAULT_TOP_K}).",
+        default=api.DEFAULT_TOP_K,
+        help=f"Max rules to request (default {api.DEFAULT_TOP_K}).",
     )
     scope_group = get.add_mutually_exclusive_group()
     scope_group.add_argument(
