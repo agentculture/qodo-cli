@@ -7,6 +7,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.10.0] - 2026-11-16
 
+### Added
+
+- **qodo-cli is a bridge:** one app with a CLI, an HTTP API, an MCP server and a web UI over the same verbs. Guides: `docs/operations/bridge.md` (operator), `docs/agents.md` (CLI and MCP) and `docs/integrators.md` (Python and HTTP API).
+- **A gateway over Qodo's own MCP server** (`qodo/gateway.py`), behind an **exposure policy**: only the upstream tools the policy names are exposed, each under a verb and on the surfaces (`cli`, `api`, `mcp`) it lists. A tool that is not read-only is refused unless its entry says `allow_write`. `QODO_EXPOSURE_POLICY` names an operator's own policy file; the shipped policy exposes findings, rules, PR history and the open-PR list.
+- **A verb registry** (`qodo/registry.py`) that every surface is generated from, with a parity test (`tests/test_surface_parity.py`). New verbs: `findings list|implement|dismiss`, `rules search|list|show|metadata`, `history show|similar|stats`, `prs list`, `config propose`, `config status`.
+- **`qodo-cli serve`** (the `server` extra): a loopback listener that can honour Cloudflare Access and an optional LAN listener with service tokens. Each verb is `POST /verbs/<noun>/<name>`; `GET /health` is public; the contract is pinned in `api/openapi.json`. **`qodo-cli tokens issue|list|revoke`** manage service tokens with a role (viewer, editor, admin).
+- **`qodo-cli mcp`** (the `mcp` extra): one tool per verb on the `mcp` surface, over stdio.
+- **`config propose`**: given a repo, its checkout and a base ref, returns the changed Qodo configuration files only when every change is to an allowlisted path and validates; otherwise a refusal with a reason and no contents. Repos and checkout roots are allowlists with no defaults (`QODO_PROPOSE_REPOS`, `QODO_PROPOSE_CHECKOUT_ROOTS`); a repo's checkout is `<root>/<owner>/<name>`.
+- **A web UI** in `web/` (Findings, Configuration, Rules), built into the wheel as `qodo/web_dist` and served by `qodo-cli serve`.
+- **A public Python API**, `qodo.api`, over the same logic as the CLI.
+- **Key health and a change log:** `doctor` and `/health` report a missing or soon-to-expire Qodo API key (the expiry is configured in `QODO_API_KEY_EXPIRES`); each finding change and each accepted configuration proposal appends a line to a change log.
+- **A culture-rules bundle** in `docs/rules/qodo/` (collect findings after Qodo reviews a pull request; propose a configuration change after a merge). It ships disabled and needs culture-rules 0.47.0.
+- **A reusable bridge framework** in `qodo/bridge/`, cited from culture-rules: auth, service tokens, route roles, static serving and a generic MCP server.
+
 ### Changed
 
 - **Breaking:** the installed console script is now `qodo-cli` (was `qodo`), matching the distribution name. `[project.scripts]` defines only `qodo-cli`; the Python import package stays `qodo` (`import qodo`, `python -m qodo`). The argparse `prog`, `learn`, `explain` catalog (the `qodo` root key is gone, `explain qodo-cli` is the root), `overview`, README, CLAUDE.md and the docs now name `qodo-cli`. `--json` shapes are unchanged.
