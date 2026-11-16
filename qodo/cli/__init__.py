@@ -73,10 +73,10 @@ def _build_parser() -> argparse.ArgumentParser:
     from qodo.cli._commands import whoami as _whoami_cmd
 
     parser = _CliArgumentParser(
-        # `prog` must match the installed console script (`qodo`) so usage,
+        # `prog` must match the installed console script (`qodo-cli`) so usage,
         # --version, and error-remediation lines point users at a command that
-        # actually exists. `qodo-cli` stays the distribution/brand name only.
-        prog="qodo",
+        # actually exists. The import package stays `qodo`.
+        prog="qodo-cli",
         description="qodo-cli — an unofficial community CLI to manage Qodo (rules + PR review).",
     )
     parser.add_argument(

@@ -31,25 +31,25 @@ it without a human in the loop.
 
 - **Python ≥ 3.12**
 - [`uv`](https://docs.astral.sh/uv/) (recommended for the dev workflow)
-- For `qodo review`: the [`gh`](https://cli.github.com/) (GitHub, incl.
+- For `qodo-cli review`: the [`gh`](https://cli.github.com/) (GitHub, incl.
   Enterprise) or `glab` (GitLab) CLI on your `PATH`, already authenticated.
-- For `qodo rules`: a Qodo API key in `~/.qodo/config.json` (`{"API_KEY": "..."}`)
+- For `qodo-cli rules`: a Qodo API key in `~/.qodo/config.json` (`{"API_KEY": "..."}`)
   or the `QODO_API_KEY` environment variable.
 
 ## Install
 
 The package is published to PyPI as **`qodo-cli`**; the installed console script
-is **`qodo`** (run commands as `qodo …`).
+is **`qodo-cli`** (run commands as `qodo-cli …`). The Python import package is `qodo`.
 
 ```bash
 uv tool install qodo-cli      # or: pipx install qodo-cli
-qodo --help
+qodo-cli --help
 ```
 
-Run it ad-hoc without installing (note the script name differs from the package):
+Run it ad-hoc without installing:
 
 ```bash
-uvx --from qodo-cli qodo --help
+uvx qodo-cli --help
 ```
 
 From source (for development):
@@ -58,26 +58,26 @@ From source (for development):
 git clone https://github.com/agentculture/qodo-cli
 cd qodo-cli
 uv sync                       # install runtime + dev deps into .venv
-uv run qodo --help
+uv run qodo-cli --help
 ```
 
 ## Quickstart
 
 ```bash
-uv run qodo whoami                 # who am I? (identity from culture.yaml)
-uv run qodo learn                  # structured self-teaching prompt (add --json)
-uv run qodo doctor                 # health: agent-identity invariants + Qodo setup
+uv run qodo-cli whoami                 # who am I? (identity from culture.yaml)
+uv run qodo-cli learn                  # structured self-teaching prompt (add --json)
+uv run qodo-cli doctor                 # health: agent-identity invariants + Qodo setup
 
-uv run qodo rules get "how should errors be handled in the CLI layer?"
-uv run qodo review list            # Qodo's comments on the PR for the current branch
-uv run qodo config show            # is this repo's Qodo reviewer config in place?
+uv run qodo-cli rules get "how should errors be handled in the CLI layer?"
+uv run qodo-cli review list            # Qodo's comments on the PR for the current branch
+uv run qodo-cli config show            # is this repo's Qodo reviewer config in place?
 ```
 
-(Outside the dev checkout, drop the `uv run` prefix and just call `qodo …`.)
+(Outside the dev checkout, drop the `uv run` prefix and just call `qodo-cli …`.)
 
 ## Commands
 
-### `qodo rules` — surface your org's coding rules
+### `qodo-cli rules` — surface your org's coding rules
 
 Semantic-searches the Qodo rules API and prints the relevance-ranked rules with
 their severity (`ERROR` / `WARNING` / `RECOMMENDATION`). Reuses the API key
@@ -86,13 +86,13 @@ auto-detected from your `git origin`; override or disable it explicitly. Cites
 `qodo-get-rules`.
 
 ```bash
-qodo rules get "auth token storage"                       # auto-detected scope
-qodo rules get "logging conventions" --top-k 5            # cap the result count
-qodo rules get "naming" --scope agentculture/qodo-cli     # force a scope (repeatable)
-qodo rules get "error handling" --no-scope --json         # disable scope; JSON out
+qodo-cli rules get "auth token storage"                       # auto-detected scope
+qodo-cli rules get "logging conventions" --top-k 5            # cap the result count
+qodo-cli rules get "naming" --scope agentculture/qodo-cli     # force a scope (repeatable)
+qodo-cli rules get "error handling" --no-scope --json         # disable scope; JSON out
 ```
 
-### `qodo review` (alias `qodo pr`) — triage the Qodo bot's PR comments
+### `qodo-cli review` (alias `qodo-cli pr`) — triage the Qodo bot's PR comments
 
 Drives your existing provider CLI (`gh` / `glab`) to find the open PR for the
 current branch, list the Qodo reviewer's comments (severity, type, description,
@@ -101,15 +101,15 @@ them. It reuses your provider-CLI auth — no new credentials. The *fixing* loop
 (read files, write a fix) stays with the calling agent. Cites `qodo-pr-resolver`.
 
 ```bash
-qodo review list                       # all Qodo comments on the current branch's PR
-qodo review list --kind inline         # hide the summary rollups
-qodo review list --pr 42 --json        # explicit PR number, machine-readable
+qodo-cli review list                       # all Qodo comments on the current branch's PR
+qodo-cli review list --kind inline         # hide the summary rollups
+qodo-cli review list --pr 42 --json        # explicit PR number, machine-readable
 
-qodo review resolve 123456789                          # resolve one inline comment by id
-qodo review resolve 123 456 --reply "Fixed in abc1234" --sign
-qodo review resolve --all                              # every inline Qodo comment
-qodo review resolve --all --severity LOW               # only LOW-severity comments
-qodo review resolve 123 --no-resolve-thread            # +1 reaction only, skip GraphQL
+qodo-cli review resolve 123456789                          # resolve one inline comment by id
+qodo-cli review resolve 123 456 --reply "Fixed in abc1234" --sign
+qodo-cli review resolve --all                              # every inline Qodo comment
+qodo-cli review resolve --all --severity LOW               # only LOW-severity comments
+qodo-cli review resolve 123 --no-resolve-thread            # +1 reaction only, skip GraphQL
 ```
 
 - `--sign` appends your `culture.yaml` nick signature to `--reply` (at most once).
@@ -119,19 +119,19 @@ qodo review resolve 123 --no-resolve-thread            # +1 reaction only, skip 
   end-to-end. Azure / Bitbucket / Gerrit are recognized but raise a clear "not
   wired yet" error rather than misbehaving.
 
-### `qodo config` — manage the repo's Qodo reviewer config
+### `qodo-cli config` — manage the repo's Qodo reviewer config
 
 Maintains the two files that make Qodo's reviews of *this* repo accurate:
 `.pr_agent.toml` (the Qodo Merge `[pr_reviewer]` config) and `best_practices.md`.
 A missing config is why Qodo falls back to inferred conventions and raises false
 positives. This is distinct from the *client* `~/.qodo/config.json` that
-`qodo rules` reads.
+`qodo-cli rules` reads.
 
 ```bash
-qodo config show          # read-only snapshot of both files
-qodo config validate      # exit 1 if the config is invalid/absent
-qodo config init          # scaffold both files when absent (never clobbers)
-qodo config init --force  # overwrite existing files
+qodo-cli config show          # read-only snapshot of both files
+qodo-cli config validate      # exit 1 if the config is invalid/absent
+qodo-cli config init          # scaffold both files when absent (never clobbers)
+qodo-cli config init --force  # overwrite existing files
 ```
 
 ### Agent-first introspection

@@ -1,6 +1,6 @@
 # Qodo-skills citation ledger
 
-`qodo rules` and `qodo review` are **native reimplementations** of the two
+`qodo-cli rules` and `qodo-cli review` are **native reimplementations** of the two
 official skills in [`qodo-ai/qodo-skills`](https://github.com/qodo-ai/qodo-skills).
 We **cite, don't import**: those skills are the behavioral source of truth that
 this CLI points at — we do **not** fork, vendor, or `npx skills add` them, and no
@@ -14,8 +14,8 @@ If upstream changes, this is the file to re-check the contract against.
 
 | qodo-cli verb | Upstream skill | Upstream reference |
 | --- | --- | --- |
-| `qodo rules get` | `qodo-get-rules` | `skills/qodo-get-rules/SKILL.md`, `references/search-endpoint.md`, `references/output-format.md` |
-| `qodo review list` / `resolve` (alias `qodo pr`) | `qodo-pr-resolver` | `skills/qodo-pr-resolver/SKILL.md`, `resources/providers.md` |
+| `qodo-cli rules get` | `qodo-get-rules` | `skills/qodo-get-rules/SKILL.md`, `references/search-endpoint.md`, `references/output-format.md` |
+| `qodo-cli review list` / `resolve` (alias `qodo-cli pr`) | `qodo-pr-resolver` | `skills/qodo-pr-resolver/SKILL.md`, `resources/providers.md` |
 
 ## What we reimplement vs. what stays agent-side
 
@@ -24,11 +24,11 @@ with LLM-driven steps (generating search queries, reading code, writing fixes).
 This CLI owns **only the deterministic mechanics**. The LLM steps stay with the
 calling agent — which keeps the CLI zero-dependency and model-agnostic.
 
-- **`qodo rules`** — we own: read `~/.qodo/config.json`, build the base URL,
+- **`qodo-cli rules`** — we own: read `~/.qodo/config.json`, build the base URL,
   POST `/rules/search`, return relevance-ranked rules with severity. The agent
   owns: turning a task into the two structured queries `qodo-get-rules`
   generates (call `rules get` once per query and merge).
-- **`qodo review`** — we own: detect the provider, find the open PR, fetch and
+- **`qodo-cli review`** — we own: detect the provider, find the open PR, fetch and
   filter the Qodo bot's comments, dedup by stable comment identity (id/url),
   parse each body into structured triage fields, reply, acknowledge, and resolve
   the review thread. The agent owns: reading the flagged files, generating a fix,
@@ -92,7 +92,7 @@ calling agent — which keeps the CLI zero-dependency and model-agnostic.
     `gh api graphql` (`repository.pullRequest.reviewThreads` → match
     `comments.nodes.databaseId`), then `resolveReviewThread(input:{threadId})`.
 
-- **Comment body structure (parsed by `qodo review list`):** a Qodo inline body
+- **Comment body structure (parsed by `qodo-cli review list`):** a Qodo inline body
   opens with a severity badge `<img ... alt="Action required">` (or
   `"Review recommended"`); the title line carries `<code>` category chips
   (e.g. `📘 Rule violation`, `≡ Correctness`); the `<pre>` block is the issue
@@ -138,7 +138,7 @@ to skip), falling back to reaction-only when no thread maps to the comment.
 - No `qodo skills` verb and no `npx skills add` wrapper — skills are cited as a
   spec, never shipped, installed, or forked.
 - No reimplementation of Qodo's server-side analysis.
-- `qodo rules` does not implement an interactive login — it reuses existing
+- `qodo-cli rules` does not implement an interactive login — it reuses existing
   credentials and errors when they are absent.
 
 ## Verifying the contracts
@@ -146,7 +146,7 @@ to skip), falling back to reaction-only when no thread maps to the comment.
 The `/rules/search` response shape is pinned by an **offline contract test**
 (`tests/test_contracts.py`) against a recorded fixture
 (`tests/fixtures/rules_search_response.json`). Paths that need a real system to
-exercise — `qodo rules` against the live API, and GitHub Enterprise provider
+exercise — `qodo-cli rules` against the live API, and GitHub Enterprise provider
 resolution — have **opt-in live smokes** (gated on `QODO_API_KEY` /
 `QODO_CLI_GHE_REMOTE`, skipped by default) plus a manual checklist in
 `docs/manual-verification.md`.

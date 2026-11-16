@@ -9,7 +9,7 @@ Two groups of checks, reported in one rubric-shaped contract
 * **Qodo setup** (always, against the current repo): whether the repo carries a
   Qodo reviewer config (``.pr_agent.toml`` / ``best_practices.md``) and whether
   client API credentials (``~/.qodo/config.json`` / ``QODO_API_KEY``) are
-  available for ``qodo rules``. These are advisory — their ``remediation`` guides
+  available for ``qodo-cli rules``. These are advisory — their ``remediation`` guides
   an agent through setting them up.
 
 ``healthy`` is true when every **error**-severity check passes; ``warning`` /
@@ -155,7 +155,7 @@ def _qodo_setup_checks(repo_root: Path, home: Path) -> list[dict[str, object]]:
 
 
 def _client_credential_status(home: Path) -> tuple[bool, str, str]:
-    """Whether 'qodo rules' would find a usable API key — never raises.
+    """Whether 'qodo-cli rules' would find a usable API key — never raises.
 
     Mirrors what the rules client actually needs (``qodo/cli/_qodo_api.py``):
     a resolvable ``API_KEY`` from ``QODO_API_KEY`` or a readable, well-formed
@@ -163,15 +163,15 @@ def _client_credential_status(home: Path) -> tuple[bool, str, str]:
     ``(passed, message, remediation)``.
     """
     if os.environ.get("QODO_API_KEY"):
-        return True, "Qodo API key available via QODO_API_KEY (for 'qodo rules')", ""
+        return True, "Qodo API key available via QODO_API_KEY (for 'qodo-cli rules')", ""
 
     cfg_path = home / ".qodo" / "config.json"
     if not cfg_path.is_file():
         return (
             False,
-            "no ~/.qodo/config.json and QODO_API_KEY unset (needed for 'qodo rules')",
+            "no ~/.qodo/config.json and QODO_API_KEY unset (needed for 'qodo-cli rules')",
             'create ~/.qodo/config.json with an "API_KEY" (or export QODO_API_KEY). '
-            "Only 'qodo rules' needs it; 'qodo review' uses your provider-CLI auth.",
+            "Only 'qodo-cli rules' needs it; 'qodo-cli review' uses your provider-CLI auth.",
         )
     try:
         data = json.loads(cfg_path.read_text(encoding="utf-8"))
@@ -190,10 +190,10 @@ def _client_credential_status(home: Path) -> tuple[bool, str, str]:
     if not isinstance(data, dict) or not str(data.get("API_KEY") or "").strip():
         return (
             False,
-            "~/.qodo/config.json has no API_KEY (needed for 'qodo rules')",
+            "~/.qodo/config.json has no API_KEY (needed for 'qodo-cli rules')",
             'add a non-empty "API_KEY" to ~/.qodo/config.json (or export QODO_API_KEY)',
         )
-    return True, "Qodo API key present in ~/.qodo/config.json (for 'qodo rules')", ""
+    return True, "Qodo API key present in ~/.qodo/config.json (for 'qodo-cli rules')", ""
 
 
 def _repo_root(start: Path) -> Path:

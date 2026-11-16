@@ -12,7 +12,7 @@ What this module owns is the *deterministic* slice: read the existing
 credentials, build the URL, POST the search, and hand back the ranked rules. The
 *query generation* step the skill performs (an LLM turning a task into two
 structured queries) is the caller's job — a Claude agent calling
-``qodo rules get`` can run it twice, once per generated query.
+``qodo-cli rules get`` can run it twice, once per generated query.
 """
 
 from __future__ import annotations
