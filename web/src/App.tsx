@@ -1,6 +1,8 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import Header from "./components/Header";
-import { Configuration, Findings, Rules } from "./routes/Placeholder";
+import Configuration from "./routes/Configuration";
+import Findings from "./routes/Findings";
+import Rules from "./routes/Rules";
 
 /**
  * The shell: header + exactly three tab routes. `/` and any unknown path land on Findings.

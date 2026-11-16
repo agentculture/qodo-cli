@@ -33,6 +33,50 @@
         "type": "object"
       }
     },
+    "litegit-list-prs": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "List PRs filtered by state / base branch / since. Use for 'most recent merged PR', 'open PRs against main'.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "base_branch": {
+            "description": "Filter by target branch (e.g. 'main').",
+            "type": "string"
+          },
+          "max_results": {
+            "description": "Optional cap. Default 50.",
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "repo": {
+            "description": "Repository identifier — the provider's full name (for example 'owner/repo', 'group/subgroup/repo', or 'org/project/repo') or a full HTTPS / SSH URL. The bearer's workspace credential picks the right VCS installation automatically.",
+            "type": "string"
+          },
+          "since": {
+            "description": "ISO-8601 timestamp. For state=merged filters on merged_at >= since; otherwise updated_at >= since.",
+            "type": "string"
+          },
+          "state": {
+            "description": "Filter by PR state. Default 'all'.",
+            "enum": [
+              "open",
+              "merged",
+              "closed",
+              "all"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo"
+        ],
+        "type": "object"
+      }
+    },
     "pr-review-dismiss": {
       "annotations": {
         "destructiveHint": true,

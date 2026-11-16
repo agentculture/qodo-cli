@@ -226,6 +226,44 @@ separated) override the two allowlists.
 - `qodo-cli explain config`
 """
 
+_CONFIG_STATUS = """\
+# qodo-cli config status
+
+What Qodo reads in each repo of the bridge's repo allowlist (the one `config propose` uses),
+whether it validates, and the configuration changes the bridge proposed for it: the data of
+the web UI's Configuration screen. **Read-only**; on the `cli` and `api` surfaces (viewer).
+
+## Usage
+
+    qodo-cli config status [--repo OWNER/NAME] [--json]
+
+## What it reads, in order
+
+1. `repo`, when given, must be in the repo allowlist: it is refused (exit 1, HTTP 400)
+   before the filesystem is touched. The caller names a repo, never a path. Without
+   `repo`, every allowlisted repo (at most 20; `truncated` says when there are more).
+2. The repo's checkout: the first `<root>/<owner>/<name>` under an allowed checkout root
+   that is a real directory with a `.git` directory, reached through no symlink; else
+   `checkout: "missing"`.
+3. Only the files of the path allowlist (`.pr_agent.toml`, `REVIEW.md`,
+   `best_practices.md` by default), from the working tree: a symlink or non-regular entry
+   is reported, not read; a file over `max_file_bytes` is reported, not read.
+
+## Result
+
+`{configured, truncated, repos: [{repo, checkout, files: [{path, kind, present, bytes,
+valid_toml, sections, problem}], validation: {valid, checks}, warnings: [{code, path,
+detail}], proposals: [{time, files, actor}]}]}`. `validation` is `config validate`'s checks
+on those files; `proposals` are the newest `config.proposed` change-log entries for the
+repo. **Never a file's contents, never a path on the bridge's machine**, and the reply
+stays under `max_reply_bytes`. An empty allowlist answers `configured: false`.
+
+## See also
+
+- `qodo-cli explain config propose`
+- `qodo-cli explain config`
+"""
+
 _SERVE = """\
 # qodo-cli serve
 
@@ -414,6 +452,7 @@ ENTRIES: dict[tuple[str, ...], str] = {
     ("config", "validate"): _CONFIG,
     ("config", "init"): _CONFIG,
     ("config", "propose"): _CONFIG_PROPOSE,
+    ("config", "status"): _CONFIG_STATUS,
     ("config", "overview"): _CONFIG,
     ("serve",): _SERVE,
     ("mcp",): _MCP,

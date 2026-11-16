@@ -27,6 +27,7 @@ from qodo.registry import Verb
 NOUN_HELP = {
     "findings": "Qodo's findings on a pull request: list them, mark implemented, dismiss.",
     "history": "What Qodo's PR history says about a file, a similar change, or a repo.",
+    "prs": "A repo's pull requests, as Qodo's read-only litegit tool lists them.",
 }
 
 

@@ -183,8 +183,12 @@ prompt file, and re-vendor only the skills you need (`docs/skill-sources.md`).
 
 ## Web UI (`web/`)
 
-A Vite + React + TypeScript shell (Findings | Configuration | Rules; the screens are built
-later) cited from culture-rules' `web/`; every cited file carries a provenance header with the
+A Vite + React + TypeScript app (Findings | Configuration | Rules) whose shell is cited from
+culture-rules' `web/`. The screens read `config status` (the allowlisted repos), `prs list`
+(Qodo's `litegit-list-prs`, reply never recorded: parsed defensively), `findings list
+--offset/--limit` (pages under 64 KiB), `findings implement|dismiss` (editor, behind a
+confirmation) and `rules search|show`; their tests run against fixtures copied from
+`tests/fixtures/qodo_mcp/` (`web/src/fixtures/`); every cited file carries a provenance header with the
 source path and commit. Commands, from `web/`: `npm ci`, `npm run typecheck`, `npm test`,
 `npm run check` (the design tokens), `npm run build`. The browser calls the same-origin `/api`
 prefix, which `qodo-cli serve` strips; in dev `npm run dev` proxies it to `QODO_API_URL`

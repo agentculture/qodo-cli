@@ -412,6 +412,124 @@
         "x-writes": false
       }
     },
+    "/verbs/config/status": {
+      "post": {
+        "description": "Needs the viewer role. The body is the verb's params as a JSON object.",
+        "operationId": "config_status",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "repo": {
+                    "description": "owner/name from the bridge's repo allowlist (default: every allowlisted repo).",
+                    "maxLength": 201,
+                    "type": "string"
+                  }
+                },
+                "required": [],
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Config Status"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The params are not valid for the verb (or the body is not a JSON object)."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No credential, or an unknown or revoked one."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential's role is too low for this route."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The body is over the size cap."
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A body that is not sent as application/json."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An unexpected failure (no detail is returned)."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Qodo, or this server's own configuration, could not complete the call."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Each allowlisted repo's Qodo config files, validation and proposals.",
+        "tags": [
+          "config"
+        ],
+        "x-role": "viewer",
+        "x-writes": false
+      }
+    },
     "/verbs/findings/dismiss": {
       "post": {
         "description": "Needs the editor role. A write: it changes Qodo's state. The body is the verb's params as a JSON object.",
@@ -722,6 +840,17 @@
                     "deprecated": true,
                     "description": "Deprecated compatibility-only input. It is ignored; identify the pull/merge request with pr_url and omit this argument in new callers.",
                     "type": "string"
+                  },
+                  "limit": {
+                    "description": "A page of the full form: at most this many findings, long text clipped, the reply under 64 KiB (it may hold fewer; follow next_offset).",
+                    "maximum": 50.0,
+                    "minimum": 1.0,
+                    "type": "integer"
+                  },
+                  "offset": {
+                    "description": "A page of the full form: skip this many findings (with --limit; the reply then carries counts and next_offset).",
+                    "minimum": 0.0,
+                    "type": "integer"
                   },
                   "pr_url": {
                     "description": "Full http:// or https:// URL of the pull/merge request, including its hostname; for example, https://github.com/org/repo/pull/123. A repo slug or PR number is not a URL.",
@@ -1281,6 +1410,149 @@
         "summary": "What PR history Qodo has indexed for a repo.",
         "tags": [
           "history"
+        ],
+        "x-role": "viewer",
+        "x-writes": false
+      }
+    },
+    "/verbs/prs/list": {
+      "post": {
+        "description": "Needs the viewer role. The body is the verb's params as a JSON object.",
+        "operationId": "prs_list",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "base_branch": {
+                    "description": "Filter by target branch (e.g. 'main').",
+                    "type": "string"
+                  },
+                  "max_results": {
+                    "description": "Optional cap. Default 50.",
+                    "maximum": 200.0,
+                    "minimum": 1.0,
+                    "type": "integer"
+                  },
+                  "repo": {
+                    "description": "Repository identifier — the provider's full name (for example 'owner/repo', 'group/subgroup/repo', or 'org/project/repo') or a full HTTPS / SSH URL. The bearer's workspace credential picks the right VCS installation automatically.",
+                    "type": "string"
+                  },
+                  "since": {
+                    "description": "ISO-8601 timestamp. For state=merged filters on merged_at >= since; otherwise updated_at >= since.",
+                    "type": "string"
+                  },
+                  "state": {
+                    "description": "Filter by PR state. Default 'all'.",
+                    "enum": [
+                      "open",
+                      "merged",
+                      "closed",
+                      "all"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "repo"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Prs List"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The params are not valid for the verb (or the body is not a JSON object)."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No credential, or an unknown or revoked one."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential's role is too low for this route."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The body is over the size cap."
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A body that is not sent as application/json."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An unexpected failure (no detail is returned)."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Qodo, or this server's own configuration, could not complete the call."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "A repo's pull requests, filtered by state (read through Qodo).",
+        "tags": [
+          "prs"
         ],
         "x-role": "viewer",
         "x-writes": false

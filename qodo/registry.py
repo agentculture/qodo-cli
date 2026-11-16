@@ -58,6 +58,7 @@ _SUMMARIES = {
     "pull-request-review-history": "Past review suggestions for a file or directory of a repo.",
     "pull-request-similar-suggestions": "Past review suggestions similar to a description.",
     "pull-request-stats": "What PR history Qodo has indexed for a repo.",
+    "litegit-list-prs": "A repo's pull requests, filtered by state (read through Qodo).",
 }
 
 OPEN_STATUSES = frozenset(
@@ -68,6 +69,16 @@ CLOSED_STATUSES = frozenset(
 )
 _MAX_TEXT = 300
 _MAX_URL = 400
+#: A page of ``findings list --offset/--limit`` (the full form) is filled until its JSON, measured
+#: ASCII-escaped (the worst case), would pass this many bytes: under the 64 KiB reply expectation
+#: with room for the counts and the review session.
+PAGE_BYTES = 56 * 1024
+MAX_PAGE = 50
+_MAX_DESCRIPTION = 4000
+#: A nested value (a list or object: ``extended`` locations, evidence) larger than this, as JSON,
+#: is left out of a page and its field named in ``omitted``.
+_MAX_NESTED = 2048
+_ID_FIELDS = frozenset({"id", "url", "html_url", "pr_url"})
 
 
 @dataclass
@@ -238,6 +249,26 @@ def _clip(value: Any) -> Any:
     return value[:_MAX_TEXT] if isinstance(value, str) else value
 
 
+def _status_of(finding: dict[str, Any]) -> str:
+    return str(finding.get("attribution_status") or finding.get("status") or "unknown")
+
+
+def _counts(findings: list[dict[str, Any]]) -> dict[str, Any]:
+    by_status: dict[str, int] = {}
+    for finding in findings:
+        status = _clip(_status_of(finding))
+        by_status[status] = by_status.get(status, 0) + 1
+    n_open = sum(n for s, n in by_status.items() if s in OPEN_STATUSES)
+    n_closed = sum(n for s, n in by_status.items() if s in CLOSED_STATUSES)
+    return {
+        "total": len(findings),
+        "open": n_open,
+        "closed": n_closed,
+        "other": len(findings) - n_open - n_closed,
+        "by_status": dict(sorted(by_status.items())),
+    }
+
+
 def summarise_findings(reply: dict[str, Any]) -> dict[str, Any]:
     """Counts, ids, statuses and URLs only: what ``findings list --summary`` prints.
 
@@ -246,28 +277,17 @@ def summarise_findings(reply: dict[str, Any]) -> dict[str, Any]:
     """
     findings = [f for f in reply.get("findings") or [] if isinstance(f, dict)]
     rows: list[dict[str, Any]] = []
-    by_status: dict[str, int] = {}
     for finding in findings:
-        status = str(finding.get("attribution_status") or finding.get("status") or "unknown")
-        by_status[status] = by_status.get(status, 0) + 1
         # an id or a URL is whole or absent, never cut: a cut one points somewhere else
-        row: dict[str, Any] = {"id": finding.get("id"), "status": _clip(status)}
+        row: dict[str, Any] = {"id": finding.get("id"), "status": _clip(_status_of(finding))}
         url = finding.get("url") or finding.get("html_url")
         if isinstance(url, str) and 0 < len(url) <= _MAX_URL:
             row["url"] = url
         rows.append(row)
-    n_open = sum(n for s, n in by_status.items() if s in OPEN_STATUSES)
-    n_closed = sum(n for s, n in by_status.items() if s in CLOSED_STATUSES)
     out: dict[str, Any] = {
         "pr_url": _clip(reply.get("pr_url")),
         "finding_count": reply.get("finding_count", len(rows)),
-        "counts": {
-            "total": len(rows),
-            "open": n_open,
-            "closed": n_closed,
-            "other": len(rows) - n_open - n_closed,
-            "by_status": dict(sorted(by_status.items())),
-        },
+        "counts": _counts(findings),
         "findings": rows,
     }
     session = reply.get("review_session")
@@ -276,6 +296,90 @@ def summarise_findings(reply: dict[str, Any]) -> dict[str, Any]:
             k: _clip(session[k]) for k in ("status", "commit_sha", "run_id") if k in session
         }
     return out
+
+
+def _json_size(value: Any) -> int:
+    """Bytes of ``value`` as ASCII-escaped JSON: the worst case of any JSON encoder."""
+    return len(json.dumps(value, ensure_ascii=True, separators=(",", ":")).encode("ascii"))
+
+
+def _page_finding(finding: dict[str, Any]) -> dict[str, Any]:
+    """One finding of a page: every field kept, long text clipped (and named in ``clipped``),
+    a large nested value left out (and named in ``omitted``); an id or URL is never cut."""
+    out: dict[str, Any] = {}
+    clipped: list[str] = []
+    omitted: list[str] = []
+    for key, value in finding.items():
+        if key in ("clipped", "omitted"):
+            continue
+        if isinstance(value, str) and key not in _ID_FIELDS:
+            cap = _MAX_DESCRIPTION if key == "description" else _MAX_TEXT
+            if len(value) > cap:
+                value = value[:cap]
+                clipped.append(key)
+        elif isinstance(value, str) and len(value) > _MAX_URL:
+            omitted.append(key)
+            continue
+        elif isinstance(value, (dict, list)) and _json_size(value) > _MAX_NESTED:
+            omitted.append(key)
+            continue
+        out[key] = value
+    if clipped:
+        out["clipped"] = sorted(clipped)
+    if omitted:
+        out["omitted"] = sorted(omitted)
+    return out
+
+
+def page_findings(reply: dict[str, Any], offset: int, limit: int) -> dict[str, Any]:
+    """A page of the full form (``findings list --offset --limit``): at most ``limit`` findings
+    from ``offset``, filled while the reply stays under :data:`PAGE_BYTES`; ``counts`` cover
+    every finding; ``next_offset`` is where the next page starts (``None`` after the last)."""
+    findings = [f for f in reply.get("findings") or [] if isinstance(f, dict)]
+    session = reply.get("review_session")
+    if isinstance(session, dict):
+        session = {k: v for k, v in session.items() if not isinstance(v, (dict, list))}
+        session = {k: _clip(v) if k not in _ID_FIELDS else v for k, v in session.items()}
+    else:
+        session = None
+    out: dict[str, Any] = {
+        "pr_url": reply.get("pr_url") if isinstance(reply.get("pr_url"), str) else None,
+        "finding_count": reply.get("finding_count", len(findings)),
+        "counts": _counts(findings),
+        "review_session": session,
+        "offset": offset,
+        "limit": limit,
+        "next_offset": None,
+        "findings": [],
+    }
+    size = _json_size(out)
+    index = offset
+    while index < len(findings) and len(out["findings"]) < limit:
+        row = _page_finding(findings[index])
+        grow = _json_size(row) + 1
+        if out["findings"] and size + grow > PAGE_BYTES:
+            break
+        out["findings"].append(row)
+        size += grow
+        index += 1
+    if index < len(findings):
+        out["next_offset"] = index
+    return out
+
+
+def _findings_reply(reply: dict[str, Any], local: dict[str, Any]) -> Any:
+    paged = "offset" in local or "limit" in local
+    if paged:
+        return page_findings(reply, int(local.get("offset", 0)), int(local.get("limit", MAX_PAGE)))
+    return summarise_findings(reply) if local.get("summary") else reply
+
+
+def _check_local_findings(local: dict[str, Any]) -> None:
+    if local.get("summary") and ("offset" in local or "limit" in local):
+        raise _bad(
+            "summary and offset/limit cannot be combined",
+            "pass --summary for counts only, or --offset/--limit for a page of the full form",
+        )
 
 
 def _check_pr_url(given: dict[str, Any]) -> None:
@@ -296,14 +400,29 @@ _LOCAL_PARAMS: dict[str, dict[str, Any]] = {
         "summary": {
             "type": "boolean",
             "description": "Print counts, ids, statuses and URLs only (a small reply).",
-        }
+        },
+        "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "A page of the full form: skip this many findings (with --limit; "
+            "the reply then carries counts and next_offset).",
+        },
+        "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": MAX_PAGE,
+            "description": "A page of the full form: at most this many findings, long text "
+            "clipped, the reply under 64 KiB (it may hold fewer; follow next_offset).",
+        },
     }
+}
+#: A check of the local params (never sent upstream) before the call.
+_LOCAL_CHECK: dict[str, Callable[[dict[str, Any]], None]] = {
+    "get-pr-review-findings": _check_local_findings
 }
 _PREFLIGHT: dict[str, Callable[[dict[str, Any]], None]] = {"get-pr-review-findings": _check_pr_url}
 _REDUCERS: dict[str, Callable[[dict[str, Any], dict[str, Any]], Any]] = {
-    "get-pr-review-findings": lambda reply, local: (
-        summarise_findings(reply) if local.get("summary") else reply
-    )
+    "get-pr-review-findings": _findings_reply
 }
 
 
@@ -333,6 +452,7 @@ def _upstream_handler(tool: str, schema: dict[str, Any]) -> Handler:
     preflight = _PREFLIGHT.get(tool)
     reduce = _REDUCERS.get(tool)
     after = _AFTER.get(tool)
+    local_check = _LOCAL_CHECK.get(tool)
 
     def handler(params: dict[str, Any] | None = None, *, surface: str = "cli") -> Any:
         from qodo import api  # lazy: api imports the gateway, which imports the cli package
@@ -340,6 +460,8 @@ def _upstream_handler(tool: str, schema: dict[str, Any]) -> Handler:
         given = _given(params)
         validate_params(schema, given)
         local = {k: given.pop(k) for k in local_names if k in given}
+        if local_check is not None:
+            local_check(local)
         if preflight is not None:
             preflight(given)
         reply = api._gateway().call(tool, given, surface=surface)
@@ -477,6 +599,14 @@ def _config_init(params: dict[str, Any] | None = None, *, surface: str = "cli") 
     return api.config_init(force=bool(given.get("force")))
 
 
+def _config_status(params: dict[str, Any] | None = None, *, surface: str = "cli") -> Any:
+    from qodo import api
+
+    given = _given(params)
+    validate_params(_LOCAL_SCHEMAS[("config", "status")], given)
+    return api.config_status(given.get("repo"))
+
+
 def _config_propose(params: dict[str, Any] | None = None, *, surface: str = "cli") -> Any:
     from qodo import api
 
@@ -519,6 +649,16 @@ _LOCAL_SCHEMAS: dict[tuple[str, str], dict[str, Any]] = {
     ("config", "show"): _obj({}),
     ("config", "validate"): _obj({}),
     ("config", "init"): _obj({"force": {"type": "boolean", "description": "Overwrite files."}}),
+    ("config", "status"): _obj(
+        {
+            "repo": {
+                "type": "string",
+                "maxLength": 201,
+                "description": "owner/name from the bridge's repo allowlist (default: every "
+                "allowlisted repo).",
+            }
+        }
+    ),
     ("config", "propose"): _obj(
         {
             "repo": {
@@ -546,7 +686,10 @@ _LOCAL_SCHEMAS: dict[tuple[str, str], dict[str, Any]] = {
 # read or write the working directory or drive ``gh`` as the caller, which a server or an MCP
 # client must not. config propose reads only a checkout under a configured root, for a repo in a
 # configured allowlist, and writes nothing; it is on the api because culture-rules calls it over
-# HTTP. It is not on mcp: no MCP client needs it, so it is not exposed there.
+# HTTP. It is not on mcp: no MCP client needs it, so it is not exposed there. config status is on
+# the api for the web UI's Configuration screen: it takes a repo name from the same allowlist (never
+# a path), reads only the allowlisted configuration files of its configured checkout and returns
+# names, sizes, validation results and warnings, never contents (so a viewer may call it).
 _LOCAL_VERBS = (
     ("rules", "get", "Semantic-search the rules API (the older HTTP path).", _rules_get, False,
      ("cli", "api", "mcp"), False),
@@ -557,6 +700,8 @@ _LOCAL_VERBS = (
     ("config", "validate", "Validate the repo reviewer config.", _config_validate, False,
      ("cli",), False),
     ("config", "init", "Scaffold a minimal reviewer config.", _config_init, True, ("cli",), False),
+    ("config", "status", "Each allowlisted repo's Qodo config files, validation and proposals.",
+     _config_status, False, ("cli", "api"), True),
     ("config", "propose", "Check a checkout's Qodo config change against a base; return it if "
      "safe.", _config_propose, False, ("cli", "api"), True),
 )  # fmt: skip
