@@ -481,3 +481,11 @@ def test_http_answers_503_without_the_extra(allow, http, monkeypatch):
     body = {"pr_url": PR, "finding_ids": IDS}
     r = client.post("/verbs/findings/fix", json=body, headers=auth["editor"])
     assert r.status_code == 503 and "events" in r.json()["error"]["remediation"]
+
+
+@pytest.mark.parametrize("bad", ["abc\n", "abc\r", "a b", "abc\x00", "\nabc"])
+def test_a_finding_id_with_a_control_character_is_refused(bad):
+    from qodo import fix_request
+
+    with pytest.raises(CliError):
+        fix_request._finding_ids([bad])

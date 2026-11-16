@@ -243,7 +243,7 @@ def _repos(
     where: Any, value: tuple[str, ...], profile: Profile = CONFIG_PROFILE
 ) -> tuple[str, ...]:
     for repo in value:
-        if not _REPO.match(repo) or ".." in repo:
+        if not _REPO.fullmatch(repo) or ".." in repo:
             raise _config_error(where, f"repo {repo!r} is not owner/name", profile)
     return value
 
@@ -290,7 +290,7 @@ def parse_refused(raw: Any, where: Any = "refused_settings") -> tuple[RefusedSet
         if not isinstance(item, dict) or set(item) - {"key", "allow"}:
             raise _config_error(where, "each refused setting is {key, allow?}")
         key, allow = item.get("key"), item.get("allow", [])
-        if not isinstance(key, str) or not _KEY.match(key):
+        if not isinstance(key, str) or not _KEY.fullmatch(key):
             raise _config_error(where, f"refused setting key {key!r} is not section.key")
         if not isinstance(allow, list):
             raise _config_error(where, f"{key}: allow must be a list")
@@ -344,7 +344,7 @@ def _parse(data: dict[str, Any], where: Any) -> ProposeSettings:
             raise _config_error(where, f"{path}: kind must be one of {', '.join(KINDS)}")
     ints = _ints(data, where, CONFIG_PROFILE)
     legacy = _str_list(where, "legacy_settings", data.get("legacy_settings", []))
-    if not all(_KEY.match(k) for k in legacy):
+    if not all(_KEY.fullmatch(k) for k in legacy):
         raise _config_error(where, "legacy_settings must be section.key names")
     return ProposeSettings(
         repos=_repos(where, _str_list(where, "repos", data.get("repos", []))),
@@ -450,7 +450,7 @@ def _base_ok(base: Any) -> bool:
     """A branch, tag or commit name in a strict subset of git's ref format: letters, digits,
     ``. _ / -``, never a leading ``-`` or ``/``, no ``..``, ``//``, ``@{``, no segment starting with
     ``.`` or ending in ``.lock``, no trailing ``/`` or ``.``."""
-    if not isinstance(base, str) or not _REF_CHARS.match(base):
+    if not isinstance(base, str) or not _REF_CHARS.fullmatch(base):
         return False
     if base.startswith(("-", "/")) or base.endswith(("/", ".")) or ".." in base:
         return False
@@ -665,7 +665,11 @@ def _structure(changes: list[_Change], s: ProposeSettings) -> dict[str, Any] | N
     if outside:
         return _refuse("path_not_allowed", _outside_detail(outside, s), outside)
     rules = (
-        ("deletion", lambda c: c.status == "D", "deleting a file is not proposable"),
+        (
+            "deletion",
+            lambda c: c.status == "D",
+            f"deleting a {'file' if s.any_path else 'configuration file'} is not proposable",
+        ),
         ("type_change", lambda c: c.status not in ("A", "M"), "the file changed type"),
         (
             "not_regular_file",

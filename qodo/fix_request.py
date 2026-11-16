@@ -122,14 +122,14 @@ def parse_pr_url(url: Any) -> tuple[str, str, int]:
         port = parts.port
     except ValueError:
         raise _user(f"pr_url is not a URL: {url[:200]!r}", hint) from None
-    match = _PR_PATH.match(parts.path)
+    match = _PR_PATH.fullmatch(parts.path)
     plain = not (parts.username or parts.password or port or parts.query or parts.fragment)
     host_ok = (parts.hostname or "").lower() == "github.com"
     if parts.scheme not in ("http", "https") or not host_ok or not plain or not match:
         raise _user(f"pr_url must be a github.com pull request URL, got {url[:200]!r}", hint)
     owner, name, number = match.groups()
     repo = f"{owner}/{name}"
-    if not _REPO.match(repo) or ".." in repo:
+    if not _REPO.fullmatch(repo) or ".." in repo:
         raise _user(f"pr_url names no owner/name repository: {url[:200]!r}", hint)
     return f"https://github.com/{repo}/pull/{number}", repo, int(number)
 
@@ -141,7 +141,7 @@ def _finding_ids(ids: Any) -> list[str]:
     if len(ids) > MAX_FINDING_IDS:
         raise _user(f"at most {MAX_FINDING_IDS} finding ids per request, got {len(ids)}", hint)
     for one in ids:
-        if not isinstance(one, str) or not _FINDING_ID.match(one):
+        if not isinstance(one, str) or not _FINDING_ID.fullmatch(one):
             shown = repr(one)[:60]
             raise _user(
                 f"finding id {shown} is not a plain id (letters, digits, '.', '_', ':', '-'; "

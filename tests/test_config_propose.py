@@ -726,3 +726,8 @@ def test_an_allowed_repo_name_does_not_open_another_repos_checkout(root):
         api.config_propose(REPO, str(flat.path), "main", settings=settings(root)),
         "checkout_not_allowed",
     )
+
+
+def test_a_base_ref_with_a_trailing_newline_is_refused(co, root):
+    out = api.config_propose(REPO, str(co.path), "main\n", settings=settings(root))
+    refused(out, "invalid_base")
