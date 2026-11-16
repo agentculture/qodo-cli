@@ -216,7 +216,8 @@ follow the re-sync steps in `docs/skill-sources.md` rather than hand-editing.
 ## Adding a command
 
 For a Qodo tool, name it in `qodo/exposure_default.json` instead (and refresh
-`qodo/tool_schemas.json` and `api/openapi.json`): the CLI verb, the HTTP route and
+`api/openapi.json`; an operator does the same at run time with their own file in
+`QODO_EXPOSURE_POLICY`): the CLI verb, the HTTP route and
 the MCP tool follow from the registry, and `tests/test_surface_parity.py` checks them.
 For a local verb, add it to `_LOCAL_VERBS` in `qodo/registry.py`. A hand-written
 noun group follows the steps below.

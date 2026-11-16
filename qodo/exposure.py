@@ -10,6 +10,7 @@ gateway refuses such a tool without it. Standard library only.
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
@@ -109,8 +110,10 @@ def parse_policy(data: Any) -> ExposurePolicy:
 
 
 def load_policy(path: Path | str | None = None) -> ExposurePolicy:
-    """Load the policy from ``path`` (default: the packaged ``exposure_default.json``)."""
-    target = Path(path) if path else DEFAULT_POLICY_PATH
+    """Load the policy from ``path``; without one, from the file ``QODO_EXPOSURE_POLICY``
+    names, and without that, the packaged ``exposure_default.json``. An operator's file
+    replaces the shipped policy whole: a tool it does not name is not exposed."""
+    target = Path(path or os.environ.get(ENV_POLICY) or DEFAULT_POLICY_PATH)
     try:
         data = json.loads(target.read_text(encoding="utf-8"))
     except OSError as err:
@@ -122,6 +125,10 @@ def load_policy(path: Path | str | None = None) -> ExposurePolicy:
     except json.JSONDecodeError as err:
         raise _bad(f"{target} is not valid JSON: {err}") from err
     return parse_policy(data)
+
+
+#: The environment variable naming an operator's exposure policy file.
+ENV_POLICY = "QODO_EXPOSURE_POLICY"
 
 
 def is_read_only(annotations: Any) -> bool:
