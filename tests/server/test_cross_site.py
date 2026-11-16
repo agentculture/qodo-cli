@@ -47,6 +47,14 @@ def test_this_apps_own_pages_and_plain_callers_are_unaffected(client, auth):
         assert client.post(VERB, content=BODY, headers=headers).status_code == 200
 
 
+def test_the_browsers_same_origin_word_stands_when_a_proxy_hid_the_scheme(client, auth):
+    # the server sees http, the page is https: without Sec-Fetch-Site the Origin would not match
+    hidden = {**auth["viewer"], **JSON, "Origin": "https://testserver"}
+    assert client.post(VERB, content=BODY, headers=hidden).status_code == 403
+    marked = {**hidden, "Sec-Fetch-Site": "same-origin"}
+    assert client.post(VERB, content=BODY, headers=marked).status_code == 200
+
+
 def test_reads_by_get_are_never_refused(client, auth):
     headers = {**auth["viewer"], "Sec-Fetch-Site": "cross-site", "Origin": "https://evil.example"}
     assert client.get("/verbs", headers=headers).status_code == 200
