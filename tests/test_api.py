@@ -18,19 +18,21 @@ _PRIVATE = {"qodo.cli._providers", "qodo.cli._qodo_api"}
 
 
 def _imports_private(path: Path) -> list[str]:
-    """Every import in ``path`` that reaches qodo.cli._providers or qodo.cli._qodo_api."""
+    """Every import in ``path`` that reaches qodo.cli._providers or qodo.cli._qodo_api,
+    absolute or relative (the file is read as a module of ``qodo.cli._commands``)."""
     found: list[str] = []
     for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
         if isinstance(node, ast.Import):
             found += [a.name for a in node.names if a.name in _PRIVATE]
         elif isinstance(node, ast.ImportFrom):
             mod = node.module or ""
+            if node.level:  # relative: resolve against qodo.cli._commands
+                base = ["qodo", "cli", "_commands"][: 4 - node.level]
+                mod = ".".join(base + ([mod] if mod else []))
             if mod in _PRIVATE:
                 found.append(mod)
-            elif mod == "qodo.cli":
-                found += [
-                    f"qodo.cli.{a.name}" for a in node.names if f"qodo.cli.{a.name}" in _PRIVATE
-                ]
+            else:
+                found += [f"{mod}.{a.name}" for a in node.names if f"{mod}.{a.name}" in _PRIVATE]
     return found
 
 
@@ -43,6 +45,28 @@ def test_import_guard_detects_a_violation(tmp_path: Path) -> None:
     bad = tmp_path / "bad.py"
     bad.write_text("from qodo.cli import _providers\n", encoding="utf-8")
     assert _imports_private(bad) == ["qodo.cli._providers"]
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "from .. import _providers",
+        "from .._providers import find_pr",
+        "from .._qodo_api import search_rules",
+        "import qodo.cli._qodo_api",
+        "from qodo.cli._providers import find_pr",
+    ],
+)
+def test_import_guard_detects_every_import_form(tmp_path: Path, line: str) -> None:
+    bad = tmp_path / "bad.py"
+    bad.write_text(line + "\n", encoding="utf-8")
+    assert _imports_private(bad)
+
+
+def test_import_guard_allows_sibling_relative_imports(tmp_path: Path) -> None:
+    ok = tmp_path / "ok.py"
+    ok.write_text("from .._errors import CliError\nfrom . import rules\n", encoding="utf-8")
+    assert _imports_private(ok) == []
 
 
 def test_api_is_stdlib_and_exports_the_contract() -> None:
