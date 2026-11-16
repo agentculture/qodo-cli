@@ -99,7 +99,7 @@ def test_rules_search_tolerates_missing_rules_key(monkeypatch: pytest.MonkeyPatc
 #
 # Live smokes are gated on an explicit opt-in switch, *not* merely on the
 # presence of credentials. A qodo-cli developer almost always exports
-# ``QODO_API_KEY`` so real ``qodo rules`` works, so gating only on the key would
+# ``QODO_API_KEY`` so real ``qodo-cli rules`` works, so gating only on the key would
 # fire a real network call during every ``pytest`` run in that shell —
 # non-deterministic and flaky. ``QODO_LIVE_SMOKE`` is the deliberate switch.
 

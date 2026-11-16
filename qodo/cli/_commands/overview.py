@@ -132,7 +132,7 @@ def review_sections() -> list[dict[str, object]]:
             "items": [
                 "reuses your provider-CLI auth — no new credentials",
                 "thread resolution via GraphQL resolveReviewThread (--no-resolve-thread to skip)",
-                "also reachable as `qodo pr`; supports --json",
+                "also reachable as `qodo-cli pr`; supports --json",
             ],
         },
     ]

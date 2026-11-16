@@ -1,4 +1,4 @@
-"""Git-provider mechanics for ``qodo review`` / ``qodo pr``.
+"""Git-provider mechanics for ``qodo-cli review`` / ``qodo-cli pr``.
 
 Cites ``qodo-ai/qodo-skills`` ``qodo-pr-resolver`` as the behavioral source of
 truth: the provider detection, the Qodo bot identities, and the provider-CLI

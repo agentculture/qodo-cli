@@ -26,16 +26,17 @@ Requires Python ≥ 3.12.
 
 ```bash
 uv sync                                  # install runtime + dev deps into .venv
-uv run qodo whoami                       # run the CLI (console script is `qodo`)
+uv run qodo-cli whoami                       # run the CLI (console script is `qodo-cli`)
 uv run pytest -n auto                    # full test suite, parallel (xdist)
 uv run pytest tests/test_cli.py::test_whoami_text   # a single test
 uv run teken cli doctor . --strict       # the agent-first rubric gate CI enforces
 ```
 
-> The installed console script is **`qodo`**. The CLI's argparse `prog` is also
-> `qodo`, so usage, `--version`, error remediation, and every example command
-> invoke `qodo`; `qodo-cli` survives only as the dist/package/brand name (and in
-> titles like the `explain`/`overview` headings). Run `uv run qodo …`.
+> The installed console script is **`qodo-cli`**, matching the distribution name.
+> The CLI's argparse `prog` is also `qodo-cli`, so usage, `--version`, error
+> remediation, and every example command invoke `qodo-cli`. Only the Python
+> import package keeps the short name `qodo` (`import qodo`, `python -m qodo`).
+> Run `uv run qodo-cli …`.
 
 Lint (CI runs each of these; all must pass):
 

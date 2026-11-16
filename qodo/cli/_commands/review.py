@@ -1,4 +1,4 @@
-"""``qodo review`` (a.k.a. ``qodo pr``) — triage the Qodo bot's PR comments.
+"""``qodo-cli review`` (a.k.a. ``qodo-cli pr``) — triage the Qodo bot's PR comments.
 
 Native reimplementation of ``qodo-ai/qodo-skills`` ``qodo-pr-resolver``: it
 drives the user's existing provider CLI (``gh``) to find the open PR for the
@@ -243,7 +243,7 @@ def cmd_review_overview(args: argparse.Namespace) -> int:
 
 
 def _no_verb(args: argparse.Namespace) -> int:
-    # `qodo review` with no sub-verb prints the noun's overview.
+    # `qodo-cli review` with no sub-verb prints the noun's overview.
     return cmd_review_overview(args)
 
 

@@ -1,4 +1,4 @@
-"""``qodo rules`` — surface your org's Qodo coding rules by semantic search.
+"""``qodo-cli rules`` — surface your org's Qodo coding rules by semantic search.
 
 Native reimplementation of ``qodo-ai/qodo-skills`` ``qodo-get-rules``: it reads
 the API key already in ``~/.qodo/config.json`` and POSTs a semantic query to the
@@ -75,7 +75,7 @@ def cmd_rules_overview(args: argparse.Namespace) -> int:
 
 
 def _no_verb(args: argparse.Namespace) -> int:
-    # `qodo rules` with no sub-verb prints the noun's overview.
+    # `qodo-cli rules` with no sub-verb prints the noun's overview.
     return cmd_rules_overview(args)
 
 

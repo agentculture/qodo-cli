@@ -16,9 +16,9 @@ qodo-cli — an unofficial, community CLI to manage Qodo from your terminal.
 
 Purpose
 -------
-Run Qodo's core jobs natively, in zero-dependency Python. `qodo rules` surfaces
+Run Qodo's core jobs natively, in zero-dependency Python. `qodo-cli rules` surfaces
 your org's coding rules by semantic search (reusing the API key already in
-~/.qodo/config.json); `qodo review` (a.k.a. `qodo pr`) triages and resolves the
+~/.qodo/config.json); `qodo-cli review` (a.k.a. `qodo-cli pr`) triages and resolves the
 Qodo bot's PR review comments through your existing provider CLI (gh). Each verb
 cites qodo-ai/qodo-skills as its behavioral source of truth — we point at the
 skills, we do not fork, vendor, or npx-install them. Unofficial: not affiliated
@@ -26,17 +26,17 @@ with, authorized, or endorsed by Qodo.
 
 Commands
 --------
-  qodo rules get "<query>"  Semantic-search your org's Qodo rules.
-  qodo review list          List the Qodo bot's PR review comments.
-  qodo review resolve <id>  Reply to and acknowledge a Qodo comment.
-  qodo pr ...               Alias for `review`.
-  qodo config show          Show/validate/init the repo Qodo reviewer config.
-  qodo whoami               Identity from culture.yaml.
-  qodo learn                This self-teaching prompt.
-  qodo explain <path>...    Markdown docs for any noun/verb path.
-  qodo overview             Descriptive snapshot of the agent.
-  qodo doctor               Check agent-identity invariants + Qodo setup.
-  qodo cli overview         Describe the CLI surface itself.
+  qodo-cli rules get "<query>"  Semantic-search your org's Qodo rules.
+  qodo-cli review list          List the Qodo bot's PR review comments.
+  qodo-cli review resolve <id>  Reply to and acknowledge a Qodo comment.
+  qodo-cli pr ...               Alias for `review`.
+  qodo-cli config show          Show/validate/init the repo Qodo reviewer config.
+  qodo-cli whoami               Identity from culture.yaml.
+  qodo-cli learn                This self-teaching prompt.
+  qodo-cli explain <path>...    Markdown docs for any noun/verb path.
+  qodo-cli overview             Descriptive snapshot of the agent.
+  qodo-cli doctor               Check agent-identity invariants + Qodo setup.
+  qodo-cli cli overview         Describe the CLI surface itself.
 
 Machine-readable output
 -----------------------
@@ -52,8 +52,8 @@ Exit-code policy
 
 More detail
 -----------
-  qodo explain rules
-  qodo explain review
+  qodo-cli explain rules
+  qodo-cli explain review
 """
 
 
@@ -80,7 +80,7 @@ def _as_json_payload() -> dict[str, object]:
             "2": "environment/setup error",
         },
         "json_support": True,
-        "explain_pointer": "qodo explain <path>",
+        "explain_pointer": "qodo-cli explain <path>",
     }
 
 

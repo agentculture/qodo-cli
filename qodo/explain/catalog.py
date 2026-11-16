@@ -1,4 +1,4 @@
-"""Markdown catalog for ``qodo explain <path>``.
+"""Markdown catalog for ``qodo-cli explain <path>``.
 
 Each entry is verbatim markdown. Keys are command-path tuples. The empty tuple
 and ``("qodo-cli",)`` both resolve to the root entry.
@@ -9,11 +9,10 @@ context without chaining reads.
 
 from __future__ import annotations
 
-# The console script and the CLI's argparse `prog` are both `qodo`; only the
-# distribution/brand name is `qodo-cli` (used in titles and the dist name). The
-# agent-first rubric runs `explain <script-name>` (i.e. `explain qodo`), so the
-# root entry is keyed under `qodo` as well as the dist name `qodo-cli` below.
-# Command examples in every body therefore invoke `qodo`, never `qodo-cli`.
+# The distribution, the installed console script and the CLI's argparse `prog`
+# are all `qodo-cli` (the Python import package is `qodo`). The agent-first
+# rubric runs `explain <script-name>` (i.e. `explain qodo-cli`), which the root
+# entry below answers. Command examples in every body invoke `qodo-cli`.
 _ROOT = """\
 # qodo-cli
 
@@ -25,21 +24,21 @@ we do not fork or vendor them). It also carries an agent-first introspection
 surface (`whoami`/`learn`/`explain`/`overview`/`doctor`) and a mesh identity
 (`culture.yaml` + `AGENTS.colleague.md`). Not affiliated with Qodo Ltd.
 
-The distribution is named `qodo-cli`; the installed command is `qodo`.
+The distribution and the installed command are both named `qodo-cli`.
 
 ## Verbs
 
-- `qodo rules get "<query>"` — semantic-search your org's Qodo rules.
-- `qodo review list` — list the Qodo bot's PR review comments.
-- `qodo review resolve <id>` — reply to and acknowledge a comment.
-- `qodo pr ...` — alias for `review`.
-- `qodo config show|validate|init` — manage the repo Qodo reviewer config.
-- `qodo whoami` — identity probe from `culture.yaml`.
-- `qodo learn` — structured self-teaching prompt.
-- `qodo explain <path>` — markdown docs for any noun/verb.
-- `qodo overview` — descriptive snapshot of the agent.
-- `qodo doctor` — check the agent-identity invariants.
-- `qodo cli overview` — describe the CLI surface.
+- `qodo-cli rules get "<query>"` — semantic-search your org's Qodo rules.
+- `qodo-cli review list` — list the Qodo bot's PR review comments.
+- `qodo-cli review resolve <id>` — reply to and acknowledge a comment.
+- `qodo-cli pr ...` — alias for `review`.
+- `qodo-cli config show|validate|init` — manage the repo Qodo reviewer config.
+- `qodo-cli whoami` — identity probe from `culture.yaml`.
+- `qodo-cli learn` — structured self-teaching prompt.
+- `qodo-cli explain <path>` — markdown docs for any noun/verb.
+- `qodo-cli overview` — descriptive snapshot of the agent.
+- `qodo-cli doctor` — check the agent-identity invariants.
+- `qodo-cli cli overview` — describe the CLI surface.
 
 ## Exit-code policy
 
@@ -50,9 +49,9 @@ The distribution is named `qodo-cli`; the installed command is `qodo`.
 
 ## See also
 
-- `qodo explain rules`
-- `qodo explain review`
-- `qodo explain doctor`
+- `qodo-cli explain rules`
+- `qodo-cli explain review`
+- `qodo-cli explain doctor`
 """
 
 _RULES = """\
@@ -75,15 +74,15 @@ omission.
 
 ## Usage
 
-    qodo rules get "validate all user input at trust boundaries"
-    qodo rules get "<query>" --top-k 10 --scope org/repo
-    qodo rules get "<query>" --no-scope
-    qodo rules get "<query>" --json
-    qodo rules overview
+    qodo-cli rules get "validate all user input at trust boundaries"
+    qodo-cli rules get "<query>" --top-k 10 --scope org/repo
+    qodo-cli rules get "<query>" --no-scope
+    qodo-cli rules get "<query>" --json
+    qodo-cli rules overview
 
 ## See also
 
-- `qodo explain review`
+- `qodo-cli explain review`
 - `docs/qodo-skills-sources.md` — the citation ledger
 """
 
@@ -119,12 +118,12 @@ reaction when no thread maps to the comment).
 
 ## Usage
 
-    qodo review list
-    qodo review list --pr 123 --kind inline --json
-    qodo review resolve <comment-id> --reply "Fixed in <sha>." --sign
-    qodo review resolve --all --severity HIGH
-    qodo review resolve <id> --no-resolve-thread
-    qodo review overview
+    qodo-cli review list
+    qodo-cli review list --pr 123 --kind inline --json
+    qodo-cli review resolve <comment-id> --reply "Fixed in <sha>." --sign
+    qodo-cli review resolve --all --severity HIGH
+    qodo-cli review resolve <id> --no-resolve-thread
+    qodo-cli review overview
 
 `--sign` appends the `culture.yaml` nick signature (`- <nick> (Claude)`) to
 `--reply`, at most once. `--all` / `--severity` resolve every matching inline
@@ -132,7 +131,7 @@ comment in one call.
 
 ## See also
 
-- `qodo explain rules`
+- `qodo-cli explain rules`
 - `docs/qodo-skills-sources.md` — the citation ledger
 """
 
@@ -143,7 +142,7 @@ Manage the **repo-level** Qodo reviewer config — `.pr_agent.toml` (the Qodo Me
 `[pr_reviewer]` section) and `best_practices.md`. These are the levers that make
 Qodo's reviews of *this* repo accurate: without them Qodo falls back to inferred
 conventions and raises false positives. Distinct from the *client*
-`~/.qodo/config.json` that `qodo rules` reads.
+`~/.qodo/config.json` that `qodo-cli rules` reads.
 
 `show` and `validate` are read-only; `init` scaffolds the two files when absent
 and never overwrites without `--force`. Read from the current git repo root
@@ -151,16 +150,16 @@ and never overwrites without `--force`. Read from the current git repo root
 
 ## Usage
 
-    qodo config show
-    qodo config validate          # exit 1 if invalid
-    qodo config init [--force]
-    qodo config overview
-    qodo config show --json
+    qodo-cli config show
+    qodo-cli config validate          # exit 1 if invalid
+    qodo-cli config init [--force]
+    qodo-cli config overview
+    qodo-cli config show --json
 
 ## See also
 
-- `qodo explain review`
-- `qodo explain doctor` — `doctor` also reports whether these files exist
+- `qodo-cli explain review`
+- `qodo-cli explain doctor` — `doctor` also reports whether these files exist
 - `docs/qodo-skills-sources.md` — the citation ledger
 """
 
@@ -172,8 +171,8 @@ served model, and the package version. Read-only.
 
 ## Usage
 
-    qodo whoami
-    qodo whoami --json
+    qodo-cli whoami
+    qodo-cli whoami --json
 """
 
 _LEARN = """\
@@ -184,8 +183,8 @@ exit-code policy, `--json` support, and the `explain` pointer.
 
 ## Usage
 
-    qodo learn
-    qodo learn --json
+    qodo-cli learn
+    qodo-cli learn --json
 """
 
 _EXPLAIN = """\
@@ -196,9 +195,9 @@ positional), `explain` is global and addressable by path.
 
 ## Usage
 
-    qodo explain qodo-cli
-    qodo explain whoami
-    qodo explain --json <path>
+    qodo-cli explain qodo-cli
+    qodo-cli explain whoami
+    qodo-cli explain --json <path>
 """
 
 _OVERVIEW = """\
@@ -210,8 +209,8 @@ ignored `target` so a stray path never hard-fails.
 
 ## Usage
 
-    qodo overview
-    qodo overview --json
+    qodo-cli overview
+    qodo-cli overview --json
 """
 
 _DOCTOR = """\
@@ -226,7 +225,7 @@ Two groups of checks, emitted as
 - **Qodo setup** (any repo, against the current git root) — whether
   `.pr_agent.toml` and `best_practices.md` are present (tune Qodo's PR reviews)
   and whether `~/.qodo/config.json` / `QODO_API_KEY` is available (for
-  `qodo rules`). These are advisory; each carries a `remediation` that guides
+  `qodo-cli rules`). These are advisory; each carries a `remediation` that guides
   setup.
 
 `healthy` is true when every **error**-severity check passes; advisory
@@ -235,8 +234,8 @@ an error-severity failure.
 
 ## Usage
 
-    qodo doctor
-    qodo doctor --json
+    qodo-cli doctor
+    qodo-cli doctor --json
 """
 
 _CLI = """\
@@ -247,15 +246,14 @@ itself (distinct from the global `overview`, which describes the agent).
 
 ## Usage
 
-    qodo cli overview
-    qodo cli overview --json
+    qodo-cli cli overview
+    qodo-cli cli overview --json
 """
 
 
 ENTRIES: dict[tuple[str, ...], str] = {
     (): _ROOT,
     ("qodo-cli",): _ROOT,
-    ("qodo",): _ROOT,  # console-script name; satisfies the rubric's `explain <self>` check
     ("rules",): _RULES,
     ("rules", "get"): _RULES,
     ("rules", "overview"): _RULES,

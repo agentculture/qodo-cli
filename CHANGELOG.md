@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/). This project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-11-16
+
+### Changed
+
+- **Breaking:** the installed console script is now `qodo-cli` (was `qodo`), matching the distribution name. `[project.scripts]` defines only `qodo-cli`; the Python import package stays `qodo` (`import qodo`, `python -m qodo`). The argparse `prog`, `learn`, `explain` catalog (the `qodo` root key is gone, `explain qodo-cli` is the root), `overview`, README, CLAUDE.md and the docs now name `qodo-cli`. `--json` shapes are unchanged.
+
 ## [0.9.1] - 2026-06-17
 
 ### Added

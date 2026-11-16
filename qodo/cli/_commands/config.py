@@ -1,10 +1,10 @@
-"""``qodo config`` — manage the repo-level Qodo reviewer config.
+"""``qodo-cli config`` — manage the repo-level Qodo reviewer config.
 
 Maintains the repository's ``.pr_agent.toml`` (the Qodo Merge ``[pr_reviewer]``
 config) and ``best_practices.md`` — the levers that make Qodo's reviews of *this*
 repo accurate (a missing config is why Qodo falls back to inferred conventions
 and raises false positives). This is distinct from the *client*
-``~/.qodo/config.json`` that :mod:`qodo.cli._qodo_api` reads for ``qodo rules``.
+``~/.qodo/config.json`` that :mod:`qodo.cli._qodo_api` reads for ``qodo-cli rules``.
 
 ``show`` / ``validate`` are read-only; ``init`` scaffolds the two files when
 absent (never overwriting without ``--force``). Cite-faithful to Qodo Merge's
@@ -132,7 +132,7 @@ def _render_show(info: dict[str, object]) -> str:
     lines.append(_show_bp_line(bp))
     if not pr_agent["present"] and not bp["present"]:
         lines.append("")
-        lines.append("No reviewer config — run `qodo config init` to scaffold it.")
+        lines.append("No reviewer config — run `qodo-cli config init` to scaffold it.")
     return "\n".join(lines).rstrip()
 
 
@@ -163,7 +163,7 @@ def _validation_checks(info: dict[str, object]) -> list[dict[str, object]]:
                 else f"no {_PR_AGENT_FILE} or {_BEST_PRACTICES_FILE} found"
             ),
             "remediation": (
-                "" if any_present else "run `qodo config init` to scaffold a minimal config"
+                "" if any_present else "run `qodo-cli config init` to scaffold a minimal config"
             ),
         }
     )
@@ -232,7 +232,7 @@ def _check_mark(check: dict[str, object]) -> str:
 
 
 def _render_validate(valid: bool, checks: list[dict[str, object]]) -> str:
-    lines = [f"qodo config: {'valid' if valid else 'invalid'}", ""]
+    lines = [f"qodo-cli config: {'valid' if valid else 'invalid'}", ""]
     for check in checks:
         lines.append(f"[{_check_mark(check)}] {check['id']}: {check['message']}")
         if not check["ok"] and check["remediation"]:
@@ -276,7 +276,7 @@ def _plan_init_writes(
                 code=EXIT_USER_ERROR,
                 message=f"refusing to overwrite {name}: it is a {kind}, not a regular file",
                 remediation=f"remove {name} from {repo_root} by hand, then re-run "
-                "`qodo config init`",
+                "`qodo-cli config init`",
             )
         to_write.append((name, content))
     return to_write, skipped
@@ -334,7 +334,7 @@ def _config_sections() -> list[dict[str, object]]:
             "title": "Scope",
             "items": [
                 "the repo-level Qodo Merge reviewer config — distinct from the client "
-                "~/.qodo/config.json that `qodo rules` reads",
+                "~/.qodo/config.json that `qodo-cli rules` reads",
                 ".pr_agent.toml ([pr_reviewer] extra_instructions) + best_practices.md",
                 "read from the current git repo root (where Qodo reads it)",
             ],
@@ -359,7 +359,7 @@ def cmd_config_overview(args: argparse.Namespace) -> int:
 
 
 def _no_verb(args: argparse.Namespace) -> int:
-    # `qodo config` with no sub-verb prints the noun's overview.
+    # `qodo-cli config` with no sub-verb prints the noun's overview.
     return cmd_config_overview(args)
 
 

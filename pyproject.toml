@@ -1,6 +1,6 @@
 [project]
 name = "qodo-cli"
-version = "0.9.1"
+version = "0.10.0"
 description = "Community CLI and agent to manage Qodo — the AI code reviewer and Qodo's other agents (requires a Qodo subscription). Unofficial: not affiliated with, authorized, or endorsed by Qodo; the Qodo name and trademark belong to Qodo Ltd."
 readme = "README.md"
 license = "MIT"
@@ -20,7 +20,7 @@ Homepage = "https://github.com/agentculture/qodo-cli"
 Issues = "https://github.com/agentculture/qodo-cli/issues"
 
 [project.scripts]
-qodo = "qodo.cli:main"
+qodo-cli = "qodo.cli:main"
 
 [build-system]
 requires = ["hatchling"]

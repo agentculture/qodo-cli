@@ -155,7 +155,7 @@ def test_qodo_setup_checks_pass_when_present(tmp_path, monkeypatch: pytest.Monke
 def test_qodo_client_config_fails_without_api_key(
     tmp_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # An existing config.json with no API_KEY must NOT pass — `qodo rules` needs the key.
+    # An existing config.json with no API_KEY must NOT pass — `qodo-cli rules` needs the key.
     home = tmp_path / "home"
     (home / ".qodo").mkdir(parents=True)
     (home / ".qodo" / "config.json").write_text("{}", encoding="utf-8")

@@ -21,7 +21,7 @@ def test_version_flag(capsys: pytest.CaptureFixture[str]) -> None:
 def test_no_args_prints_help(capsys: pytest.CaptureFixture[str]) -> None:
     rc = main([])
     assert rc == 0
-    assert "usage: qodo" in capsys.readouterr().out
+    assert "usage: qodo-cli" in capsys.readouterr().out
 
 
 def test_unknown_command_errors(capsys: pytest.CaptureFixture[str]) -> None:
@@ -93,9 +93,8 @@ def test_explain_self(capsys: pytest.CaptureFixture[str]) -> None:
 
 
 def test_explain_console_script_name(capsys: pytest.CaptureFixture[str]) -> None:
-    # The agent-first rubric runs `explain <console-script-name>` (= `qodo`).
-    # Keep that resolvable even though the CLI self-identifies as `qodo-cli`.
-    rc = main(["explain", "qodo"])
+    # The agent-first rubric runs `explain <console-script-name>` (= `qodo-cli`).
+    rc = main(["explain", "qodo-cli"])
     assert rc == 0
     assert capsys.readouterr().out.startswith("#")
 

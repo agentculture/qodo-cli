@@ -42,7 +42,7 @@ generic defaults.
 
 ## The CLI is mechanics-only
 
-- `qodo review resolve --reply` drives the user's own `gh` with their own auth;
+- `qodo-cli review resolve --reply` drives the user's own `gh` with their own auth;
   the reply text belongs to the caller. The tool must not auto-append an agent
   signature — that would mis-attribute human-authored replies. Signing is the
   caller's responsibility (an opt-in flag may be added later).
