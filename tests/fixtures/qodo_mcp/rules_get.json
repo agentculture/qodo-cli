@@ -1,0 +1,40 @@
+{
+  "isError": false,
+  "structuredContent": {
+    "badExamples": "sample badExamples",
+    "category": "Maintainability",
+    "content": "sample content",
+    "createdAt": "2026-01-01T00:00:00.000000Z",
+    "enforcementOverride": "auto",
+    "goodExamples": "sample goodExamples",
+    "historyBandPrediction": null,
+    "insights": null,
+    "lastMutedAt": null,
+    "name": "sample name",
+    "ruleId": 1,
+    "scopeElements": [
+      {
+        "kind": "sample kind",
+        "org": null,
+        "path": null,
+        "repo": {
+          "fullName": "example/repo",
+          "repoId": null
+        }
+      }
+    ],
+    "scopes": [
+      "sample scopes"
+    ],
+    "severity": "warning",
+    "similaritiesCount": null,
+    "source": "sample source",
+    "sourceType": "Repository File",
+    "sourceUri": "sample sourceUri",
+    "sourceUris": [],
+    "state": "active",
+    "suggestionType": null,
+    "updatedAt": "2026-01-01T00:00:00.000000Z",
+    "url": null
+  }
+}

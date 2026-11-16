@@ -1,0 +1,88 @@
+{
+  "capabilities": [],
+  "config_source": "db",
+  "description": "Registered commands on the machine that holds the dedicated checkouts (one per repo and flow, <root>/<owner>/<name>, used by nothing else; the improvement flow's root and the fix flow's root differ): fetch and reset bring an improvement checkout's local main to origin/main before an associate run (an earlier run's local merge is discarded; its change is already in a configuration PR); fetch-pr and reset-pr bring a fix checkout's local main to a pull request's head, fetched by its pull ref refs/pull/<number>/head into refs/qodo-fix/head (the number is an int argument and the branch name is never passed to git); pause is the poll interval of the run-status loop (a retry_until body has no wait step). Commands run with argv lists, never a shell, in a temporary directory with only PATH and LANG set, so the remote must be fetchable without HOME (for example https for a public repo); otherwise prefix the fetch argv with env HOME=<the node user's home>.",
+  "enabled": true,
+  "harness": null,
+  "id": "qodo-checkout",
+  "kind": "runner",
+  "machine": "core",
+  "model": null,
+  "name": "Qodo checkouts",
+  "params": {
+    "commands": {
+      "fetch": {
+        "argv": [
+          "git",
+          "-C",
+          "{checkout}",
+          "fetch",
+          "--quiet",
+          "origin",
+          "main"
+        ],
+        "params": {
+          "checkout": "string"
+        },
+        "timeout": 120
+      },
+      "fetch-pr": {
+        "argv": [
+          "git",
+          "-C",
+          "{checkout}",
+          "fetch",
+          "--quiet",
+          "--end-of-options",
+          "origin",
+          "+refs/pull/{number}/head:refs/qodo-fix/head"
+        ],
+        "params": {
+          "checkout": "string",
+          "number": "int"
+        },
+        "timeout": 120
+      },
+      "pause": {
+        "argv": [
+          "sleep",
+          "30"
+        ],
+        "params": {},
+        "timeout": 45
+      },
+      "reset": {
+        "argv": [
+          "git",
+          "-C",
+          "{checkout}",
+          "reset",
+          "--hard",
+          "--quiet",
+          "origin/main"
+        ],
+        "params": {
+          "checkout": "string"
+        },
+        "timeout": 60
+      },
+      "reset-pr": {
+        "argv": [
+          "git",
+          "-C",
+          "{checkout}",
+          "reset",
+          "--hard",
+          "--quiet",
+          "refs/qodo-fix/head"
+        ],
+        "params": {
+          "checkout": "string"
+        },
+        "timeout": 60
+      }
+    }
+  },
+  "repo": null,
+  "schema_version": "1.0"
+}

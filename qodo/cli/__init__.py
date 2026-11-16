@@ -66,18 +66,26 @@ def _build_parser() -> argparse.ArgumentParser:
     from qodo.cli._commands import config as _config_group
     from qodo.cli._commands import doctor as _doctor_cmd
     from qodo.cli._commands import explain as _explain_cmd
+    from qodo.cli._commands import findings as _findings_group
+    from qodo.cli._commands import history as _history_group
     from qodo.cli._commands import learn as _learn_cmd
+    from qodo.cli._commands import mcp as _mcp_cmd
     from qodo.cli._commands import overview as _overview_cmd
     from qodo.cli._commands import review as _review_group
     from qodo.cli._commands import rules as _rules_group
+    from qodo.cli._commands import serve as _serve_cmd
+    from qodo.cli._commands import tokens as _tokens_group
     from qodo.cli._commands import whoami as _whoami_cmd
 
     parser = _CliArgumentParser(
-        # `prog` must match the installed console script (`qodo`) so usage,
+        # `prog` must match the installed console script (`qodo-cli`) so usage,
         # --version, and error-remediation lines point users at a command that
-        # actually exists. `qodo-cli` stays the distribution/brand name only.
-        prog="qodo",
-        description="qodo-cli — an unofficial community CLI to manage Qodo (rules + PR review).",
+        # actually exists. The import package stays `qodo`.
+        prog="qodo-cli",
+        description=(
+            "qodo-cli — an unofficial community bridge to Qodo: a CLI, an HTTP API, an MCP "
+            "server and a web UI over the same verbs (rules, findings, PR review, config)."
+        ),
     )
     parser.add_argument(
         "--version",
@@ -92,6 +100,12 @@ def _build_parser() -> argparse.ArgumentParser:
     _rules_group.register(sub)
     _review_group.register(sub)
     _config_group.register(sub)
+    _findings_group.register(sub)
+    _history_group.register(sub)
+    # The HTTP API, the MCP server and the API's service tokens:
+    _serve_cmd.register(sub)
+    _mcp_cmd.register(sub)
+    _tokens_group.register(sub)
     # Agent-first introspection verbs:
     _whoami_cmd.register(sub)
     _learn_cmd.register(sub)
@@ -99,6 +113,11 @@ def _build_parser() -> argparse.ArgumentParser:
     _overview_cmd.register(sub)
     _doctor_cmd.register(sub)
     _cli_group.register(sub)
+    # Nouns an operator's exposure policy adds beyond the ones above (a name a command above
+    # already holds is never replaced):
+    from qodo.cli import _build
+
+    _build.register_other_nouns(sub, set(sub.choices))
     # Register further noun groups here, following the rules/review pattern:
     #   from qodo.cli._commands import my_noun as _my_noun_group
     #   _my_noun_group.register(sub)

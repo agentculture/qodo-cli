@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 
 from qodo import __version__
+from qodo.cli import _build
 from qodo.cli._output import add_json_flag, emit_result
 
 _TEXT = """\
@@ -16,9 +17,9 @@ qodo-cli — an unofficial, community CLI to manage Qodo from your terminal.
 
 Purpose
 -------
-Run Qodo's core jobs natively, in zero-dependency Python. `qodo rules` surfaces
+Run Qodo's core jobs natively, in zero-dependency Python. `qodo-cli rules` surfaces
 your org's coding rules by semantic search (reusing the API key already in
-~/.qodo/config.json); `qodo review` (a.k.a. `qodo pr`) triages and resolves the
+~/.qodo/config.json); `qodo-cli review` (a.k.a. `qodo-cli pr`) triages and resolves the
 Qodo bot's PR review comments through your existing provider CLI (gh). Each verb
 cites qodo-ai/qodo-skills as its behavioral source of truth — we point at the
 skills, we do not fork, vendor, or npx-install them. Unofficial: not affiliated
@@ -26,17 +27,31 @@ with, authorized, or endorsed by Qodo.
 
 Commands
 --------
-  qodo rules get "<query>"  Semantic-search your org's Qodo rules.
-  qodo review list          List the Qodo bot's PR review comments.
-  qodo review resolve <id>  Reply to and acknowledge a Qodo comment.
-  qodo pr ...               Alias for `review`.
-  qodo config show          Show/validate/init the repo Qodo reviewer config.
-  qodo whoami               Identity from culture.yaml.
-  qodo learn                This self-teaching prompt.
-  qodo explain <path>...    Markdown docs for any noun/verb path.
-  qodo overview             Descriptive snapshot of the agent.
-  qodo doctor               Check agent-identity invariants + Qodo setup.
-  qodo cli overview         Describe the CLI surface itself.
+  qodo-cli rules get "<query>"  Semantic-search your org's Qodo rules.
+  qodo-cli review list          List the Qodo bot's PR review comments.
+  qodo-cli review resolve <id>  Reply to and acknowledge a Qodo comment.
+  qodo-cli pr ...               Alias for `review`.
+  qodo-cli config show          Show/validate/init the repo Qodo reviewer config.
+  qodo-cli config propose       Check a committed Qodo config change against a base and
+                                return it only if safe (read-only; never opens a PR).
+  qodo-cli findings fix         Ask for an agent to fix findings: publish one event on the
+                                mesh's bus (the 'events' extra); culture-rules opens the PR.
+  qodo-cli fix propose          Check an agent's committed code fix against a base and return
+                                it only if safe (read-only; never opens a PR).
+  qodo-cli serve                Run the HTTP API (the 'server' extra): every verb on the api
+                                surface is POST /verbs/<noun>/<name>; loopback, and a LAN
+                                listener when configured.
+  qodo-cli mcp                  Serve the mcp-surface verbs as MCP tools over stdio (the 'mcp'
+                                extra): one tool per verb, e.g. findings_list.
+  qodo-cli tokens issue         Issue an API service token (printed once; --name, --role).
+  qodo-cli tokens list          List tokens (never a token or its hash).
+  qodo-cli tokens revoke <id>   Revoke a token.
+  qodo-cli whoami               Identity from culture.yaml.
+  qodo-cli learn                This self-teaching prompt.
+  qodo-cli explain <path>...    Markdown docs for any noun/verb path.
+  qodo-cli overview             Descriptive snapshot of the agent.
+  qodo-cli doctor               Check agent-identity invariants + Qodo setup.
+  qodo-cli cli overview         Describe the CLI surface itself.
 
 Machine-readable output
 -----------------------
@@ -52,8 +67,14 @@ Exit-code policy
 
 More detail
 -----------
-  qodo explain rules
-  qodo explain review
+  qodo-cli explain rules
+  qodo-cli explain review
+  qodo-cli explain config propose
+  qodo-cli explain findings fix
+  qodo-cli explain fix propose
+  qodo-cli explain serve
+  qodo-cli explain mcp
+  qodo-cli explain tokens
 """
 
 
@@ -67,6 +88,34 @@ def _as_json_payload() -> dict[str, object]:
             {"path": ["review", "list"], "summary": "List the Qodo bot's PR comments."},
             {"path": ["review", "resolve"], "summary": "Reply to / acknowledge a comment."},
             {"path": ["config", "show"], "summary": "Manage the repo Qodo reviewer config."},
+            {
+                "path": ["config", "propose"],
+                "summary": "Check a committed Qodo config change against a base; return it "
+                "only if safe (read-only).",
+            },
+            {
+                "path": ["findings", "fix"],
+                "summary": "Ask for an agent to fix findings: publish one event on the mesh's "
+                "bus (needs the 'events' extra).",
+            },
+            {
+                "path": ["fix", "propose"],
+                "summary": "Check an agent's committed code fix against a base; return it only "
+                "if safe (read-only).",
+            },
+            {
+                "path": ["serve"],
+                "summary": "Run the HTTP API: POST /verbs/<noun>/<name> per api verb (needs the "
+                "'server' extra).",
+            },
+            {
+                "path": ["mcp"],
+                "summary": "Serve the mcp-surface verbs as MCP tools over stdio (needs the "
+                "'mcp' extra).",
+            },
+            {"path": ["tokens", "issue"], "summary": "Issue an API service token (shown once)."},
+            {"path": ["tokens", "list"], "summary": "List API service tokens."},
+            {"path": ["tokens", "revoke"], "summary": "Revoke an API service token."},
             {"path": ["whoami"], "summary": "Identity probe from culture.yaml."},
             {"path": ["learn"], "summary": "Self-teaching prompt."},
             {"path": ["explain"], "summary": "Markdown docs by path."},
@@ -80,15 +129,37 @@ def _as_json_payload() -> dict[str, object]:
             "2": "environment/setup error",
         },
         "json_support": True,
-        "explain_pointer": "qodo explain <path>",
+        "explain_pointer": "qodo-cli explain <path>",
     }
+
+
+def _bridge_text() -> str:
+    """The registry's verbs that the text above does not name (built from the exposure policy)."""
+    lines = _build.missing_lines(_TEXT)
+    if not lines:
+        return ""
+    return "\nMore verbs (from the verb registry)\n-----------------------------------\n" + "".join(
+        f"  qodo-cli {line}\n" for line in lines
+    )
+
+
+def _bridge_commands(payload: dict[str, object]) -> list[dict[str, object]]:
+    known = {tuple(c["path"]) for c in payload["commands"]}  # type: ignore[union-attr]
+    return [
+        {"path": [v.noun, v.name], "summary": v.summary}
+        for v in _build.cli_verbs()
+        if (v.noun, v.name) not in known
+    ]
 
 
 def cmd_learn(args: argparse.Namespace) -> int:
     if getattr(args, "json", False):
-        emit_result(_as_json_payload(), json_mode=True)
+        payload = _as_json_payload()
+        commands = [*payload["commands"], *_bridge_commands(payload)]  # type: ignore[misc]
+        payload["commands"] = commands
+        emit_result(payload, json_mode=True)
     else:
-        emit_result(_TEXT, json_mode=False)
+        emit_result(_TEXT + _bridge_text(), json_mode=False)
     return 0
 
 

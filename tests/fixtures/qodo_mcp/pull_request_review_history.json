@@ -1,0 +1,16 @@
+{
+  "isError": true,
+  "structuredContent": {
+    "error": {
+      "code": "MT-UPSTREAM-DOWN",
+      "message": "sample message",
+      "metadata": {
+        "reset_at": null,
+        "upstream_code": null,
+        "upstream_stage": "qar_to_platform",
+        "upstream_status": null
+      }
+    },
+    "ok": false
+  }
+}

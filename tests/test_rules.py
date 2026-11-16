@@ -1,4 +1,4 @@
-"""Tests for ``qodo rules`` and the zero-dep Qodo rules API client."""
+"""Tests for ``qodo-cli rules`` and the zero-dep Qodo rules API client."""
 
 from __future__ import annotations
 

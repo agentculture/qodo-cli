@@ -1,0 +1,2496 @@
+{
+  "components": {
+    "schemas": {
+      "Error": {
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "errors": {
+                "items": {},
+                "type": "array"
+              },
+              "message": {
+                "type": "string"
+              },
+              "remediation": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "errors"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "description": "A service token issued by `qodo-cli tokens issue` (qcl_...).",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "description": "One operation per qodo-cli verb on the api surface: POST /verbs/<noun>/<name> with the verb's params as a JSON object. Unofficial: not affiliated with Qodo.",
+    "summary": "Qodo findings, rules and review history over HTTP (unofficial).",
+    "title": "qodo-cli API",
+    "version": "1"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/changes": {
+      "get": {
+        "operationId": "changes",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Only entries of this kind; the limit then counts those.",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "pattern": "[a-z][a-z_]{0,30}(\\.[a-z][a-z_]{0,30}){0,3}",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Changes"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The params are not valid for the verb (or the body is not a JSON object)."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No credential, or an unknown or revoked one."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential's role is too low for this route."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An unexpected failure (no detail is returned)."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Qodo, or this server's own configuration, could not complete the call."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "The newest change-log entries"
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Health"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [],
+        "summary": "Service health (public)"
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "operationId": "openapi",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Openapi"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No credential, or an unknown or revoked one."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential's role is too low for this route."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An unexpected failure (no detail is returned)."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Qodo, or this server's own configuration, could not complete the call."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "This API's OpenAPI schema"
+      }
+    },
+    "/verbs": {
+      "get": {
+        "operationId": "verbs",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Verbs"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No credential, or an unknown or revoked one."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential's role is too low for this route."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An unexpected failure (no detail is returned)."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Qodo, or this server's own configuration, could not complete the call."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "The verbs this server serves"
+      }
+    },
+    "/verbs/config/propose": {
+      "post": {
+        "description": "Needs the editor role. The body is the verb's params as a JSON object.",
+        "operationId": "config_propose",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "base": {
+                    "description": "The branch, tag or commit HEAD is compared with.",
+                    "maxLength": 200,
+                    "type": "string"
+                  },
+                  "checkout": {
+                    "description": "Absolute path of the clone, under an allowed checkout root.",
+                    "maxLength": 4096,
+                    "type": "string"
+                  },
+                  "repo": {
+                    "description": "owner/name; must be in the bridge's repo allowlist.",
+                    "maxLength": 201,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "repo",
+                  "checkout",
+                  "base"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Config Propose"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The params are not valid for the verb (or the body is not a JSON object)."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No credential, or an unknown or revoked one."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential's role is too low for this route."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The body is over the size cap."
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A body that is not sent as application/json."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An unexpected failure (no detail is returned)."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Qodo, or this server's own configuration, could not complete the call."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Check a checkout's Qodo config change against a base; return it if safe.",
+        "tags": [
+          "config"
+        ],
+        "x-role": "editor",
+        "x-writes": false
+      }
+    },
+    "/verbs/config/status": {
+      "post": {
+        "description": "Needs the viewer role. The body is the verb's params as a JSON object.",
+        "operationId": "config_status",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "repo": {
+                    "description": "owner/name from the bridge's repo allowlist (default: every allowlisted repo).",
+                    "maxLength": 201,
+                    "type": "string"
+                  }
+                },
+                "required": [],
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Config Status"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The params are not valid for the verb (or the body is not a JSON object)."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No credential, or an unknown or revoked one."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential's role is too low for this route."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The body is over the size cap."
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A body that is not sent as application/json."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An unexpected failure (no detail is returned)."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Qodo, or this server's own configuration, could not complete the call."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Each allowlisted repo's Qodo config files, validation and proposals.",
+        "tags": [
+          "config"
+        ],
+        "x-role": "viewer",
+        "x-writes": false
+      }
+    },
+    "/verbs/findings/dismiss": {
+      "post": {
+        "description": "Needs the editor role. A write: it changes Qodo's state. The body is the verb's params as a JSON object.",
+        "operationId": "findings_dismiss",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "explanation": {
+                    "description": "Short justification recorded alongside the dismissal and shown to reviewers. Strongly recommended. Max 2000 characters.",
+                    "maxLength": 2000,
+                    "type": "string"
+                  },
+                  "finding_ids": {
+                    "description": "Finding UUIDs to update, as returned in each finding's `id` by get-pr-review-findings. 1-100 per call. Batch every finding on the same PR into ONE call: the PR-side reconciliation runs once per call, not once per finding.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 100,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "idempotency_key": {
+                    "description": "Stable key for this write, not user approval. Reuse it with identical arguments after an uncertain transport outcome; use a new key for a different authorized write. Legacy request _meta is also accepted.",
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "pattern": "\\S",
+                    "type": "string"
+                  },
+                  "local_review_id": {
+                    "description": "For local findings, the local_review_id returned by that review. Required to prevent acting on a stale result. Batch only findings from that local review.",
+                    "type": "string"
+                  },
+                  "reason": {
+                    "description": "Why the findings are being closed without a code change. false_positive: the finding is wrong. intentional: the code is deliberate and correct as written. deferred: real, but out of scope for this PR. rejected: understood and declined.",
+                    "enum": [
+                      "false_positive",
+                      "intentional",
+                      "deferred",
+                      "rejected"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "finding_ids",
+                  "reason"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Findings Dismiss"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The params are not valid for the verb (or the body is not a JSON object)."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No credential, or an unknown or revoked one."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential's role is too low for this route."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The body is over the size cap."
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A body that is not sent as application/json."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An unexpected failure (no detail is returned)."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Qodo, or this server's own configuration, could not complete the call."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Dismiss findings with a reason (a write: no code change).",
+        "tags": [
+          "findings"
+        ],
+        "x-role": "editor",
+        "x-writes": true
+      }
+    },
+    "/verbs/findings/fix": {
+      "post": {
+        "description": "Needs the editor role. A write (the summary says what it changes; never a push, merge or pull request). The body is the verb's params as a JSON object.",
+        "operationId": "findings_fix",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "finding_ids": {
+                    "description": "The findings to fix (1 to 20 ids, from `findings list`).",
+                    "items": {
+                      "maxLength": 128,
+                      "type": "string"
+                    },
+                    "maxItems": 20,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "note": {
+                    "description": "An optional note for the agent.",
+                    "maxLength": 500,
+                    "type": "string"
+                  },
+                  "pr_url": {
+                    "description": "The pull request's github.com URL; its repo must be in the bridge's fix repo allowlist.",
+                    "maxLength": 400,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "pr_url",
+                  "finding_ids"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Findings Fix"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The params are not valid for the verb (or the body is not a JSON object)."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No credential, or an unknown or revoked one."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential's role is too low for this route."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The body is over the size cap."
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A body that is not sent as application/json."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An unexpected failure (no detail is returned)."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Qodo, or this server's own configuration, could not complete the call."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Ask for an agent to fix findings: publish one event on the mesh's bus (no PR is opened here).",
+        "tags": [
+          "findings"
+        ],
+        "x-role": "editor",
+        "x-writes": true
+      }
+    },
+    "/verbs/findings/implement": {
+      "post": {
+        "description": "Needs the editor role. A write: it changes Qodo's state. The body is the verb's params as a JSON object.",
+        "operationId": "findings_implement",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "explanation": {
+                    "description": "Short note on what was changed to fix the findings. Strongly recommended. Max 2000 characters.",
+                    "maxLength": 2000,
+                    "type": "string"
+                  },
+                  "finding_ids": {
+                    "description": "Finding UUIDs to update, as returned in each finding's `id` by get-pr-review-findings. 1-100 per call. Batch every finding on the same PR into ONE call: the PR-side reconciliation runs once per call, not once per finding.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 100,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "idempotency_key": {
+                    "description": "Stable key for this write, not user approval. Reuse it with identical arguments after an uncertain transport outcome; use a new key for a different authorized write. Legacy request _meta is also accepted.",
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "pattern": "\\S",
+                    "type": "string"
+                  },
+                  "local_review_id": {
+                    "description": "For local findings, the local_review_id returned by that review. Required to prevent acting on a stale result. Batch only findings from that local review.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "finding_ids"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Findings Implement"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The params are not valid for the verb (or the body is not a JSON object)."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No credential, or an unknown or revoked one."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential's role is too low for this route."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The body is over the size cap."
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A body that is not sent as application/json."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An unexpected failure (no detail is returned)."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Qodo, or this server's own configuration, could not complete the call."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Mark findings implemented (a write: the fix has landed).",
+        "tags": [
+          "findings"
+        ],
+        "x-role": "editor",
+        "x-writes": true
+      }
+    },
+    "/verbs/findings/list": {
+      "post": {
+        "description": "Needs the viewer role. The body is the verb's params as a JSON object.",
+        "operationId": "findings_list",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "extended": {
+                    "default": false,
+                    "description": "Return extended review details: finding locations and code snippets, dismissal details, stored evidence (explanation and citations), and review-run history. Default false keeps the compact response. Reads stored results; does not rerun or deepen the review. Evidence is null when unavailable.",
+                    "type": "boolean"
+                  },
+                  "git_provider": {
+                    "deprecated": true,
+                    "description": "Deprecated compatibility-only input. It is ignored; identify the pull/merge request with pr_url and omit this argument in new callers.",
+                    "type": "string"
+                  },
+                  "limit": {
+                    "description": "A page of the full form: at most this many findings, long text clipped, the reply under 64 KiB (it may hold fewer; follow next_offset).",
+                    "maximum": 50.0,
+                    "minimum": 1.0,
+                    "type": "integer"
+                  },
+                  "offset": {
+                    "description": "A page of the full form: skip this many findings (with --limit; the reply then carries counts and next_offset).",
+                    "minimum": 0.0,
+                    "type": "integer"
+                  },
+                  "pr_url": {
+                    "description": "Full http:// or https:// URL of the pull/merge request, including its hostname; for example, https://github.com/org/repo/pull/123. A repo slug or PR number is not a URL.",
+                    "examples": [
+                      "https://github.com/org/repo/pull/123"
+                    ],
+                    "type": "string"
+                  },
+                  "summary": {
+                    "description": "Print counts, ids, statuses and URLs only (a small reply).",
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "pr_url"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Findings List"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The params are not valid for the verb (or the body is not a JSON object)."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No credential, or an unknown or revoked one."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential's role is too low for this route."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The body is over the size cap."
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A body that is not sent as application/json."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An unexpected failure (no detail is returned)."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Qodo, or this server's own configuration, could not complete the call."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Qodo's findings on a pull request, by its URL.",
+        "tags": [
+          "findings"
+        ],
+        "x-role": "viewer",
+        "x-writes": false
+      }
+    },
+    "/verbs/fix/propose": {
+      "post": {
+        "description": "Needs the editor role. The body is the verb's params as a JSON object.",
+        "operationId": "fix_propose",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "base": {
+                    "description": "The branch, tag or commit HEAD is compared with.",
+                    "maxLength": 200,
+                    "type": "string"
+                  },
+                  "checkout": {
+                    "description": "Absolute path of the agent's clone, under an allowed fix checkout root.",
+                    "maxLength": 4096,
+                    "type": "string"
+                  },
+                  "repo": {
+                    "description": "owner/name; must be in the bridge's fix repo allowlist.",
+                    "maxLength": 201,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "repo",
+                  "checkout",
+                  "base"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Fix Propose"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The params are not valid for the verb (or the body is not a JSON object)."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No credential, or an unknown or revoked one."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential's role is too low for this route."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The body is over the size cap."
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A body that is not sent as application/json."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An unexpected failure (no detail is returned)."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Qodo, or this server's own configuration, could not complete the call."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Check an agent's committed code fix against a base; return it if safe.",
+        "tags": [
+          "fix"
+        ],
+        "x-role": "editor",
+        "x-writes": false
+      }
+    },
+    "/verbs/history/show": {
+      "post": {
+        "description": "Needs the viewer role. The body is the verb's params as a JSON object.",
+        "operationId": "history_show",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "acceptance_status": {
+                    "description": "Optional. Filter suggestions by review outcome; all outcomes are included when omitted.",
+                    "enum": [
+                      "definitely_accepted",
+                      "definitely_rejected",
+                      "partially_accepted",
+                      "dismissed"
+                    ],
+                    "type": "string"
+                  },
+                  "category": {
+                    "description": "Optional. Filter by finding category: 'bug' for bug findings, 'rule' for convention/style.",
+                    "enum": [
+                      "bug",
+                      "rule"
+                    ],
+                    "type": "string"
+                  },
+                  "file_path": {
+                    "description": "Relative path to a file or directory. The search starts here and graduates up the directory tree until enough suggestions are found.",
+                    "type": "string"
+                  },
+                  "include_code_hunks": {
+                    "description": "Optional. Include the diff hunk for each suggestion location, for pattern matching against the current code (default false).",
+                    "type": "boolean"
+                  },
+                  "limit": {
+                    "description": "Optional max number of suggestions to return (1-100, default 20).",
+                    "maximum": 100.0,
+                    "minimum": 1.0,
+                    "type": "integer"
+                  },
+                  "provider": {
+                    "description": "Optional. Git provider override; resolved automatically from the repo when omitted (github / gitlab / bitbucket / ado).",
+                    "type": "string"
+                  },
+                  "repo": {
+                    "description": "Provider-native repository full name, including nested group/project segments.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "repo",
+                  "file_path"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response History Show"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The params are not valid for the verb (or the body is not a JSON object)."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No credential, or an unknown or revoked one."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential's role is too low for this route."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The body is over the size cap."
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A body that is not sent as application/json."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An unexpected failure (no detail is returned)."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Qodo, or this server's own configuration, could not complete the call."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Past review suggestions for a file or directory of a repo.",
+        "tags": [
+          "history"
+        ],
+        "x-role": "viewer",
+        "x-writes": false
+      }
+    },
+    "/verbs/history/similar": {
+      "post": {
+        "description": "Needs the viewer role. The body is the verb's params as a JSON object.",
+        "operationId": "history_similar",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "acceptance_status": {
+                    "description": "Optional. Filter suggestions by review outcome; all outcomes are included when omitted.",
+                    "enum": [
+                      "definitely_accepted",
+                      "definitely_rejected",
+                      "partially_accepted",
+                      "dismissed"
+                    ],
+                    "type": "string"
+                  },
+                  "category": {
+                    "description": "Optional. Filter by finding category: 'bug' for bug findings, 'rule' for convention/style.",
+                    "enum": [
+                      "bug",
+                      "rule"
+                    ],
+                    "type": "string"
+                  },
+                  "embed_type": {
+                    "description": "Optional. What to match against: 'description' compares to suggestion description text, 'diff_hunk' compares to the code diff hunks at suggestion locations (default 'description').",
+                    "enum": [
+                      "description",
+                      "diff_hunk"
+                    ],
+                    "type": "string"
+                  },
+                  "folder_path": {
+                    "description": "Optional folder prefix; only suggestions whose affected file path starts with it are returned.",
+                    "type": "string"
+                  },
+                  "include_code_hunks": {
+                    "description": "Optional. Include the diff hunk for each suggestion location, for pattern matching against the current code (default false).",
+                    "type": "boolean"
+                  },
+                  "provider": {
+                    "description": "Optional. Git provider override; resolved automatically from the repo when omitted (github / gitlab / bitbucket / ado).",
+                    "type": "string"
+                  },
+                  "query": {
+                    "description": "Text to embed and search against — a finding description or a code snippet.",
+                    "type": "string"
+                  },
+                  "repo": {
+                    "description": "Provider-native repository full name, including nested group/project segments.",
+                    "type": "string"
+                  },
+                  "top_k": {
+                    "description": "Optional max number of unique suggestions to return (1-100, default 50).",
+                    "maximum": 100.0,
+                    "minimum": 1.0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "repo",
+                  "query"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response History Similar"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The params are not valid for the verb (or the body is not a JSON object)."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No credential, or an unknown or revoked one."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential's role is too low for this route."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The body is over the size cap."
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A body that is not sent as application/json."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An unexpected failure (no detail is returned)."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Qodo, or this server's own configuration, could not complete the call."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Past review suggestions similar to a description.",
+        "tags": [
+          "history"
+        ],
+        "x-role": "viewer",
+        "x-writes": false
+      }
+    },
+    "/verbs/history/stats": {
+      "post": {
+        "description": "Needs the viewer role. The body is the verb's params as a JSON object.",
+        "operationId": "history_stats",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "provider": {
+                    "description": "Optional. Git provider override; resolved automatically from the repo when omitted (github / gitlab / bitbucket / ado).",
+                    "type": "string"
+                  },
+                  "repo": {
+                    "description": "Provider-native repository full name, including nested group/project segments.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "repo"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response History Stats"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The params are not valid for the verb (or the body is not a JSON object)."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No credential, or an unknown or revoked one."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential's role is too low for this route."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The body is over the size cap."
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A body that is not sent as application/json."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An unexpected failure (no detail is returned)."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Qodo, or this server's own configuration, could not complete the call."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "What PR history Qodo has indexed for a repo.",
+        "tags": [
+          "history"
+        ],
+        "x-role": "viewer",
+        "x-writes": false
+      }
+    },
+    "/verbs/prs/list": {
+      "post": {
+        "description": "Needs the viewer role. The body is the verb's params as a JSON object.",
+        "operationId": "prs_list",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "base_branch": {
+                    "description": "Filter by target branch (e.g. 'main').",
+                    "type": "string"
+                  },
+                  "max_results": {
+                    "description": "Optional cap. Default 50.",
+                    "maximum": 200.0,
+                    "minimum": 1.0,
+                    "type": "integer"
+                  },
+                  "repo": {
+                    "description": "Repository identifier — the provider's full name (for example 'owner/repo', 'group/subgroup/repo', or 'org/project/repo') or a full HTTPS / SSH URL. The bearer's workspace credential picks the right VCS installation automatically.",
+                    "type": "string"
+                  },
+                  "since": {
+                    "description": "ISO-8601 timestamp. For state=merged filters on merged_at >= since; otherwise updated_at >= since.",
+                    "type": "string"
+                  },
+                  "state": {
+                    "description": "Filter by PR state. Default 'all'.",
+                    "enum": [
+                      "open",
+                      "merged",
+                      "closed",
+                      "all"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "repo"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Prs List"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The params are not valid for the verb (or the body is not a JSON object)."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No credential, or an unknown or revoked one."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential's role is too low for this route."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The body is over the size cap."
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A body that is not sent as application/json."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An unexpected failure (no detail is returned)."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Qodo, or this server's own configuration, could not complete the call."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "A repo's pull requests, filtered by state (read through Qodo).",
+        "tags": [
+          "prs"
+        ],
+        "x-role": "viewer",
+        "x-writes": false
+      }
+    },
+    "/verbs/rules/get": {
+      "post": {
+        "description": "Needs the viewer role. The body is the verb's params as a JSON object.",
+        "operationId": "rules_get",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "no_scope": {
+                    "description": "Omit scope: skip the git detection.",
+                    "type": "boolean"
+                  },
+                  "query": {
+                    "description": "The task or concern to search rules for.",
+                    "type": "string"
+                  },
+                  "scopes": {
+                    "description": "Repository or module scopes (default: from the git origin).",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "top_k": {
+                    "description": "Max rules to request.",
+                    "minimum": 1.0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Rules Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The params are not valid for the verb (or the body is not a JSON object)."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No credential, or an unknown or revoked one."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential's role is too low for this route."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The body is over the size cap."
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A body that is not sent as application/json."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An unexpected failure (no detail is returned)."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Qodo, or this server's own configuration, could not complete the call."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Semantic-search the rules API (the older HTTP path).",
+        "tags": [
+          "rules"
+        ],
+        "x-role": "viewer",
+        "x-writes": false
+      }
+    },
+    "/verbs/rules/list": {
+      "post": {
+        "description": "Needs the viewer role. The body is the verb's params as a JSON object.",
+        "operationId": "rules_list",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "categories": {
+                    "description": "Filter to rules whose category is any of these (see rules-metadata for values).",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "name_contains": {
+                    "description": "Case-insensitive name substring filter.",
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "page": {
+                    "description": "1-based page number (default 1).",
+                    "minimum": 1.0,
+                    "type": "integer"
+                  },
+                  "page_size": {
+                    "description": "Rules per page (default 50, max 100).",
+                    "maximum": 100.0,
+                    "minimum": 1.0,
+                    "type": "integer"
+                  },
+                  "scopes": {
+                    "description": "Filter to rules applicable at these scope paths, e.g. '/owner/repo/'.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "severity": {
+                    "description": "Filter by severity.",
+                    "enum": [
+                      "error",
+                      "warning",
+                      "recommendation"
+                    ],
+                    "type": "string"
+                  },
+                  "state": {
+                    "description": "Filter by lifecycle state: 'pending' (suggestions awaiting triage), 'active', 'inactive', or a comma-separated combination. Omit for all states.",
+                    "type": "string"
+                  }
+                },
+                "required": [],
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Rules List"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The params are not valid for the verb (or the body is not a JSON object)."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No credential, or an unknown or revoked one."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential's role is too low for this route."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The body is over the size cap."
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A body that is not sent as application/json."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An unexpected failure (no detail is returned)."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Qodo, or this server's own configuration, could not complete the call."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "List the org's Qodo rules, filtered.",
+        "tags": [
+          "rules"
+        ],
+        "x-role": "viewer",
+        "x-writes": false
+      }
+    },
+    "/verbs/rules/metadata": {
+      "post": {
+        "description": "Needs the viewer role. The body is the verb's params as a JSON object.",
+        "operationId": "rules_metadata",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {},
+                "required": [],
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Rules Metadata"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The params are not valid for the verb (or the body is not a JSON object)."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No credential, or an unknown or revoked one."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential's role is too low for this route."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The body is over the size cap."
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A body that is not sent as application/json."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An unexpected failure (no detail is returned)."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Qodo, or this server's own configuration, could not complete the call."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "The values rules filters accept (categories, severities, states).",
+        "tags": [
+          "rules"
+        ],
+        "x-role": "viewer",
+        "x-writes": false
+      }
+    },
+    "/verbs/rules/search": {
+      "post": {
+        "description": "Needs the viewer role. The body is the verb's params as a JSON object.",
+        "operationId": "rules_search",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "query": {
+                    "description": "Structured three-line query mirroring the rule embedding format:\nName: <concise 5-10 word title of the rule this task would trigger>\nCategory: <one of: Security, Correctness, Quality, Reliability, Performance, Testability, Compliance, Accessibility, Observability, Architecture>\nContent: <1-2 sentences describing what should be checked or enforced; mention the tech stack when known>\nDo NOT pass keyword lists or flat sentences — they retrieve poorly.",
+                    "type": "string"
+                  },
+                  "scopes": {
+                    "description": "Optional repository scope paths to narrow results, e.g. '/owner/repo/' or '/owner/repo/modules/<name>/'. Omit entirely for org-wide search.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 100,
+                    "type": "array"
+                  },
+                  "top_k": {
+                    "description": "Optional max number of rules to return (1-50, default 10).",
+                    "maximum": 50.0,
+                    "minimum": 1.0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Rules Search"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The params are not valid for the verb (or the body is not a JSON object)."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No credential, or an unknown or revoked one."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential's role is too low for this route."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The body is over the size cap."
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A body that is not sent as application/json."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An unexpected failure (no detail is returned)."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Qodo, or this server's own configuration, could not complete the call."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Semantic search of the org's Qodo rules (MCP).",
+        "tags": [
+          "rules"
+        ],
+        "x-role": "viewer",
+        "x-writes": false
+      }
+    },
+    "/verbs/rules/show": {
+      "post": {
+        "description": "Needs the viewer role. The body is the verb's params as a JSON object.",
+        "operationId": "rules_show",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "rule_id": {
+                    "description": "Id of the rule to fetch (ruleId from search/list).",
+                    "minimum": 1.0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "rule_id"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Rules Show"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The params are not valid for the verb (or the body is not a JSON object)."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No credential, or an unknown or revoked one."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential's role is too low for this route."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The body is over the size cap."
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A body that is not sent as application/json."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "An unexpected failure (no detail is returned)."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Qodo, or this server's own configuration, could not complete the call."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "One Qodo rule by id.",
+        "tags": [
+          "rules"
+        ],
+        "x-role": "viewer",
+        "x-writes": false
+      }
+    }
+  }
+}

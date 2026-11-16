@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 
+from qodo.cli import _build
 from qodo.cli._commands.whoami import report
 from qodo.cli._output import add_json_flag, emit_result
 
@@ -31,12 +32,28 @@ _VERBS = [
     'rules get "<query>" — semantic-search your org\'s Qodo rules',
     "review (a.k.a. pr) — triage & resolve the Qodo bot's PR review comments",
     "config show|validate|init — manage the repo-level Qodo reviewer config",
+    "config propose --repo R --checkout PATH --base REF — return a checkout's committed Qodo "
+    "config change only if it is safe (read-only; allowlisted repo, root and paths)",
+    "findings fix --pr-url URL --finding-ids ID — ask for an agent to fix findings: publish one "
+    "qodo.fix.requested event on the mesh's bus (the 'events' extra; allowlisted repo, rate "
+    "guard; never opens a PR)",
+    "fix propose --repo R --checkout PATH --base REF — return an agent's committed code fix only "
+    "if it is safe (read-only; its own allowlists; refused paths; small fixes only)",
+    "serve — run the HTTP API (the 'server' extra): POST /verbs/<noun>/<name> for each api verb",
+    "mcp — serve the mcp-surface verbs as MCP tools over stdio (the 'mcp' extra): one tool per "
+    "verb, named <noun>_<name>",
+    "tokens issue|list|revoke — the API's service tokens (a token is printed once, at issue)",
     "whoami — identity probe (nick, version, backend, model)",
     "learn — structured self-teaching prompt",
     "explain <path> — markdown docs for a topic",
     "overview — this descriptive snapshot",
     "doctor — check agent-identity invariants + Qodo setup (configs), with fix guidance",
 ]
+
+
+def _all_verbs() -> list[str]:
+    """The hand-written verb lines plus the verb registry's verbs they do not name."""
+    return list(_VERBS) + _build.missing_lines("\n".join(_VERBS))
 
 
 def agent_sections() -> list[dict[str, object]]:
@@ -52,7 +69,7 @@ def agent_sections() -> list[dict[str, object]]:
                 f"model: {ident['model']}",
             ],
         },
-        {"title": "Verbs", "items": list(_VERBS)},
+        {"title": "Verbs", "items": _all_verbs()},
         {"title": "Sibling-pattern artifacts", "items": list(_ARTIFACTS)},
     ]
 
@@ -62,7 +79,7 @@ def cli_sections() -> list[dict[str, object]]:
     return [
         {
             "title": "Verbs",
-            "items": list(_VERBS) + ["cli overview — describe the CLI surface (this command)"],
+            "items": _all_verbs() + ["cli overview — describe the CLI surface (this command)"],
         },
         {
             "title": "Conventions",
@@ -83,6 +100,7 @@ def rules_sections() -> list[dict[str, object]]:
             "items": [
                 'rules get "<query>" [--scope S | --no-scope] — semantic-search '
                 "your org's Qodo rules (scope auto-detected from the git origin)",
+                *_build.noun_items("rules", ['rules get "<query>"']),
                 "rules overview — describe the rules noun (this command)",
             ],
         },
@@ -132,7 +150,7 @@ def review_sections() -> list[dict[str, object]]:
             "items": [
                 "reuses your provider-CLI auth — no new credentials",
                 "thread resolution via GraphQL resolveReviewThread (--no-resolve-thread to skip)",
-                "also reachable as `qodo pr`; supports --json",
+                "also reachable as `qodo-cli pr`; supports --json",
             ],
         },
     ]

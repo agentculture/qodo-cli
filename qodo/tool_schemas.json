@@ -1,0 +1,4815 @@
+{
+  "tools": {
+    "cancel-managed-agent-operation": {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Request cooperative QAR cancellation. Remote agent cancellation is NOT confirmed. Poll the operation to observe terminal state.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "operation_id": {
+            "maxLength": 36,
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id"
+        ],
+        "type": "object"
+      }
+    },
+    "cross-repo-overview": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Return the whole workspace's cross-repo relation graph: the participating repos (nodes) and the relations between them (edges) in one call. Optional filters narrow by provider, git organization, or status. Use this to map how repos across the workspace relate, rather than querying one repo at a time. Large workspaces are capped — when 'truncated' is true the view is partial; narrow with the filters to see the rest.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "git_organization": {
+            "description": "Optional. Restrict to repos under these orgs / groups / workspaces.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "provider": {
+            "description": "Optional. Restrict to repos on these providers (github / gitlab / ado / bitbucket).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "status": {
+            "description": "Optional. Subset of pending|completed|failed|not_found. Omitted -> all statuses.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      }
+    },
+    "cross-repo-pair": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Explain the single cross-repo relation between TWO specific repositories: the relation type, a one-liner, and the full narrative of how they relate and what changes in either can affect the other. Call with two 'owner/repo' full names (order does not matter — the relation is undirected). Use this when you already know both repos and want the detailed connection between them, rather than listing one repo's whole blast radius. Errors if the two repos have no analyzed relation.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "related_repo": {
+            "description": "The other provider-native repo full name.",
+            "type": "string"
+          },
+          "related_repo_provider": {
+            "description": "Optional VCS provider for 'related_repo', when it exists on more than one.",
+            "type": "string"
+          },
+          "repo": {
+            "description": "One provider-native repo full name. Order does not matter.",
+            "type": "string"
+          },
+          "repo_provider": {
+            "description": "Optional VCS provider (github / gitlab / ado / bitbucket) for 'repo', when that owner/repo exists on more than one.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo",
+          "related_repo"
+        ],
+        "type": "object"
+      }
+    },
+    "cross-repo-relations": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "List the cross-repo relations for ONE repository: every other repo it is coupled to, with the relation type, a one-liner, and a longer narrative of how they relate and what changes in either can affect the other. Call with a 'owner/repo' full name. Returns edges of every status — pending (analysis still running), completed, failed, and not_found (checked, no coupling). Use this to understand a single repo's blast radius. Pass shallow=true to skip the narrative when you only need the list of coupled repos; for one specific pair's full explanation use cross-repo-pair.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "provider": {
+            "description": "Optional VCS provider (github / gitlab / ado / bitbucket) when the same owner/repo exists on more than one.",
+            "type": "string"
+          },
+          "repo": {
+            "description": "Provider-native repo full name, including nested group/project segments.",
+            "type": "string"
+          },
+          "shallow": {
+            "description": "Optional, default false. When true, return only the connection skeleton (related repo, status, relation type, one-liner) and omit the longer 'relationship' narrative — cheaper when you just need to list which repos this one is coupled to. Set false (or omit) to get the full narrative; for one specific pair's full explanation use cross-repo-pair.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "repo"
+        ],
+        "type": "object"
+      }
+    },
+    "get-managed-agent-operation": {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "readOnlyHint": true
+      },
+      "description": "Get owned review status and actual expiry. Honor poll_interval_seconds.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "operation_id": {
+            "maxLength": 36,
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id"
+        ],
+        "type": "object"
+      }
+    },
+    "get-managed-agent-result": {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "readOnlyHint": true
+      },
+      "description": "Get a bounded JSON artifact chunk. Concatenate chunks in order, verify sha256, then parse JSON. Follow next_cursor until null; no result exists before completion.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "cursor": {
+            "maxLength": 90,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 36,
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id"
+        ],
+        "type": "object"
+      }
+    },
+    "get-pr-review-findings": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Get the current review state of ONE pull/merge request from Qodo's review DB: the latest review run (status + reviewed commit) and every current finding with its id, status, category, action level, and the run + commit that raised it. Structured and git-provider-agnostic — use this instead of reading the PR's review comments to check where a review stands or which findings are still open. Call with the full HTTP(S) PR URL, not a repo slug or PR number. Returns review_session=null when the PR has no recorded review yet.\nSet extended=true for programmatic audit or investigation: includes finding locations, code snippets, dismissal details, evidence with citations, and review-run history. Default false returns the compact review state. This reads stored results, not a new review or an immutable history of every finding revision. Evidence may be null. If qar_operation_result_truncated=true is returned, the result exceeded the size limit and is not a complete review read.\nattribution_status is one of: pending, partial_implementation, not_implemented, focus_areas_edited, full_implementation, dismissed, detected_after_merge, outdated. OPEN (still needs attention) = pending, partial_implementation, not_implemented, focus_areas_edited. CLOSED = full_implementation, dismissed, detected_after_merge, outdated. action_level is severity, NOT open-vs-closed.\nUse the returned finding ids with pr-review-dismiss or pr-review-mark-implemented to close findings out.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "extended": {
+            "default": false,
+            "description": "Return extended review details: finding locations and code snippets, dismissal details, stored evidence (explanation and citations), and review-run history. Default false keeps the compact response. Reads stored results; does not rerun or deepen the review. Evidence is null when unavailable.",
+            "type": "boolean"
+          },
+          "git_provider": {
+            "deprecated": true,
+            "description": "Deprecated compatibility-only input. It is ignored; identify the pull/merge request with pr_url and omit this argument in new callers.",
+            "type": "string"
+          },
+          "pr_url": {
+            "description": "Full http:// or https:// URL of the pull/merge request, including its hostname; for example, https://github.com/org/repo/pull/123. A repo slug or PR number is not a URL.",
+            "examples": [
+              "https://github.com/org/repo/pull/123"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "pr_url"
+        ],
+        "type": "object"
+      }
+    },
+    "litegit-approve": {
+      "annotations": {
+        "destructiveHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Approve a PR / change. Optionally include a short review summary in the body field. For authorized writes, supply a stable idempotency_key argument and reuse it with unchanged arguments when retrying an uncertain outcome. The key is not user approval; follow the host's approval policy. Legacy request _meta is also accepted.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "body": {
+            "description": "Optional review summary comment accompanying the approval.",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "description": "Stable key for this write, not user approval. Reuse it with identical arguments after an uncertain transport outcome; use a new key for a different authorized write. Legacy request _meta is also accepted.",
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "number": {
+            "description": "PR or change number.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "repo": {
+            "description": "Repository identifier — the provider's full name (for example 'owner/repo', 'group/subgroup/repo', or 'org/project/repo') or a full HTTPS / SSH URL. The bearer's workspace credential picks the right VCS installation automatically.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo",
+          "number"
+        ],
+        "type": "object"
+      }
+    },
+    "litegit-blame": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Per-line blame for a file at a ref. Each line carries commit_sha, author, and committed_at metadata.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "limit_lines": {
+            "description": "Optional cap on lines returned. Default 500.",
+            "maximum": 2000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "path": {
+            "description": "Raw file path within the repo — do NOT URL-encode it (a literal %20 means a file whose name contains the characters %20).",
+            "type": "string"
+          },
+          "ref": {
+            "description": "Optional ref: branch name, tag, or 7+ char SHA. Defaults to the repo's default branch HEAD.",
+            "type": "string"
+          },
+          "repo": {
+            "description": "Repository identifier — the provider's full name (for example 'owner/repo', 'group/subgroup/repo', or 'org/project/repo') or a full HTTPS / SSH URL. The bearer's workspace credential picks the right VCS installation automatically.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo",
+          "path"
+        ],
+        "type": "object"
+      }
+    },
+    "litegit-find": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Glob the tree for matching paths (e.g. '**/*.py'). Useful for discovering the layout of a repo before reading specific files.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "glob": {
+            "description": "Glob like '**/*.py' or 'src/**/test_*.ts', relative to root. Without max_depth, a literal file path returns that file; a literal directory lists files under it.",
+            "type": "string"
+          },
+          "max_depth": {
+            "description": "Optional maximum recursion depth relative to the caller's root (max 50).",
+            "maximum": 50,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "max_results": {
+            "default": 500,
+            "description": "Optional cap on results. Default 500.",
+            "maximum": 2000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "ref": {
+            "description": "Optional ref: branch name, tag, or 7+ char SHA. Defaults to the repo's default branch HEAD. The response reports the ref actually served (resolved_ref), its commit date, and when the mirror last synced (last_fetched_at) — check them before concluding something is absent, since an empty result on a stale tree is not proof it is missing.",
+            "type": "string"
+          },
+          "refresh": {
+            "description": "Optional. Sync the repo mirror from origin before reading (default false). Costs a fetch, so leave it off for routine exploration; set it true when the answer depends on being current — above all before asserting something is absent, or when a prior read looked implausibly stale. Has no effect when ref is a SHA — a commit is immutable, so there is nothing newer to sync; use a branch name to get the latest. A large repo can take several minutes to sync and the call may time out before it finishes.",
+            "type": "boolean"
+          },
+          "repo": {
+            "description": "Repository identifier — the provider's full name (for example 'owner/repo', 'group/subgroup/repo', or 'org/project/repo') or a full HTTPS / SSH URL. The bearer's workspace credential picks the right VCS installation automatically.",
+            "type": "string"
+          },
+          "root": {
+            "description": "Optional subtree to scope to; default repo root.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo",
+          "glob"
+        ],
+        "type": "object"
+      }
+    },
+    "litegit-get-change-context": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Observe a PR/MR/change head and base and obtain the revision token required by dependent review reads. Inspect omitted_fields. This is an observation, not an atomic snapshot or permission to merge.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "change_number": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "max_bytes": {
+            "default": 65536,
+            "description": "Maximum UTF-8 JSON page bytes. The runtime may lower this to its own result budget.",
+            "maximum": 262144,
+            "minimum": 4096,
+            "type": "integer"
+          },
+          "provider": {
+            "description": "Optional provider from repository discovery, for example github, gitlab, azure_devops, bitbucket, bitbucket_server or gerrit.",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "provider_host": {
+            "description": "Optional provider instance host from repository discovery.",
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "repo": {
+            "description": "Canonical repository full_name from search-repos, including nested provider paths. Use repository_url for its browser URL. This review family covers Git providers; single-segment Perforce depots are unsupported.",
+            "type": "string"
+          },
+          "repository_url": {
+            "description": "Optional exact repository browser URL from discovery; retained as an identity selector.",
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo",
+          "change_number"
+        ],
+        "type": "object"
+      }
+    },
+    "litegit-get-commit": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Fetch one commit by SHA — message, author, date, files-changed summary.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "repo": {
+            "description": "Repository identifier — the provider's full name (for example 'owner/repo', 'group/subgroup/repo', or 'org/project/repo') or a full HTTPS / SSH URL. The bearer's workspace credential picks the right VCS installation automatically.",
+            "type": "string"
+          },
+          "sha": {
+            "description": "Commit SHA (any prefix at least 7 chars).",
+            "minLength": 7,
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo",
+          "sha"
+        ],
+        "type": "object"
+      }
+    },
+    "litegit-get-issue": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Fetch one issue with its body and metadata. Use for 'summarize issue #N'.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "number": {
+            "description": "Issue number.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "repo": {
+            "description": "Repository identifier — the provider's full name (for example 'owner/repo', 'group/subgroup/repo', or 'org/project/repo') or a full HTTPS / SSH URL. The bearer's workspace credential picks the right VCS installation automatically.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo",
+          "number"
+        ],
+        "type": "object"
+      }
+    },
+    "litegit-get-pr": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Fetch the full content of one PR: metadata (title, body, author, labels, reviewers), diff files, PR-level comments, inline review comments. Issues five concurrent gateway calls and returns a combined payload.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "include_diff": {
+            "description": "Include full diff. Default true.",
+            "type": "boolean"
+          },
+          "number": {
+            "description": "PR number.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "repo": {
+            "description": "Repository identifier — the provider's full name (for example 'owner/repo', 'group/subgroup/repo', or 'org/project/repo') or a full HTTPS / SSH URL. The bearer's workspace credential picks the right VCS installation automatically.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo",
+          "number"
+        ],
+        "type": "object"
+      }
+    },
+    "litegit-get-read-capabilities": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Discover review-read support and canonical identity for an authorized repository. Capability is separate from human permission; preserve unknown permissions.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "provider": {
+            "description": "Optional provider from repository discovery, for example github, gitlab, azure_devops, bitbucket, bitbucket_server or gerrit.",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "provider_host": {
+            "description": "Optional provider instance host from repository discovery.",
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "repo": {
+            "description": "Canonical repository full_name from search-repos, including nested provider paths. Use repository_url for its browser URL. This review family covers Git providers; single-segment Perforce depots are unsupported.",
+            "type": "string"
+          },
+          "repository_url": {
+            "description": "Optional exact repository browser URL from discovery; retained as an identity selector.",
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo"
+        ],
+        "type": "object"
+      }
+    },
+    "litegit-git": {
+      "annotations": {
+        "destructiveHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Run an allowlisted read-only git subcommand against the repo at a given ref and return raw stdout. Permitted subcommands: log, show, diff, blame, shortlog, rev-list, rev-parse, diff-tree, cat-file, describe, name-rev. Branch / tag enumeration runs through litegit-list-branches / litegit-list-tags. For authorized writes, supply a stable idempotency_key argument and reuse it with unchanged arguments when retrying an uncertain outcome. The key is not user approval; follow the host's approval policy. Legacy request _meta is also accepted.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "args": {
+            "description": "Subcommand + flags, e.g. ['log', '-3', '--oneline']. First element must be a read-only subcommand (log, show, diff, blame, shortlog, rev-list, rev-parse, diff-tree, cat-file, describe, name-rev). For branch / tag enumeration use litegit-list-branches / litegit-list-tags directly.",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "idempotency_key": {
+            "description": "Stable key for this write, not user approval. Reuse it with identical arguments after an uncertain transport outcome; use a new key for a different authorized write. Legacy request _meta is also accepted.",
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "ref": {
+            "description": "Optional ref: branch name, tag, or 7+ char SHA. Defaults to the repo's default branch HEAD. The response reports the ref actually served (resolved_ref), its commit date, and when the mirror last synced (last_fetched_at) — check them before concluding something is absent, since an empty result on a stale tree is not proof it is missing.",
+            "type": "string"
+          },
+          "refresh": {
+            "description": "Optional. Sync the repo mirror from origin before reading (default false). Costs a fetch, so leave it off for routine exploration; set it true when the answer depends on being current — above all before asserting something is absent, or when a prior read looked implausibly stale. Has no effect when ref is a SHA — a commit is immutable, so there is nothing newer to sync; use a branch name to get the latest. A large repo can take several minutes to sync and the call may time out before it finishes.",
+            "type": "boolean"
+          },
+          "repo": {
+            "description": "Repository identifier — the provider's full name (for example 'owner/repo', 'group/subgroup/repo', or 'org/project/repo') or a full HTTPS / SSH URL. The bearer's workspace credential picks the right VCS installation automatically.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo",
+          "args"
+        ],
+        "type": "object"
+      }
+    },
+    "litegit-grep": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Search across the repo using POSIX ERE by default. Alternation, +, ?, (), and {} are supported; \\d, (?i), lazy quantifiers, and lookaround are not. Use [0-9] for portable digits, regex='fixed' for literal strings, or regex='perl' for PCRE2 where available. Returns matching lines with file path + line number. Narrow with path_glob when possible — broad queries hit the upstream gateway's latency tail.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "max_matches": {
+            "description": "Optional cap on matches. Default 200.",
+            "maximum": 1000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "path_glob": {
+            "description": "Optional path filter glob, e.g. 'src/**/*.ts'.",
+            "type": "string"
+          },
+          "pattern": {
+            "description": "Pattern to search for. The default POSIX ERE mode supports alternation, +, ?, (), and {}; it does not support \\d, (?i), lazy quantifiers, or lookaround. Use [0-9] for portable digits, regex='fixed' for literal strings, or regex='perl' for PCRE2 where available.",
+            "type": "string"
+          },
+          "ref": {
+            "description": "Optional ref: branch name, tag, or 7+ char SHA. Defaults to the repo's default branch HEAD. The response reports the ref actually served (resolved_ref), its commit date, and when the mirror last synced (last_fetched_at) — check them before concluding something is absent, since an empty result on a stale tree is not proof it is missing.",
+            "type": "string"
+          },
+          "refresh": {
+            "description": "Optional. Sync the repo mirror from origin before reading (default false). Costs a fetch, so leave it off for routine exploration; set it true when the answer depends on being current — above all before asserting something is absent, or when a prior read looked implausibly stale. Has no effect when ref is a SHA — a commit is immutable, so there is nothing newer to sync; use a branch name to get the latest. A large repo can take several minutes to sync and the call may time out before it finishes.",
+            "type": "boolean"
+          },
+          "regex": {
+            "default": "extended",
+            "description": "Pattern dialect. 'extended' (default) = POSIX ERE. 'fixed' = literal string, no metacharacters. 'basic' = POSIX BRE, where | + ? ( ) { } match literally unless backslash-escaped. 'perl' = PCRE2, adding \\d, (?i), lazy quantifiers and lookaround where the server supports it.",
+            "enum": [
+              "fixed",
+              "basic",
+              "extended",
+              "perl"
+            ]
+          },
+          "repo": {
+            "description": "Repository identifier — the provider's full name (for example 'owner/repo', 'group/subgroup/repo', or 'org/project/repo') or a full HTTPS / SSH URL. The bearer's workspace credential picks the right VCS installation automatically.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo",
+          "pattern"
+        ],
+        "type": "object"
+      }
+    },
+    "litegit-list-branches": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "List branch names + their head SHAs.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "max_results": {
+            "description": "Optional cap. Default 200.",
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "repo": {
+            "description": "Repository identifier — the provider's full name (for example 'owner/repo', 'group/subgroup/repo', or 'org/project/repo') or a full HTTPS / SSH URL. The bearer's workspace credential picks the right VCS installation automatically.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo"
+        ],
+        "type": "object"
+      }
+    },
+    "litegit-list-commits": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "List commits filtered by path / ref / since / until — flat git-log shape, not PR-scoped.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "max_results": {
+            "description": "Optional cap. Default 30.",
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "path": {
+            "description": "Optional path filter — only commits that touched this file.",
+            "type": "string"
+          },
+          "ref": {
+            "description": "Optional ref: branch name, tag, or 7+ char SHA. Defaults to the repo's default branch HEAD.",
+            "type": "string"
+          },
+          "repo": {
+            "description": "Repository identifier — the provider's full name (for example 'owner/repo', 'group/subgroup/repo', or 'org/project/repo') or a full HTTPS / SSH URL. The bearer's workspace credential picks the right VCS installation automatically.",
+            "type": "string"
+          },
+          "since": {
+            "description": "ISO-8601 lower bound.",
+            "type": "string"
+          },
+          "until": {
+            "description": "ISO-8601 upper bound.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo"
+        ],
+        "type": "object"
+      }
+    },
+    "litegit-list-issues": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "List issues filtered by state / labels / since. Use for 'open issues in repo X', 'issues labelled bug'.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "labels": {
+            "description": "Filter by labels (intersection).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "max_results": {
+            "description": "Optional cap. Default 50.",
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "repo": {
+            "description": "Repository identifier — the provider's full name (for example 'owner/repo', 'group/subgroup/repo', or 'org/project/repo') or a full HTTPS / SSH URL. The bearer's workspace credential picks the right VCS installation automatically.",
+            "type": "string"
+          },
+          "since": {
+            "description": "ISO-8601 timestamp; updated_at >= since.",
+            "type": "string"
+          },
+          "state": {
+            "description": "Filter by state. Default 'open'.",
+            "enum": [
+              "open",
+              "closed",
+              "all"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo"
+        ],
+        "type": "object"
+      }
+    },
+    "litegit-list-prs": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "List PRs filtered by state / base branch / since. Use for 'most recent merged PR', 'open PRs against main'.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "base_branch": {
+            "description": "Filter by target branch (e.g. 'main').",
+            "type": "string"
+          },
+          "max_results": {
+            "description": "Optional cap. Default 50.",
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "repo": {
+            "description": "Repository identifier — the provider's full name (for example 'owner/repo', 'group/subgroup/repo', or 'org/project/repo') or a full HTTPS / SSH URL. The bearer's workspace credential picks the right VCS installation automatically.",
+            "type": "string"
+          },
+          "since": {
+            "description": "ISO-8601 timestamp. For state=merged filters on merged_at >= since; otherwise updated_at >= since.",
+            "type": "string"
+          },
+          "state": {
+            "description": "Filter by PR state. Default 'all'.",
+            "enum": [
+              "open",
+              "merged",
+              "closed",
+              "all"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo"
+        ],
+        "type": "object"
+      }
+    },
+    "litegit-list-tags": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "List tag names + their commit SHAs.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "max_results": {
+            "description": "Optional cap. Default 200.",
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "repo": {
+            "description": "Repository identifier — the provider's full name (for example 'owner/repo', 'group/subgroup/repo', or 'org/project/repo') or a full HTTPS / SSH URL. The bearer's workspace credential picks the right VCS installation automatically.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo"
+        ],
+        "type": "object"
+      }
+    },
+    "litegit-ls": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "List files and subdirectories at a path in a repo, at a given ref. Default path is the repo root.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "max_entries": {
+            "description": "Optional cap on entries returned (max 1000).",
+            "maximum": 1000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "path": {
+            "description": "Directory path; default repo root.",
+            "type": "string"
+          },
+          "ref": {
+            "description": "Optional ref: branch name, tag, or 7+ char SHA. Defaults to the repo's default branch HEAD. The response reports the ref actually served (resolved_ref), its commit date, and when the mirror last synced (last_fetched_at) — check them before concluding something is absent, since an empty result on a stale tree is not proof it is missing.",
+            "type": "string"
+          },
+          "refresh": {
+            "description": "Optional. Sync the repo mirror from origin before reading (default false). Costs a fetch, so leave it off for routine exploration; set it true when the answer depends on being current — above all before asserting something is absent, or when a prior read looked implausibly stale. Has no effect when ref is a SHA — a commit is immutable, so there is nothing newer to sync; use a branch name to get the latest. A large repo can take several minutes to sync and the call may time out before it finishes.",
+            "type": "boolean"
+          },
+          "repo": {
+            "description": "Repository identifier — the provider's full name (for example 'owner/repo', 'group/subgroup/repo', or 'org/project/repo') or a full HTTPS / SSH URL. The bearer's workspace credential picks the right VCS installation automatically.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo"
+        ],
+        "type": "object"
+      }
+    },
+    "litegit-post-comment": {
+      "annotations": {
+        "destructiveHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Post a PR-level comment. Use for review summaries, automated feedback, or any response that is not anchored to a specific diff line. For authorized writes, supply a stable idempotency_key argument and reuse it with unchanged arguments when retrying an uncertain outcome. The key is not user approval; follow the host's approval policy. Legacy request _meta is also accepted.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "body": {
+            "description": "Comment body text (markdown supported).",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "description": "Stable key for this write, not user approval. Reuse it with identical arguments after an uncertain transport outcome; use a new key for a different authorized write. Legacy request _meta is also accepted.",
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "number": {
+            "description": "PR or change number.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "repo": {
+            "description": "Repository identifier — the provider's full name (for example 'owner/repo', 'group/subgroup/repo', or 'org/project/repo') or a full HTTPS / SSH URL. The bearer's workspace credential picks the right VCS installation automatically.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo",
+          "number",
+          "body"
+        ],
+        "type": "object"
+      }
+    },
+    "litegit-post-inline-comment": {
+      "annotations": {
+        "destructiveHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Post a single inline review comment anchored to a specific file + line in a PR diff. For authorized writes, supply a stable idempotency_key argument and reuse it with unchanged arguments when retrying an uncertain outcome. The key is not user approval; follow the host's approval policy. Legacy request _meta is also accepted.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "body": {
+            "description": "Comment body text (markdown supported).",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "description": "Stable key for this write, not user approval. Reuse it with identical arguments after an uncertain transport outcome; use a new key for a different authorized write. Legacy request _meta is also accepted.",
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "line": {
+            "description": "Line number in the diff.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "number": {
+            "description": "PR or change number.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "path": {
+            "description": "File path the comment is anchored to.",
+            "type": "string"
+          },
+          "repo": {
+            "description": "Repository identifier — the provider's full name (for example 'owner/repo', 'group/subgroup/repo', or 'org/project/repo') or a full HTTPS / SSH URL. The bearer's workspace credential picks the right VCS installation automatically.",
+            "type": "string"
+          },
+          "side": {
+            "description": "Diff side. Default 'RIGHT' (new file).",
+            "enum": [
+              "LEFT",
+              "RIGHT"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo",
+          "number",
+          "body",
+          "path",
+          "line"
+        ],
+        "type": "object"
+      }
+    },
+    "litegit-post-inline-comments": {
+      "annotations": {
+        "destructiveHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Post a batch of inline review comments in one call. Prefer this over repeated litegit-post-inline-comment when leaving multiple review comments on the same PR. For authorized writes, supply a stable idempotency_key argument and reuse it with unchanged arguments when retrying an uncertain outcome. The key is not user approval; follow the host's approval policy. Legacy request _meta is also accepted.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "comments": {
+            "description": "List of inline comment objects to post as a batch.",
+            "items": {
+              "additionalProperties": true,
+              "properties": {
+                "body": {
+                  "type": "string"
+                },
+                "line": {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "side": {
+                  "enum": [
+                    "LEFT",
+                    "RIGHT"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "body",
+                "path",
+                "line"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "idempotency_key": {
+            "description": "Stable key for this write, not user approval. Reuse it with identical arguments after an uncertain transport outcome; use a new key for a different authorized write. Legacy request _meta is also accepted.",
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "number": {
+            "description": "PR or change number.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "repo": {
+            "description": "Repository identifier — the provider's full name (for example 'owner/repo', 'group/subgroup/repo', or 'org/project/repo') or a full HTTPS / SSH URL. The bearer's workspace credential picks the right VCS installation automatically.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo",
+          "number",
+          "comments"
+        ],
+        "type": "object"
+      }
+    },
+    "litegit-read-file": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Read a file at a repo + ref in pages of up to 2000 lines (default 2000). Use start_line / limit_lines to select a page; truncated + next_start_line identify the next page. The runtime byte limit may shorten a page further; a single line that cannot fit fails with MT-VALIDATION. content_truncated_upstream reports a gateway byte cut; a null cursor means line paging cannot continue.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "limit_lines": {
+            "default": 2000,
+            "description": "Lines per page. Default and maximum: 2000. Larger values fail with MT-VALIDATION. Pass a non-null next_start_line as start_line to read the next page. The runtime byte limit may shorten a page further.",
+            "maximum": 2000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "path": {
+            "description": "Raw file path within the repo — do NOT URL-encode it (a literal %20 means a file whose name contains the characters %20).",
+            "type": "string"
+          },
+          "ref": {
+            "description": "Optional ref: branch name, tag, or 7+ char SHA. Defaults to the repo's default branch HEAD. The response reports the ref actually served (resolved_ref), its commit date, and when the mirror last synced (last_fetched_at) — check them before concluding something is absent, since an empty result on a stale tree is not proof it is missing.",
+            "type": "string"
+          },
+          "refresh": {
+            "description": "Optional. Sync the repo mirror from origin before reading (default false). Costs a fetch, so leave it off for routine exploration; set it true when the answer depends on being current — above all before asserting something is absent, or when a prior read looked implausibly stale. Has no effect when ref is a SHA — a commit is immutable, so there is nothing newer to sync; use a branch name to get the latest. A large repo can take several minutes to sync and the call may time out before it finishes.",
+            "type": "boolean"
+          },
+          "repo": {
+            "description": "Repository identifier — the provider's full name (for example 'owner/repo', 'group/subgroup/repo', or 'org/project/repo') or a full HTTPS / SSH URL. The bearer's workspace credential picks the right VCS installation automatically.",
+            "type": "string"
+          },
+          "start_line": {
+            "description": "Optional 1-indexed start line. Default 1.",
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "repo",
+          "path"
+        ],
+        "type": "object"
+      }
+    },
+    "litegit-read-review-data": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Read one bounded provider-evidence page: files/patches, comments/threads/reviews, CI/checks/jobs/logs, readiness, history, exact comparisons/ancestry or issue/commit discovery. Discover support first. Supply change_number and its observed revision for change reads. Return next_cursor unchanged on the same query until exhausted; complete may remain unknown. Restart on changed evidence; unsupported/unavailable is not empty evidence. Logs page backwards. No provider or gh fallback.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "dependentRequired": {
+          "change_number": [
+            "revision"
+          ]
+        },
+        "properties": {
+          "base_ref": {
+            "description": "Full immutable commit SHA from the observed context or commit discovery; branch names are not accepted.",
+            "pattern": "^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$",
+            "type": "string"
+          },
+          "change_number": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "check_id": {
+            "maxLength": 200,
+            "type": "string"
+          },
+          "comparison_mode": {
+            "default": "three_dot",
+            "enum": [
+              "two_dot",
+              "three_dot"
+            ],
+            "type": "string"
+          },
+          "cursor": {
+            "description": "Opaque signed next_cursor from the preceding page. Keep repo, caller and query unchanged.",
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "issue_number": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "job_id": {
+            "maxLength": 200,
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "metadata",
+              "files",
+              "patch",
+              "comments",
+              "inline_comments",
+              "reviews",
+              "threads",
+              "checks",
+              "statuses",
+              "annotations",
+              "runs",
+              "jobs",
+              "logs",
+              "readiness",
+              "history",
+              "principal",
+              "commit_changes",
+              "compare",
+              "parents",
+              "merge_base",
+              "issues"
+            ],
+            "type": "string"
+          },
+          "limit": {
+            "default": 50,
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "max_bytes": {
+            "default": 65536,
+            "description": "Maximum UTF-8 JSON page bytes. The runtime may lower this to its own result budget.",
+            "maximum": 262144,
+            "minimum": 4096,
+            "type": "integer"
+          },
+          "path": {
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "provider": {
+            "description": "Optional provider from repository discovery, for example github, gitlab, azure_devops, bitbucket, bitbucket_server or gerrit.",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "provider_host": {
+            "description": "Optional provider instance host from repository discovery.",
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "ref": {
+            "description": "Full immutable commit SHA from the observed context or commit discovery; branch names are not accepted.",
+            "pattern": "^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$",
+            "type": "string"
+          },
+          "repo": {
+            "description": "Canonical repository full_name from search-repos, including nested provider paths. Use repository_url for its browser URL. This review family covers Git providers; single-segment Perforce depots are unsupported.",
+            "type": "string"
+          },
+          "repository_url": {
+            "description": "Optional exact repository browser URL from discovery; retained as an identity selector.",
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string"
+          },
+          "revision": {
+            "description": "Opaque revision from get-change-context; required with change_number.",
+            "pattern": "^[0-9a-fA-F]{64}$",
+            "type": "string"
+          },
+          "run_id": {
+            "maxLength": 200,
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo",
+          "kind"
+        ],
+        "type": "object"
+      }
+    },
+    "litegit-search-issues": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Cross-repo issue search using GitHub's /search/issues syntax. Scope with 'org:qodo-ai' / 'repo:owner/name' qualifiers — bare queries hit public GitHub globally.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "max_results": {
+            "description": "Optional cap. Default 30.",
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "query": {
+            "description": "GitHub /search/issues syntax. Scope with qualifiers — 'org:qodo-ai foo' or 'repo:owner/name state:open'. Without an org: / repo: qualifier the search is global across public GitHub.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "type": "object"
+      }
+    },
+    "litegit-search-repos": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "List or search the repositories your key can access (across all providers). Call with NO query to list your repos (up to max_results, default 200); pass a substring query to filter by repo full_name (e.g. query=\"litegit\" -> qodo-ai/litegit-gateway). Use this FIRST to find which repo a file or path lives in, or to enumerate accessible repos — do not guess repo names. Returns {repos, truncated, next_page_token}; if truncated is true the cap was hit — narrow with a query or raise max_results to see the rest.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "max_results": {
+            "description": "Optional cap on repos returned. Default 200.",
+            "maximum": 1000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "provider": {
+            "description": "Optional VCS provider filter (e.g. 'github', 'gitlab', 'bitbucket'). Omit to span every provider the bearer can reach.",
+            "type": "string"
+          },
+          "query": {
+            "description": "Optional case-insensitive substring filter on a repo's full_name (owner/repo). Omit to list ALL accessible repos; pass e.g. 'litegit' to match 'qodo-ai/litegit-gateway'. This is a plain substring, not a glob or regex.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    "litegit-set-labels": {
+      "annotations": {
+        "destructiveHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Replace the full label set on a PR / change. This is a PUT (replaces, not merges); supply all desired labels in one call. For authorized writes, supply a stable idempotency_key argument and reuse it with unchanged arguments when retrying an uncertain outcome. The key is not user approval; follow the host's approval policy. Legacy request _meta is also accepted.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "idempotency_key": {
+            "description": "Stable key for this write, not user approval. Reuse it with identical arguments after an uncertain transport outcome; use a new key for a different authorized write. Legacy request _meta is also accepted.",
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "labels": {
+            "description": "Label names to set. Replaces the full label set (not additive).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "labels_metadata": {
+            "additionalProperties": true,
+            "description": "Optional per-label provider-native metadata (color, description).",
+            "type": "object"
+          },
+          "number": {
+            "description": "PR or change number.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "repo": {
+            "description": "Repository identifier — the provider's full name (for example 'owner/repo', 'group/subgroup/repo', or 'org/project/repo') or a full HTTPS / SSH URL. The bearer's workspace credential picks the right VCS installation automatically.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo",
+          "number",
+          "labels"
+        ],
+        "type": "object"
+      }
+    },
+    "litegit-update-description": {
+      "annotations": {
+        "destructiveHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Update the title and/or description body of a PR / change. Omit either field to leave it unchanged. For authorized writes, supply a stable idempotency_key argument and reuse it with unchanged arguments when retrying an uncertain outcome. The key is not user approval; follow the host's approval policy. Legacy request _meta is also accepted.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "body": {
+            "description": "New PR description body (markdown). Omit to leave unchanged.",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "description": "Stable key for this write, not user approval. Reuse it with identical arguments after an uncertain transport outcome; use a new key for a different authorized write. Legacy request _meta is also accepted.",
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "number": {
+            "description": "PR or change number.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "repo": {
+            "description": "Repository identifier — the provider's full name (for example 'owner/repo', 'group/subgroup/repo', or 'org/project/repo') or a full HTTPS / SSH URL. The bearer's workspace credential picks the right VCS installation automatically.",
+            "type": "string"
+          },
+          "title": {
+            "description": "New PR title. Omit to leave unchanged.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo",
+          "number"
+        ],
+        "type": "object"
+      }
+    },
+    "pr-review-dismiss": {
+      "annotations": {
+        "destructiveHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Dismiss one or more local or PR review findings with a reason — closing them WITHOUT a code change, because they are wrong, intentional, out of scope, or declined. Updates the findings in Qodo's review DB, strikes through their PR comments, re-renders the review summary. A local dismissal preserves configured merge-policy blocks. Use pr-review-mark-implemented instead when you actually fixed the code. Only OPEN findings can be dismissed; ids that are already closed come back with their own per-finding outcome rather than failing the call. Get the ids from get-pr-review-findings. For authorized writes, supply a stable idempotency_key argument and reuse it with unchanged arguments when retrying an uncertain outcome. The key is not user approval; follow the host's approval policy. Legacy request _meta is also accepted.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "explanation": {
+            "description": "Short justification recorded alongside the dismissal and shown to reviewers. Strongly recommended. Max 2000 characters.",
+            "maxLength": 2000,
+            "type": "string"
+          },
+          "finding_ids": {
+            "description": "Finding UUIDs to update, as returned in each finding's `id` by get-pr-review-findings. 1-100 per call. Batch every finding on the same PR into ONE call: the PR-side reconciliation runs once per call, not once per finding.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "type": "array"
+          },
+          "idempotency_key": {
+            "description": "Stable key for this write, not user approval. Reuse it with identical arguments after an uncertain transport outcome; use a new key for a different authorized write. Legacy request _meta is also accepted.",
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "local_review_id": {
+            "description": "For local findings, the local_review_id returned by that review. Required to prevent acting on a stale result. Batch only findings from that local review.",
+            "type": "string"
+          },
+          "reason": {
+            "description": "Why the findings are being closed without a code change. false_positive: the finding is wrong. intentional: the code is deliberate and correct as written. deferred: real, but out of scope for this PR. rejected: understood and declined.",
+            "enum": [
+              "false_positive",
+              "intentional",
+              "deferred",
+              "rejected"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "finding_ids",
+          "reason"
+        ],
+        "type": "object"
+      }
+    },
+    "pr-review-mark-implemented": {
+      "annotations": {
+        "destructiveHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Mark one or more PR review findings as implemented — the fix HAS landed in the code. Updates the findings in Qodo's review DB, marks their PR comments resolved, re-renders the review summary, and clears the merge-policy block they were holding. Only claim this for findings you actually fixed: it clears the merge gate without a review having verified the fix. Use pr-review-dismiss when closing a finding without a code change. Only OPEN findings can be marked; ids that are already closed come back with their own per-finding outcome rather than failing the call. Get the ids from get-pr-review-findings. For authorized writes, supply a stable idempotency_key argument and reuse it with unchanged arguments when retrying an uncertain outcome. The key is not user approval; follow the host's approval policy. Legacy request _meta is also accepted.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "explanation": {
+            "description": "Short note on what was changed to fix the findings. Strongly recommended. Max 2000 characters.",
+            "maxLength": 2000,
+            "type": "string"
+          },
+          "finding_ids": {
+            "description": "Finding UUIDs to update, as returned in each finding's `id` by get-pr-review-findings. 1-100 per call. Batch every finding on the same PR into ONE call: the PR-side reconciliation runs once per call, not once per finding.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "type": "array"
+          },
+          "idempotency_key": {
+            "description": "Stable key for this write, not user approval. Reuse it with identical arguments after an uncertain transport outcome; use a new key for a different authorized write. Legacy request _meta is also accepted.",
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "local_review_id": {
+            "description": "For local findings, the local_review_id returned by that review. Required to prevent acting on a stale result. Batch only findings from that local review.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "finding_ids"
+        ],
+        "type": "object"
+      }
+    },
+    "pull-request-by-file": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "List the merged pull requests that touched a specific file in ONE repository, most-recent first by default. Call with 'owner/repo', the git provider, and the exact current default-branch file path (PRs that touched it before a rename are included). Use this to see the change history of a file across PRs.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "file_path": {
+            "description": "Exact current default-branch file path; PRs that touched it (pre-rename) are returned.",
+            "type": "string"
+          },
+          "include_file_changes": {
+            "description": "Optional. Include each returned PR's file changes (default false).",
+            "type": "boolean"
+          },
+          "provider": {
+            "description": "Optional. Git provider override; resolved automatically from the repo when omitted (github / gitlab / bitbucket / ado).",
+            "type": "string"
+          },
+          "repo": {
+            "description": "Provider-native repository full name, including nested group/project segments.",
+            "type": "string"
+          },
+          "sort_direction": {
+            "description": "Optional. Sort by merge time ascending or descending (default desc).",
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo",
+          "file_path"
+        ],
+        "type": "object"
+      }
+    },
+    "pull-request-details": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Get the full details of ONE merged pull request — title, description, files, and review suggestions. Call with 'owner/repo', the git provider, and the PR number. Use this to understand a specific PR in depth.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "pr_number": {
+            "description": "Pull request number.",
+            "type": "integer"
+          },
+          "provider": {
+            "description": "Optional. Git provider override; resolved automatically from the repo when omitted (github / gitlab / bitbucket / ado).",
+            "type": "string"
+          },
+          "repo": {
+            "description": "Provider-native repository full name, including nested group/project segments.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo",
+          "pr_number"
+        ],
+        "type": "object"
+      }
+    },
+    "pull-request-patch": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Fetch the diff/patch for ONE file within ONE merged pull request. Call with 'owner/repo', the git provider, the PR number, and the exact file path. Use this to read exactly what a PR changed in a given file.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "file_path": {
+            "description": "Exact file path within the PR to retrieve the patch for.",
+            "type": "string"
+          },
+          "pr_number": {
+            "description": "Pull request number.",
+            "type": "integer"
+          },
+          "provider": {
+            "description": "Optional. Git provider override; resolved automatically from the repo when omitted (github / gitlab / bitbucket / ado).",
+            "type": "string"
+          },
+          "repo": {
+            "description": "Provider-native repository full name, including nested group/project segments.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo",
+          "pr_number",
+          "file_path"
+        ],
+        "type": "object"
+      }
+    },
+    "pull-request-review-history": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Get the recent code-review fix suggestions for a file or directory in ONE repository — what reviewers flagged there in past PRs and whether each suggestion was accepted. Call with 'owner/repo' and a relative path; the search graduates up the directory tree until enough suggestions are found. Use this to learn what kinds of issues recur in an area of the code and what feedback the team accepts.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "acceptance_status": {
+            "description": "Optional. Filter suggestions by review outcome; all outcomes are included when omitted.",
+            "enum": [
+              "definitely_accepted",
+              "definitely_rejected",
+              "partially_accepted",
+              "dismissed"
+            ],
+            "type": "string"
+          },
+          "category": {
+            "description": "Optional. Filter by finding category: 'bug' for bug findings, 'rule' for convention/style.",
+            "enum": [
+              "bug",
+              "rule"
+            ],
+            "type": "string"
+          },
+          "file_path": {
+            "description": "Relative path to a file or directory. The search starts here and graduates up the directory tree until enough suggestions are found.",
+            "type": "string"
+          },
+          "include_code_hunks": {
+            "description": "Optional. Include the diff hunk for each suggestion location, for pattern matching against the current code (default false).",
+            "type": "boolean"
+          },
+          "limit": {
+            "description": "Optional max number of suggestions to return (1-100, default 20).",
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "provider": {
+            "description": "Optional. Git provider override; resolved automatically from the repo when omitted (github / gitlab / bitbucket / ado).",
+            "type": "string"
+          },
+          "repo": {
+            "description": "Provider-native repository full name, including nested group/project segments.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo",
+          "file_path"
+        ],
+        "type": "object"
+      }
+    },
+    "pull-request-similar": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Find merged pull requests semantically similar to a query for ONE repository — past changes that touched the same area or solved a comparable problem. Call with 'owner/repo', the git provider, and a query describing the change/issue/code element. Optionally narrow by a file path prefix. Use this to learn how similar work was done before.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "file_path_prefix": {
+            "description": "Optional path prefix to limit the search to a subdirectory or a specific file.",
+            "type": "string"
+          },
+          "include_file_changes": {
+            "description": "Optional. Include each returned PR's file changes (default false).",
+            "type": "boolean"
+          },
+          "provider": {
+            "description": "Optional. Git provider override; resolved automatically from the repo when omitted (github / gitlab / bitbucket / ado).",
+            "type": "string"
+          },
+          "query": {
+            "description": "Search string describing the change / issue / code element to find similar merged PRs for.",
+            "type": "string"
+          },
+          "repo": {
+            "description": "Provider-native repository full name, including nested group/project segments.",
+            "type": "string"
+          },
+          "similarity_top_k": {
+            "description": "Optional max number of similar PRs to return (1-50, default 10).",
+            "maximum": 50,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "repo",
+          "query"
+        ],
+        "type": "object"
+      }
+    },
+    "pull-request-similar-suggestions": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Semantically search the code-review fix suggestions of ONE repository — find past findings similar to a description (embed_type 'description') or given on similar code (embed_type 'diff_hunk'). Call with 'owner/repo' and a query; optionally filter by folder, category (bug / rule), or acceptance status. Use this to check whether a finding was raised before and how the team responded.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "acceptance_status": {
+            "description": "Optional. Filter suggestions by review outcome; all outcomes are included when omitted.",
+            "enum": [
+              "definitely_accepted",
+              "definitely_rejected",
+              "partially_accepted",
+              "dismissed"
+            ],
+            "type": "string"
+          },
+          "category": {
+            "description": "Optional. Filter by finding category: 'bug' for bug findings, 'rule' for convention/style.",
+            "enum": [
+              "bug",
+              "rule"
+            ],
+            "type": "string"
+          },
+          "embed_type": {
+            "description": "Optional. What to match against: 'description' compares to suggestion description text, 'diff_hunk' compares to the code diff hunks at suggestion locations (default 'description').",
+            "enum": [
+              "description",
+              "diff_hunk"
+            ],
+            "type": "string"
+          },
+          "folder_path": {
+            "description": "Optional folder prefix; only suggestions whose affected file path starts with it are returned.",
+            "type": "string"
+          },
+          "include_code_hunks": {
+            "description": "Optional. Include the diff hunk for each suggestion location, for pattern matching against the current code (default false).",
+            "type": "boolean"
+          },
+          "provider": {
+            "description": "Optional. Git provider override; resolved automatically from the repo when omitted (github / gitlab / bitbucket / ado).",
+            "type": "string"
+          },
+          "query": {
+            "description": "Text to embed and search against — a finding description or a code snippet.",
+            "type": "string"
+          },
+          "repo": {
+            "description": "Provider-native repository full name, including nested group/project segments.",
+            "type": "string"
+          },
+          "top_k": {
+            "description": "Optional max number of unique suggestions to return (1-100, default 50).",
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "repo",
+          "query"
+        ],
+        "type": "object"
+      }
+    },
+    "pull-request-stats": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Summarize the indexed PR-knowledge corpus for ONE repository: counts of merged PRs, file changes, patches, comments, fix suggestions, and the merge-date range. Call with 'owner/repo' and the git provider. Use this to gauge how much PR history is available before deeper queries.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "provider": {
+            "description": "Optional. Git provider override; resolved automatically from the repo when omitted (github / gitlab / bitbucket / ado).",
+            "type": "string"
+          },
+          "repo": {
+            "description": "Provider-native repository full name, including nested group/project segments.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo"
+        ],
+        "type": "object"
+      }
+    },
+    "review-notes-bind-pr": {
+      "annotations": {
+        "destructiveHint": true,
+        "readOnlyHint": false
+      },
+      "description": "After opening a PR, associate active published PR Review Notes using notes_id and positive pr_number. Target repository comes from the saved notes. Retries of the same association are idempotent; conflicting associations return a conflict. No content edit, revision, SHA recapture or provider verification occurs. Returns a bounded receipt with IDs, revisions and a document summary; use read tools for full content. For authorized writes, supply a stable idempotency_key argument and reuse it with unchanged arguments when retrying an uncertain outcome. The key is not user approval; follow the host's approval policy. Legacy request _meta is also accepted.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "agent_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Agent Name"
+          },
+          "idempotency_key": {
+            "description": "Stable key for this write, not user approval. Reuse it with identical arguments after an uncertain transport outcome; use a new key for a different authorized write. Legacy request _meta is also accepted.",
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "notes_id": {
+            "format": "uuid",
+            "title": "Notes Id",
+            "type": "string"
+          },
+          "pr_number": {
+            "exclusiveMinimum": 0,
+            "title": "Pr Number",
+            "type": "integer"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Session Id"
+          }
+        },
+        "required": [
+          "notes_id",
+          "pr_number"
+        ],
+        "title": "BindPr",
+        "type": "object"
+      }
+    },
+    "review-notes-find-tracks": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Call at task intake or when continuing an existing development effort. Find published Development Track Notes by canonical Linear/Jira identity, registered repository identity, title and status. Returns candidates and nextCursor; follow after for subsequent candidates. Each collection page contains at most one full record even when limit is higher; select a track explicitly. Repository overlap never proves membership. No SQL or prose lookup. Results over the notes response budget return result_is_page=true, JSON text, record revisions, result_digest and next_read_cursor. Repeat the exact original arguments plus read_cursor until next_read_cursor is null; concatenate text without separators and parse JSON once before editing. Inline agents receive smaller pages bounded by their model's compaction caps; editable documents are exact copies. Do not save a partial reconstruction. MT-CONFLICT means the snapshot changed: discard pages and restart.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "after": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "After"
+          },
+          "issue_id": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Issue Id"
+          },
+          "issue_instance": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Issue Instance"
+          },
+          "issue_provider": {
+            "anyOf": [
+              {
+                "enum": [
+                  "linear",
+                  "jira"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Issue Provider"
+          },
+          "limit": {
+            "default": 50,
+            "maximum": 100,
+            "minimum": 1,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "read_cursor": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Read Cursor"
+          },
+          "repo_host": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Repo Host"
+          },
+          "repo_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Repo Provider"
+          },
+          "repo_ref": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Repo Ref"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "active",
+                  "completed",
+                  "archived"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Status"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Title"
+          }
+        },
+        "title": "FindTracks",
+        "type": "object"
+      }
+    },
+    "review-notes-for-pr": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Read both published PR Review Notes and their explicitly linked Development Track Notes for a bound PR. Supply the target repository identity, PR number and actual current PR HEAD, obtained through LiteGit. Returns lookup_status, both records, revision/provenance, validation applicability and effective digest. Does not bind pre-PR notes; storage/access errors are errors, never no_pr_notes. No reviewer delegation. Results over the notes response budget return result_is_page=true, JSON text, record revisions, result_digest and next_read_cursor. Repeat the exact original arguments plus read_cursor until next_read_cursor is null; concatenate text without separators and parse JSON once before editing. Inline agents receive smaller pages bounded by their model's compaction caps; editable documents are exact copies. Do not save a partial reconstruction. MT-CONFLICT means the snapshot changed: discard pages and restart.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "current_head_sha": {
+            "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$",
+            "title": "Current Head Sha",
+            "type": "string"
+          },
+          "pr_number": {
+            "exclusiveMinimum": 0,
+            "title": "Pr Number",
+            "type": "integer"
+          },
+          "provider": {
+            "pattern": "^[a-z][a-z0-9_]{0,31}$",
+            "title": "Provider",
+            "type": "string"
+          },
+          "provider_host": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Provider Host",
+            "type": "string"
+          },
+          "read_cursor": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Read Cursor"
+          },
+          "target_repo_ref": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Target Repo Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "provider_host",
+          "target_repo_ref",
+          "pr_number",
+          "current_head_sha"
+        ],
+        "title": "ForPr",
+        "type": "object"
+      }
+    },
+    "review-notes-get-pr": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Read PR Review Notes by notes_id, or by complete provider/provider_host/target_repo_ref/pr_number. A PR number alone is ambiguous. Default reads published notes; draft=true requests the latest saved draft for editing. Returns the explicit track_id; get-track reads that track. Does not create an association. Results over the notes response budget return result_is_page=true, JSON text, record revisions, result_digest and next_read_cursor. Repeat the exact original arguments plus read_cursor until next_read_cursor is null; concatenate text without separators and parse JSON once before editing. Inline agents receive smaller pages bounded by their model's compaction caps; editable documents are exact copies. Do not save a partial reconstruction. MT-CONFLICT means the snapshot changed: discard pages and restart.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "draft": {
+            "default": false,
+            "title": "Draft",
+            "type": "boolean"
+          },
+          "notes_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Notes Id"
+          },
+          "pr_number": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Pr Number"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Provider"
+          },
+          "provider_host": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Provider Host"
+          },
+          "read_cursor": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Read Cursor"
+          },
+          "target_repo_ref": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Target Repo Ref"
+          }
+        },
+        "title": "PrQuery",
+        "type": "object"
+      }
+    },
+    "review-notes-get-track": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Read Development Track Notes by track_id. Default is the published document; draft=true reads the latest saved draft before editing. Returns IDs, latest/published revisions and provenance. include_prs=true also returns one connected PR record and linkedPrs.nextCursor, not its code. Follow that cursor with prs_after and include_prs=true for subsequent connected PRs. Results over the notes response budget return result_is_page=true, JSON text, record revisions, result_digest and next_read_cursor. Repeat the exact original arguments plus read_cursor until next_read_cursor is null; concatenate text without separators and parse JSON once before editing. Inline agents receive smaller pages bounded by their model's compaction caps; editable documents are exact copies. Do not save a partial reconstruction. MT-CONFLICT means the snapshot changed: discard pages and restart.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "draft": {
+            "default": false,
+            "title": "Draft",
+            "type": "boolean"
+          },
+          "include_prs": {
+            "default": false,
+            "title": "Include Prs",
+            "type": "boolean"
+          },
+          "prs_after": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Prs After"
+          },
+          "read_cursor": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Read Cursor"
+          },
+          "track_id": {
+            "format": "uuid",
+            "title": "Track Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_id"
+        ],
+        "title": "GetTrack",
+        "type": "object"
+      }
+    },
+    "review-notes-history": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Read an authorized bounded page of immutable track or PR notes revisions. scope selects track or pr; record_id selects its UUID. Each collection page returns at most one full revision; follow next_before using before, independently of content read_cursor. limit is an upper bound. Includes drafts. Historical repository authorization is enforced by the platform. Results over the notes response budget return result_is_page=true, JSON text, record revisions, result_digest and next_read_cursor. Repeat the exact original arguments plus read_cursor until next_read_cursor is null; concatenate text without separators and parse JSON once before editing. Inline agents receive smaller pages bounded by their model's compaction caps; editable documents are exact copies. Do not save a partial reconstruction. MT-CONFLICT means the snapshot changed: discard pages and restart.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "before": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Before"
+          },
+          "limit": {
+            "default": 50,
+            "maximum": 100,
+            "minimum": 1,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "read_cursor": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Read Cursor"
+          },
+          "record_id": {
+            "format": "uuid",
+            "title": "Record Id",
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "track",
+              "pr"
+            ],
+            "title": "Scope",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scope",
+          "record_id"
+        ],
+        "title": "History",
+        "type": "object"
+      }
+    },
+    "review-notes-prepare-pr": {
+      "annotations": {
+        "destructiveHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Call before PR creation with final existing source HEAD, PR Review Notes and explicit track selection. Saves and publishes notes atomically and returns ready_to_open_pr only after the platform acknowledges durable publication. Uses the save-pr fields, with publish always true; a selected track must already be published. No marker commit, push or PR write. If HEAD changes before opening, refresh and republish the notes first. MCP callers capture Git identity in their workspace; CLI captures locally. After opening, bind-pr with the returned notes ID and PR number. Returns a bounded receipt with IDs, revisions and a document summary; use read tools for full content. For authorized writes, supply a stable idempotency_key argument and reuse it with unchanged arguments when retrying an uncertain outcome. The key is not user approval; follow the host's approval policy. Legacy request _meta is also accepted.",
+      "inputSchema": {
+        "$defs": {
+          "PrDocument": {
+            "additionalProperties": false,
+            "properties": {
+              "base_branch": {
+                "maxLength": 255,
+                "minLength": 1,
+                "title": "Base Branch",
+                "type": "string"
+              },
+              "base_commit_sha": {
+                "anyOf": [
+                  {
+                    "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Base Commit Sha"
+              },
+              "commit_sha_at_creation": {
+                "anyOf": [
+                  {
+                    "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Commit Sha At Creation"
+              },
+              "commit_sha_at_update": {
+                "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$",
+                "title": "Commit Sha At Update",
+                "type": "string"
+              },
+              "content_markdown": {
+                "default": "",
+                "maxLength": 1048576,
+                "title": "Content Markdown",
+                "type": "string"
+              },
+              "head_branch": {
+                "maxLength": 255,
+                "minLength": 1,
+                "title": "Head Branch",
+                "type": "string"
+              },
+              "head_repo_path": {
+                "anyOf": [
+                  {
+                    "maxLength": 255,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Head Repo Path"
+              },
+              "head_repo_ref": {
+                "maxLength": 255,
+                "minLength": 1,
+                "title": "Head Repo Ref",
+                "type": "string"
+              },
+              "no_track_reason": {
+                "anyOf": [
+                  {
+                    "maxLength": 2048,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "No Track Reason"
+              },
+              "provider": {
+                "pattern": "^[a-z][a-z0-9_]{0,31}$",
+                "title": "Provider",
+                "type": "string"
+              },
+              "provider_host": {
+                "maxLength": 255,
+                "minLength": 1,
+                "title": "Provider Host",
+                "type": "string"
+              },
+              "status": {
+                "default": "active",
+                "enum": [
+                  "active",
+                  "archived"
+                ],
+                "title": "Status",
+                "type": "string"
+              },
+              "target_repo_path": {
+                "anyOf": [
+                  {
+                    "maxLength": 255,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Target Repo Path"
+              },
+              "target_repo_ref": {
+                "maxLength": 255,
+                "minLength": 1,
+                "title": "Target Repo Ref",
+                "type": "string"
+              },
+              "track_id": {
+                "anyOf": [
+                  {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Track Id"
+              },
+              "validation_checks": {
+                "items": {
+                  "$ref": "#/$defs/ValidationCheck"
+                },
+                "maxItems": 100,
+                "title": "Validation Checks",
+                "type": "array"
+              }
+            },
+            "required": [
+              "provider",
+              "provider_host",
+              "target_repo_ref",
+              "head_repo_ref",
+              "head_branch",
+              "base_branch",
+              "commit_sha_at_update"
+            ],
+            "title": "PrDocument",
+            "type": "object"
+          },
+          "ValidationCheck": {
+            "additionalProperties": false,
+            "properties": {
+              "evidence_ref": {
+                "anyOf": [
+                  {
+                    "maxLength": 2048,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Evidence Ref"
+              },
+              "name": {
+                "maxLength": 255,
+                "minLength": 1,
+                "title": "Name",
+                "type": "string"
+              },
+              "performed_at": {
+                "format": "date-time",
+                "title": "Performed At",
+                "type": "string"
+              },
+              "result": {
+                "enum": [
+                  "passed",
+                  "failed",
+                  "skipped"
+                ],
+                "title": "Result",
+                "type": "string"
+              },
+              "tested_commit_sha": {
+                "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$",
+                "title": "Tested Commit Sha",
+                "type": "string"
+              },
+              "tested_tree_sha": {
+                "anyOf": [
+                  {
+                    "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Tested Tree Sha"
+              }
+            },
+            "required": [
+              "name",
+              "tested_commit_sha",
+              "performed_at",
+              "result"
+            ],
+            "title": "ValidationCheck",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "agent_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Agent Name"
+          },
+          "change_summary": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Change Summary"
+          },
+          "creation_key": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Creation Key"
+          },
+          "document": {
+            "$ref": "#/$defs/PrDocument",
+            "type": "object"
+          },
+          "expected_revision": {
+            "minimum": 0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "idempotency_key": {
+            "description": "Stable key for this write, not user approval. Reuse it with identical arguments after an uncertain transport outcome; use a new key for a different authorized write. Legacy request _meta is also accepted.",
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "notes_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Notes Id"
+          },
+          "pr_number": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Pr Number"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Session Id"
+          }
+        },
+        "required": [
+          "document",
+          "expected_revision"
+        ],
+        "title": "SavePr",
+        "type": "object"
+      }
+    },
+    "review-notes-publish-pr": {
+      "annotations": {
+        "destructiveHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Publish the latest saved PR notes revision. Uses its captured commit SHA without recapturing HEAD or changing content. Returns a durable receipt. Use prepare-pr to save and publish refreshed notes together. Returns a bounded receipt with IDs, revisions and a document summary; use read tools for full content. For authorized writes, supply a stable idempotency_key argument and reuse it with unchanged arguments when retrying an uncertain outcome. The key is not user approval; follow the host's approval policy. Legacy request _meta is also accepted.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "agent_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Agent Name"
+          },
+          "idempotency_key": {
+            "description": "Stable key for this write, not user approval. Reuse it with identical arguments after an uncertain transport outcome; use a new key for a different authorized write. Legacy request _meta is also accepted.",
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "record_id": {
+            "format": "uuid",
+            "title": "Record Id",
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 1,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Session Id"
+          }
+        },
+        "required": [
+          "record_id",
+          "revision"
+        ],
+        "title": "Publish",
+        "type": "object"
+      }
+    },
+    "review-notes-publish-track": {
+      "annotations": {
+        "destructiveHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Publish one saved latest Development Track revision using record_id and revision. Saving a draft does not change reviewers' input. Returns the durable publication receipt; does not schedule a review itself. Returns a bounded receipt with IDs, revisions and a document summary; use read tools for full content. For authorized writes, supply a stable idempotency_key argument and reuse it with unchanged arguments when retrying an uncertain outcome. The key is not user approval; follow the host's approval policy. Legacy request _meta is also accepted.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "agent_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Agent Name"
+          },
+          "idempotency_key": {
+            "description": "Stable key for this write, not user approval. Reuse it with identical arguments after an uncertain transport outcome; use a new key for a different authorized write. Legacy request _meta is also accepted.",
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "record_id": {
+            "format": "uuid",
+            "title": "Record Id",
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 1,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Session Id"
+          }
+        },
+        "required": [
+          "record_id",
+          "revision"
+        ],
+        "title": "Publish",
+        "type": "object"
+      }
+    },
+    "review-notes-resolve-repository": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Resolve an exact provider repository path and hostname to its registered canonical notes identity. repo_ref is an opaque ID, not owner/repo. Uses the authenticated platform registry and makes no Git provider request. Missing, inactive or ambiguous matches fail explicitly. Resolve both source and target repositories when preparing notes for a fork. Optional bounded repo_candidates disambiguate local remote URL forms using a unique exact registered path; always include the primary repo.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Provider"
+          },
+          "provider_host": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Provider Host",
+            "type": "string"
+          },
+          "repo": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Repo",
+            "type": "string"
+          },
+          "repo_candidates": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 255,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 8,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Repo Candidates"
+          }
+        },
+        "required": [
+          "repo",
+          "provider_host"
+        ],
+        "title": "ResolveRepository",
+        "type": "object"
+      }
+    },
+    "review-notes-save-pr": {
+      "annotations": {
+        "destructiveHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Create or edit PR Review Notes: Intent, Decision, Review focus, Validation and Known gap. Supply a full document and explicitly select track_id or no_track_reason. A linked track must already have a published revision, even when publish=false; publishing the track does not publish the PR notes. For LINKED_TRACK_NOT_PUBLISHED, publish the intended track first, then retry with a new transport idempotency key while keeping creation_key for the same payload; the failed transport key replays the error. commit_sha_at_update is the existing source HEAD captured for this save. Creation records that SHA in both commit fields; edits preserve the original creation SHA. Supply notes_id and latest expected_revision when editing, or creation_key and revision=0 when creating. Optional positive pr_number asserts association in the saved target repository; initial association requires active published notes. publish=false is a draft; publish=true is atomic publication. This tool neither verifies a PR remotely nor writes Git. Local CLI captures Git; MCP callers supply it. Returns a bounded receipt with IDs, revisions and a document summary; use read tools for full content. For authorized writes, supply a stable idempotency_key argument and reuse it with unchanged arguments when retrying an uncertain outcome. The key is not user approval; follow the host's approval policy. Legacy request _meta is also accepted.",
+      "inputSchema": {
+        "$defs": {
+          "PrDocument": {
+            "additionalProperties": false,
+            "properties": {
+              "base_branch": {
+                "maxLength": 255,
+                "minLength": 1,
+                "title": "Base Branch",
+                "type": "string"
+              },
+              "base_commit_sha": {
+                "anyOf": [
+                  {
+                    "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Base Commit Sha"
+              },
+              "commit_sha_at_creation": {
+                "anyOf": [
+                  {
+                    "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Commit Sha At Creation"
+              },
+              "commit_sha_at_update": {
+                "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$",
+                "title": "Commit Sha At Update",
+                "type": "string"
+              },
+              "content_markdown": {
+                "default": "",
+                "maxLength": 1048576,
+                "title": "Content Markdown",
+                "type": "string"
+              },
+              "head_branch": {
+                "maxLength": 255,
+                "minLength": 1,
+                "title": "Head Branch",
+                "type": "string"
+              },
+              "head_repo_path": {
+                "anyOf": [
+                  {
+                    "maxLength": 255,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Head Repo Path"
+              },
+              "head_repo_ref": {
+                "maxLength": 255,
+                "minLength": 1,
+                "title": "Head Repo Ref",
+                "type": "string"
+              },
+              "no_track_reason": {
+                "anyOf": [
+                  {
+                    "maxLength": 2048,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "No Track Reason"
+              },
+              "provider": {
+                "pattern": "^[a-z][a-z0-9_]{0,31}$",
+                "title": "Provider",
+                "type": "string"
+              },
+              "provider_host": {
+                "maxLength": 255,
+                "minLength": 1,
+                "title": "Provider Host",
+                "type": "string"
+              },
+              "status": {
+                "default": "active",
+                "enum": [
+                  "active",
+                  "archived"
+                ],
+                "title": "Status",
+                "type": "string"
+              },
+              "target_repo_path": {
+                "anyOf": [
+                  {
+                    "maxLength": 255,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Target Repo Path"
+              },
+              "target_repo_ref": {
+                "maxLength": 255,
+                "minLength": 1,
+                "title": "Target Repo Ref",
+                "type": "string"
+              },
+              "track_id": {
+                "anyOf": [
+                  {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Track Id"
+              },
+              "validation_checks": {
+                "items": {
+                  "$ref": "#/$defs/ValidationCheck"
+                },
+                "maxItems": 100,
+                "title": "Validation Checks",
+                "type": "array"
+              }
+            },
+            "required": [
+              "provider",
+              "provider_host",
+              "target_repo_ref",
+              "head_repo_ref",
+              "head_branch",
+              "base_branch",
+              "commit_sha_at_update"
+            ],
+            "title": "PrDocument",
+            "type": "object"
+          },
+          "ValidationCheck": {
+            "additionalProperties": false,
+            "properties": {
+              "evidence_ref": {
+                "anyOf": [
+                  {
+                    "maxLength": 2048,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Evidence Ref"
+              },
+              "name": {
+                "maxLength": 255,
+                "minLength": 1,
+                "title": "Name",
+                "type": "string"
+              },
+              "performed_at": {
+                "format": "date-time",
+                "title": "Performed At",
+                "type": "string"
+              },
+              "result": {
+                "enum": [
+                  "passed",
+                  "failed",
+                  "skipped"
+                ],
+                "title": "Result",
+                "type": "string"
+              },
+              "tested_commit_sha": {
+                "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$",
+                "title": "Tested Commit Sha",
+                "type": "string"
+              },
+              "tested_tree_sha": {
+                "anyOf": [
+                  {
+                    "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Tested Tree Sha"
+              }
+            },
+            "required": [
+              "name",
+              "tested_commit_sha",
+              "performed_at",
+              "result"
+            ],
+            "title": "ValidationCheck",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "agent_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Agent Name"
+          },
+          "change_summary": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Change Summary"
+          },
+          "creation_key": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Creation Key"
+          },
+          "document": {
+            "$ref": "#/$defs/PrDocument",
+            "type": "object"
+          },
+          "expected_revision": {
+            "minimum": 0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "idempotency_key": {
+            "description": "Stable key for this write, not user approval. Reuse it with identical arguments after an uncertain transport outcome; use a new key for a different authorized write. Legacy request _meta is also accepted.",
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "notes_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Notes Id"
+          },
+          "pr_number": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Pr Number"
+          },
+          "publish": {
+            "default": false,
+            "title": "Publish",
+            "type": "boolean"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Session Id"
+          }
+        },
+        "required": [
+          "document",
+          "expected_revision"
+        ],
+        "title": "SavePr",
+        "type": "object"
+      }
+    },
+    "review-notes-save-track": {
+      "annotations": {
+        "destructiveHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Create or edit Development Track Notes for overall intent, product decisions, business impact, connected repos/PRs and merge/release order. Supply the full document; preserve unrelated existing notes. On creation, omit track_id, set expected_revision=0 and retain creation_key for retries. On edit use track_id and the latest_revision from a draft read. publish=false saves a private draft; publish=true publishes atomically. Read grants suffice; platform checks every referenced repository. A conflict requires rereading and merging. Returns a bounded receipt with IDs, revisions and a document summary; use read tools for full content. For authorized writes, supply a stable idempotency_key argument and reuse it with unchanged arguments when retrying an uncertain outcome. The key is not user approval; follow the host's approval policy. Legacy request _meta is also accepted.",
+      "inputSchema": {
+        "$defs": {
+          "IssueRef": {
+            "additionalProperties": false,
+            "properties": {
+              "display_key": {
+                "anyOf": [
+                  {
+                    "maxLength": 255,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Display Key"
+              },
+              "instance": {
+                "maxLength": 255,
+                "minLength": 1,
+                "title": "Instance",
+                "type": "string"
+              },
+              "issue_id": {
+                "maxLength": 255,
+                "minLength": 1,
+                "title": "Issue Id",
+                "type": "string"
+              },
+              "provider": {
+                "enum": [
+                  "linear",
+                  "jira"
+                ],
+                "title": "Provider",
+                "type": "string"
+              }
+            },
+            "required": [
+              "provider",
+              "instance",
+              "issue_id"
+            ],
+            "title": "IssueRef",
+            "type": "object"
+          },
+          "RepositoryRef": {
+            "additionalProperties": false,
+            "properties": {
+              "full_path": {
+                "anyOf": [
+                  {
+                    "maxLength": 255,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Full Path"
+              },
+              "provider": {
+                "pattern": "^[a-z][a-z0-9_]{0,31}$",
+                "title": "Provider",
+                "type": "string"
+              },
+              "provider_host": {
+                "maxLength": 255,
+                "minLength": 1,
+                "title": "Provider Host",
+                "type": "string"
+              },
+              "repo_ref": {
+                "maxLength": 255,
+                "minLength": 1,
+                "title": "Repo Ref",
+                "type": "string"
+              },
+              "role": {
+                "default": "changed",
+                "enum": [
+                  "changed",
+                  "affected"
+                ],
+                "title": "Role",
+                "type": "string"
+              }
+            },
+            "required": [
+              "provider",
+              "provider_host",
+              "repo_ref"
+            ],
+            "title": "RepositoryRef",
+            "type": "object"
+          },
+          "TrackDocument": {
+            "additionalProperties": false,
+            "properties": {
+              "content_markdown": {
+                "default": "",
+                "maxLength": 1048576,
+                "title": "Content Markdown",
+                "type": "string"
+              },
+              "issue_refs": {
+                "items": {
+                  "$ref": "#/$defs/IssueRef"
+                },
+                "maxItems": 100,
+                "title": "Issue Refs",
+                "type": "array"
+              },
+              "repo_refs": {
+                "items": {
+                  "$ref": "#/$defs/RepositoryRef"
+                },
+                "maxItems": 100,
+                "minItems": 1,
+                "title": "Repo Refs",
+                "type": "array"
+              },
+              "status": {
+                "default": "active",
+                "enum": [
+                  "active",
+                  "completed",
+                  "archived"
+                ],
+                "title": "Status",
+                "type": "string"
+              },
+              "title": {
+                "maxLength": 255,
+                "minLength": 1,
+                "title": "Title",
+                "type": "string"
+              }
+            },
+            "required": [
+              "title",
+              "repo_refs"
+            ],
+            "title": "TrackDocument",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "agent_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Agent Name"
+          },
+          "change_summary": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Change Summary"
+          },
+          "creation_key": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Creation Key"
+          },
+          "document": {
+            "$ref": "#/$defs/TrackDocument",
+            "type": "object"
+          },
+          "expected_revision": {
+            "minimum": 0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "idempotency_key": {
+            "description": "Stable key for this write, not user approval. Reuse it with identical arguments after an uncertain transport outcome; use a new key for a different authorized write. Legacy request _meta is also accepted.",
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "publish": {
+            "default": false,
+            "title": "Publish",
+            "type": "boolean"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Session Id"
+          },
+          "track_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Track Id"
+          }
+        },
+        "required": [
+          "document",
+          "expected_revision"
+        ],
+        "title": "SaveTrack",
+        "type": "object"
+      }
+    },
+    "review-skills-bulk": {
+      "annotations": {
+        "destructiveHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Apply one operation to many skills by id in a single call: activate, deactivate, enable_steering, disable_steering, or set_scope (with scopes or scope_elements). Best-effort, not all-or-nothing — check the returned matched/succeeded counts and per-id failures rather than assuming every id changed. set_scope CASCADES to every rule linked to each selected skill (their scopes are overwritten to match). Requires Review Standards edit permission. Confirm with the user before calling; set dry_run=true first to preview how many skills would change. For authorized writes, supply a stable idempotency_key argument and reuse it with unchanged arguments when retrying an uncertain outcome. The key is not user approval; follow the host's approval policy. Legacy request _meta is also accepted.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "dry_run": {
+            "description": "Preview only: report how many skills would change without changing anything. Default false.",
+            "type": "boolean"
+          },
+          "idempotency_key": {
+            "description": "Stable key for this write, not user approval. Reuse it with identical arguments after an uncertain transport outcome; use a new key for a different authorized write. Legacy request _meta is also accepted.",
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "operation": {
+            "description": "activate / deactivate: set state. enable_steering / disable_steering: set application mode. set_scope: replace scopes (requires scopes or scope_elements, never both).",
+            "enum": [
+              "activate",
+              "deactivate",
+              "enable_steering",
+              "disable_steering",
+              "set_scope"
+            ],
+            "type": "string"
+          },
+          "scope_elements": {
+            "description": "The NEW full scope list, using platform scope elements, instead of scopes. Example: [{\"kind\":\"repo\",\"repo\":{\"fullName\":\"owner/repo\"},\"path\":\"src\"}]. Use kind=org with org, or kind=global for universal scope. Empty list also means universal. Historical blank/* identities are accepted; check their returned flat scopes for actual reach. Prefer kind=global for new universal assignments. The platform enforces its configured scope limit. Replaces the current list and CASCADES to every linked rule. Supply either scope_elements or scopes, never both.",
+            "items": {
+              "additionalProperties": false,
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "kind": {
+                        "const": "global"
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "org": {
+                        "type": "null"
+                      },
+                      "path": {
+                        "type": "null"
+                      },
+                      "repo": {
+                        "type": "null"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "kind": {
+                        "const": "org"
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "org": {
+                        "type": "string"
+                      },
+                      "path": {
+                        "type": "null"
+                      },
+                      "repo": {
+                        "type": "null"
+                      }
+                    },
+                    "required": [
+                      "org"
+                    ]
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "kind": {
+                        "const": "repo"
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "org": {
+                        "type": "null"
+                      },
+                      "repo": {
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "repo"
+                    ]
+                  }
+                }
+              ],
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "global",
+                    "org",
+                    "repo"
+                  ],
+                  "type": "string"
+                },
+                "org": {
+                  "pattern": "^(?:[\\s/]*(?:\\*[\\s/]*)?|(?=.*[^/\\\\\\s*])[^*\\\\\\r\\n]+)$(?![\\s\\S])",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "path": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "repo": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "fullName": {
+                      "pattern": "^(?:[\\s/]*(?:\\*[\\s/]*)?|(?=.*[^/\\\\\\s*])[^*\\\\\\r\\n]+)$(?![\\s\\S])",
+                      "type": "string"
+                    },
+                    "repoId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "fullName"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "scopes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            ],
+            "description": "The NEW full list of scope paths for the skill/skills (replaces the current list, no merge) — a single path or an array, e.g. '/owner/repo/' or '/owner/repo/modules/<name>/'. An empty list means the universal scope '/'. WARNING: every rule linked to a skill has its scopes overwritten to mirror the skill's new scopes — the skill is the scope source of truth for its linked rules. The platform enforces its configured scope limit."
+          },
+          "skill_ids": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "items": {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "minItems": 1,
+                "type": "array"
+              }
+            ],
+            "description": "Id(s) of the skills to change (id from review-skills-list/review-skills-get) — a single integer or a non-empty array of integers. At least one."
+          }
+        },
+        "required": [
+          "operation",
+          "skill_ids"
+        ],
+        "type": "object"
+      }
+    },
+    "review-skills-discover": {
+      "annotations": {
+        "destructiveHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Start standards discovery for explicit registered repository_ids. This MUTATES workspace standards: both repository rules and skills may be extracted and persisted; it is not a skills-only scan. Requires Review Standards edit permission, the platform feature and manual-discovery eligibility. No dry run. Running repositories continue their existing runs; selecting completed/failed repositories requests re-extraction/retry. Optional rules_prompt/skills_prompt customize extraction and must be approved. Returns workspace-wide status, not a per-request completion receipt. Retain the selection, poll status with a bound, then verify source records. After a timeout inspect status/records, never blindly start again. For authorized writes, supply a stable idempotency_key argument and reuse it with unchanged arguments when retrying an uncertain outcome. The key is not user approval; follow the host's approval policy. Legacy request _meta is also accepted.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "idempotency_key": {
+            "description": "Stable key for this write, not user approval. Reuse it with identical arguments after an uncertain transport outcome; use a new key for a different authorized write. Legacy request _meta is also accepted.",
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "repository_ids": {
+            "description": "Explicit registered repository ids from source-repositories; never provider ids or names.",
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "rules_prompt": {
+            "maxLength": 2000,
+            "type": "string"
+          },
+          "skills_prompt": {
+            "maxLength": 2000,
+            "type": "string"
+          }
+        },
+        "required": [
+          "repository_ids"
+        ],
+        "type": "object"
+      }
+    },
+    "review-skills-discovery-status": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Read workspace-wide standards discovery eligibility, progress, rules/skills totals and per-repository failures without starting work. Requires Review Standards edit permission and the platform discovery feature. isEligible=false means manual discovery is unavailable under current automatic-import settings. Counts include other repository runs; availableRepositoryIds lists never-started repositories only, not every repository that may be selected. Verify selected sources with review-skills-list/get.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      }
+    },
+    "review-skills-get": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Fetch one skill by id, including its repo, path, scopes, scopeElements, applicationMode, state, and (with include_insights) per-skill usage metrics. Use before editing a skill to show the user its current form.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "include_insights": {
+            "description": "Attach per-skill insights (invoked / findings_produced / merged_unresolved).",
+            "type": "boolean"
+          },
+          "skill_id": {
+            "description": "Id of the skill to fetch (id from review-skills-list).",
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "skill_id"
+        ],
+        "type": "object"
+      }
+    },
+    "review-skills-insights": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Workspace-wide skills metrics (invoked / findings_produced / merged_unresolved) aggregated over a fixed 30-day window. No parameters.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
+      }
+    },
+    "review-skills-list": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "List skills discovered in the workspace's repositories, with filters and pagination (returns items/total/page/size/pages). Skills are discovered from repos, not authored — there is no create/delete tool. Use repo_scope / name_contains / is_relevant / state / application_mode / scopes to narrow, include_insights to attach per-skill usage metrics. An empty page is a valid result.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "application_mode": {
+            "description": "rules: apply extracted rules. steering: make the skill available to the review agent, which decides whether to consult it. Availability does not guarantee invocation.",
+            "enum": [
+              "rules",
+              "steering"
+            ],
+            "type": "string"
+          },
+          "include_insights": {
+            "description": "Attach per-skill insights (invoked / findings_produced / merged_unresolved) to each result.",
+            "type": "boolean"
+          },
+          "is_relevant": {
+            "description": "Filter by relevance status (whether the extraction judged the skill worth keeping).",
+            "type": "boolean"
+          },
+          "name_contains": {
+            "description": "Case-insensitive name substring filter.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "page": {
+            "description": "1-based page number (default 1).",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "page_size": {
+            "description": "Skills per page (default 50, max 100).",
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "repo_scope": {
+            "description": "Filter to skills discovered in exactly this repository, e.g. 'owner/repo'.",
+            "type": "string"
+          },
+          "scopes": {
+            "description": "Filter by application scope paths, e.g. '/owner/target-repo/'. Includes ancestor scopes by platform default. repo_scope instead filters the skill's source repository.",
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "state": {
+            "description": "Filter by lifecycle state. Omit for both states.",
+            "enum": [
+              "active",
+              "inactive"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      }
+    },
+    "review-skills-source-repositories": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Find registered source repositories by name/provider, with items/total/page/pageSize pagination. Returns id/fullName/provider/htmlUrl and connection metadata, not credentials. Search is partial: resolve an exact path and host before selecting ids; traverse matching pages. An empty result does not grant repository access; use the existing provider connection flow.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "page": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "page_size": {
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "provider": {
+            "enum": [
+              "github",
+              "gitlab",
+              "bitbucket",
+              "bitbucket_datacenter",
+              "azure",
+              "gerrit",
+              "litegit"
+            ],
+            "type": "string"
+          },
+          "search": {
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    "review-skills-update": {
+      "annotations": {
+        "destructiveHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Update a skill's state, application_mode, and/or scopes (at least one required). Use scopes or scope_elements for scope replacement, never both. WARNING: changing scopes CASCADES to every rule linked to this skill — the skill is the scope source of truth for its linked rules, so their scopes are overwritten to match. Confirm the exact change with the user, and tell them about the cascade, before calling. Requires Review Standards edit permission. Returns the updated skill. For authorized writes, supply a stable idempotency_key argument and reuse it with unchanged arguments when retrying an uncertain outcome. The key is not user approval; follow the host's approval policy. Legacy request _meta is also accepted.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "application_mode": {
+            "description": "rules: apply extracted rules. steering: make the skill available to the review agent, which decides whether to consult it. Availability does not guarantee invocation.",
+            "enum": [
+              "rules",
+              "steering"
+            ],
+            "type": "string"
+          },
+          "idempotency_key": {
+            "description": "Stable key for this write, not user approval. Reuse it with identical arguments after an uncertain transport outcome; use a new key for a different authorized write. Legacy request _meta is also accepted.",
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "scope_elements": {
+            "description": "The NEW full scope list, using platform scope elements, instead of scopes. Example: [{\"kind\":\"repo\",\"repo\":{\"fullName\":\"owner/repo\"},\"path\":\"src\"}]. Use kind=org with org, or kind=global for universal scope. Empty list also means universal. Historical blank/* identities are accepted; check their returned flat scopes for actual reach. Prefer kind=global for new universal assignments. The platform enforces its configured scope limit. Replaces the current list and CASCADES to every linked rule. Supply either scope_elements or scopes, never both.",
+            "items": {
+              "additionalProperties": false,
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "kind": {
+                        "const": "global"
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "org": {
+                        "type": "null"
+                      },
+                      "path": {
+                        "type": "null"
+                      },
+                      "repo": {
+                        "type": "null"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "kind": {
+                        "const": "org"
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "org": {
+                        "type": "string"
+                      },
+                      "path": {
+                        "type": "null"
+                      },
+                      "repo": {
+                        "type": "null"
+                      }
+                    },
+                    "required": [
+                      "org"
+                    ]
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "kind": {
+                        "const": "repo"
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "org": {
+                        "type": "null"
+                      },
+                      "repo": {
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "repo"
+                    ]
+                  }
+                }
+              ],
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "global",
+                    "org",
+                    "repo"
+                  ],
+                  "type": "string"
+                },
+                "org": {
+                  "pattern": "^(?:[\\s/]*(?:\\*[\\s/]*)?|(?=.*[^/\\\\\\s*])[^*\\\\\\r\\n]+)$(?![\\s\\S])",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "path": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "repo": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "fullName": {
+                      "pattern": "^(?:[\\s/]*(?:\\*[\\s/]*)?|(?=.*[^/\\\\\\s*])[^*\\\\\\r\\n]+)$(?![\\s\\S])",
+                      "type": "string"
+                    },
+                    "repoId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "fullName"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "scopes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            ],
+            "description": "The NEW full list of scope paths for the skill/skills (replaces the current list, no merge) — a single path or an array, e.g. '/owner/repo/' or '/owner/repo/modules/<name>/'. An empty list means the universal scope '/'. WARNING: every rule linked to a skill has its scopes overwritten to mirror the skill's new scopes — the skill is the scope source of truth for its linked rules. The platform enforces its configured scope limit."
+          },
+          "skill_id": {
+            "description": "Id of the skill to update (id from review-skills-list/review-skills-get).",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "state": {
+            "description": "New lifecycle state.",
+            "enum": [
+              "active",
+              "inactive"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "skill_id"
+        ],
+        "type": "object"
+      }
+    },
+    "rules-bulk": {
+      "annotations": {
+        "destructiveHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Apply one operation to many rules by id in a single atomic call: activate, deactivate, set_scope (with the scopes argument), accept_activate (approve pending suggestions), or reject. reject PERMANENTLY DELETES pending suggestions and cannot be undone — always dry_run first, show the user the affected count, and get explicit confirmation. Requires admin permission. Returns matched/succeeded counts plus per-id failures. For authorized writes, supply a stable idempotency_key argument and reuse it with unchanged arguments when retrying an uncertain outcome. The key is not user approval; follow the host's approval policy. Legacy request _meta is also accepted.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "dry_run": {
+            "description": "Preview only: report how many rules would change without changing anything. Default false.",
+            "type": "boolean"
+          },
+          "idempotency_key": {
+            "description": "Stable key for this write, not user approval. Reuse it with identical arguments after an uncertain transport outcome; use a new key for a different authorized write. Legacy request _meta is also accepted.",
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "operation": {
+            "description": "activate / deactivate: set state. set_scope: replace scopes (requires the scopes argument). accept_activate: approve pending suggestions into active rules. reject: PERMANENTLY DELETE pending suggestions (irreversible).",
+            "enum": [
+              "activate",
+              "deactivate",
+              "set_scope",
+              "reject",
+              "accept_activate"
+            ],
+            "type": "string"
+          },
+          "rule_ids": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "items": {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "minItems": 1,
+                "type": "array"
+              }
+            ],
+            "description": "Id(s) of the rules to change (ruleId from search/list) — a single integer or a non-empty array of integers. At least one."
+          },
+          "scopes": {
+            "description": "Only with operation=set_scope: the new full scopes list (empty = universal '/').",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "operation",
+          "rule_ids"
+        ],
+        "type": "object"
+      }
+    },
+    "rules-create": {
+      "annotations": {
+        "destructiveHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Create a new coding rule in the workspace. Confirm the exact rule (name, severity, content, scopes) with the user before calling. Admin callers create the rule active immediately; non-admin callers create a PENDING suggestion an admin must approve — check the returned state and tell the user which happened. A duplicate name is rejected; pick a different name rather than retrying. Returns the full created rule (ruleId, state, and every other field). For authorized writes, supply a stable idempotency_key argument and reuse it with unchanged arguments when retrying an uncertain outcome. The key is not user approval; follow the host's approval policy. Legacy request _meta is also accepted.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "bad_examples": {
+            "description": "Code snippet(s) that VIOLATE the rule. Pass '' only when no example makes sense.",
+            "type": "string"
+          },
+          "category": {
+            "description": "Rule category, e.g. Security, Correctness, Quality, Reliability, Performance, Testability, Compliance, Accessibility, Observability, Architecture.",
+            "type": "string"
+          },
+          "content": {
+            "description": "What the rule checks or enforces, 1-3 sentences, imperative voice.",
+            "type": "string"
+          },
+          "good_examples": {
+            "description": "Code snippet(s) that FOLLOW the rule. Pass '' only when no example makes sense.",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "description": "Stable key for this write, not user approval. Reuse it with identical arguments after an uncertain transport outcome; use a new key for a different authorized write. Legacy request _meta is also accepted.",
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "name": {
+            "description": "Concise unique rule name (max 128 chars). Duplicates are rejected.",
+            "maxLength": 128,
+            "type": "string"
+          },
+          "scopes": {
+            "description": "Repository scope paths the rule applies to, e.g. '/owner/repo/' or '/owner/repo/src/module/'. Max 100. Omit for the universal scope '/'.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "type": "array"
+          },
+          "severity": {
+            "description": "error = must comply; warning = comply by default; recommendation = apply when appropriate.",
+            "enum": [
+              "error",
+              "warning",
+              "recommendation"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "category",
+          "severity",
+          "content",
+          "good_examples",
+          "bad_examples"
+        ],
+        "type": "object"
+      }
+    },
+    "rules-get": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Fetch one rule by id, including content, examples, scopes, state, and severity. Use before editing a rule to show the user its current form.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "rule_id": {
+            "description": "Id of the rule to fetch (ruleId from search/list).",
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rule_id"
+        ],
+        "type": "object"
+      }
+    },
+    "rules-list": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "List the workspace's coding rules with filters and pagination (page/totalCount/rules). Use state='pending' to list suggestions awaiting triage, scopes to narrow to a repository, categories/severity/name_contains to filter further. Prefer rules-search for 'which rules apply to this task'; use rules-list for browsing, triage, and finding rule ids to manage. Rules auto-derived from skills never appear here — they are managed through their skill, not the rules tools. An empty page is a valid result.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "categories": {
+            "description": "Filter to rules whose category is any of these (see rules-metadata for values).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "name_contains": {
+            "description": "Case-insensitive name substring filter.",
+            "maxLength": 128,
+            "type": "string"
+          },
+          "page": {
+            "description": "1-based page number (default 1).",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "page_size": {
+            "description": "Rules per page (default 50, max 100).",
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "scopes": {
+            "description": "Filter to rules applicable at these scope paths, e.g. '/owner/repo/'.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "severity": {
+            "description": "Filter by severity.",
+            "enum": [
+              "error",
+              "warning",
+              "recommendation"
+            ],
+            "type": "string"
+          },
+          "state": {
+            "description": "Filter by lifecycle state: 'pending' (suggestions awaiting triage), 'active', 'inactive', or a comma-separated combination. Omit for all states.",
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      }
+    },
+    "rules-metadata": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "The workspace's rule metadata: available categories, severities, and source types. Call before creating a rule so the category matches an existing one.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
+      }
+    },
+    "rules-search": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Search the workspace's coding rules for those most relevant to a coding task, ranked by semantic relevance. Call BEFORE writing, editing, refactoring, or reviewing code so the returned rules can be applied to the change. Pass a structured Name/Category/Content query describing the rule the task would trigger (see the query parameter for the exact format); optionally narrow to a repository scope. For best coverage call twice — once with a topic query for the task's primary concern and once with a cross-cutting quality/standards query — and merge the results by rule id, topic results first. An empty rules list is a valid result (no relevant rules), not an error.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "query": {
+            "description": "Structured three-line query mirroring the rule embedding format:\nName: <concise 5-10 word title of the rule this task would trigger>\nCategory: <one of: Security, Correctness, Quality, Reliability, Performance, Testability, Compliance, Accessibility, Observability, Architecture>\nContent: <1-2 sentences describing what should be checked or enforced; mention the tech stack when known>\nDo NOT pass keyword lists or flat sentences — they retrieve poorly.",
+            "type": "string"
+          },
+          "scopes": {
+            "description": "Optional repository scope paths to narrow results, e.g. '/owner/repo/' or '/owner/repo/modules/<name>/'. Omit entirely for org-wide search.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "type": "array"
+          },
+          "top_k": {
+            "description": "Optional max number of rules to return (1-50, default 10).",
+            "maximum": 50,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "type": "object"
+      }
+    },
+    "rules-set-scope": {
+      "annotations": {
+        "destructiveHint": true,
+        "readOnlyHint": false
+      },
+      "description": "REPLACE the repository scope paths of one or more rules by id (no merge — the supplied scopes become each rule's full list; an empty list means the universal scope '/'). Requires admin permission. Confirm with the user before calling; set dry_run=true first to preview how many rules would change. Returns matched/succeeded counts plus per-id failures. For authorized writes, supply a stable idempotency_key argument and reuse it with unchanged arguments when retrying an uncertain outcome. The key is not user approval; follow the host's approval policy. Legacy request _meta is also accepted.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "dry_run": {
+            "description": "Preview only: report how many rules would change without changing anything. Default false.",
+            "type": "boolean"
+          },
+          "idempotency_key": {
+            "description": "Stable key for this write, not user approval. Reuse it with identical arguments after an uncertain transport outcome; use a new key for a different authorized write. Legacy request _meta is also accepted.",
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "rule_ids": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "items": {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "minItems": 1,
+                "type": "array"
+              }
+            ],
+            "description": "Id(s) of the rules to change (ruleId from search/list) — a single integer or a non-empty array of integers. At least one."
+          },
+          "scopes": {
+            "description": "The NEW full list of scope paths for every selected rule (replaces the current scopes, no merge). An empty list sets the universal scope '/'.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "rule_ids",
+          "scopes"
+        ],
+        "type": "object"
+      }
+    },
+    "rules-set-state": {
+      "annotations": {
+        "destructiveHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Activate or deactivate one or more rules by id in a single atomic call. Requires admin permission. Confirm with the user before calling; set dry_run=true first to preview how many rules would change. Returns matched/succeeded counts plus per-id failures. For authorized writes, supply a stable idempotency_key argument and reuse it with unchanged arguments when retrying an uncertain outcome. The key is not user approval; follow the host's approval policy. Legacy request _meta is also accepted.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "dry_run": {
+            "description": "Preview only: report how many rules would change without changing anything. Default false.",
+            "type": "boolean"
+          },
+          "idempotency_key": {
+            "description": "Stable key for this write, not user approval. Reuse it with identical arguments after an uncertain transport outcome; use a new key for a different authorized write. Legacy request _meta is also accepted.",
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "rule_ids": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "items": {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "minItems": 1,
+                "type": "array"
+              }
+            ],
+            "description": "Id(s) of the rules to change (ruleId from search/list) — a single integer or a non-empty array of integers. At least one."
+          },
+          "state": {
+            "description": "Target state for every selected rule.",
+            "enum": [
+              "active",
+              "inactive"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "rule_ids",
+          "state"
+        ],
+        "type": "object"
+      }
+    },
+    "rules-update": {
+      "annotations": {
+        "destructiveHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Update an existing rule by id: supply only the fields to change — the tool fetches the current rule and merges (read-modify-write; a concurrent edit between fetch and save is overwritten). Setting state also lives here (pending/active/inactive); prefer rules-set-state for pure state changes across multiple rules. Requires admin permission. Confirm the exact change with the user before calling. Returns the updated rule. For authorized writes, supply a stable idempotency_key argument and reuse it with unchanged arguments when retrying an uncertain outcome. The key is not user approval; follow the host's approval policy. Legacy request _meta is also accepted.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "bad_examples": {
+            "description": "New bad examples.",
+            "type": "string"
+          },
+          "category": {
+            "description": "New category.",
+            "type": "string"
+          },
+          "content": {
+            "description": "New rule content.",
+            "type": "string"
+          },
+          "good_examples": {
+            "description": "New good examples.",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "description": "Stable key for this write, not user approval. Reuse it with identical arguments after an uncertain transport outcome; use a new key for a different authorized write. Legacy request _meta is also accepted.",
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "name": {
+            "description": "New rule name (max 128 chars).",
+            "maxLength": 128,
+            "type": "string"
+          },
+          "rule_id": {
+            "description": "Id of the rule to update (ruleId from search/list).",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "scopes": {
+            "description": "New repository scope paths for the rule (replaces the current list, max 100). Omit to leave the existing scopes unchanged; pass [] for the universal scope '/'.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "type": "array"
+          },
+          "severity": {
+            "description": "New severity.",
+            "enum": [
+              "error",
+              "warning",
+              "recommendation"
+            ],
+            "type": "string"
+          },
+          "state": {
+            "description": "New lifecycle state. 'pending' turns the rule back into a suggestion.",
+            "enum": [
+              "pending",
+              "active",
+              "inactive"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "rule_id"
+        ],
+        "type": "object"
+      }
+    },
+    "start-pre-pr-review": {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Start a local/pre-PR review and return an operation receipt immediately, not the review. The server cannot read your worktree: prepare the local Git diff described by the diff and review_scope parameters, including untracked files and an omission report. Send an inline Git unified diff with unquoted diff --git a/ and b/ file headers (never a local file path) and a provider-fetchable base SHA. Keep request_id and the exact arguments stable across retries: request_id is this start tool's logical-action idempotency key. Poll get-managed-agent-operation, then fetch get-managed-agent-result pages. No native MCP task augmentation.",
+      "inputSchema": {
+        "$defs": {
+          "ContextRef": {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "default": "",
+                "maxLength": 40,
+                "title": "Kind",
+                "type": "string"
+              },
+              "label": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "maxLength": 200,
+                "title": "Label"
+              },
+              "url": {
+                "description": "Opaque configured-provider reference: HTTP(S) URL or bare ticket key, not a QAR URL-fetch command.",
+                "maxLength": 2000,
+                "pattern": "^(?:https?://|[A-Za-z][A-Za-z0-9_]{1,14}-[0-9]{1,10}$)",
+                "title": "Url",
+                "type": "string"
+              }
+            },
+            "required": [
+              "url"
+            ],
+            "title": "ContextRef",
+            "type": "object"
+          },
+          "LocalReviewScope": {
+            "additionalProperties": false,
+            "properties": {
+              "allowed_sensitive_files": {
+                "description": "Exact paths explicitly authorized because they contain or derive from sensitive content.",
+                "items": {
+                  "maxLength": 4096,
+                  "minLength": 1,
+                  "pattern": "^[^\\u0000]*$",
+                  "type": "string"
+                },
+                "maxItems": 1000,
+                "title": "Allowed Sensitive Files",
+                "type": "array"
+              },
+              "complete": {
+                "default": true,
+                "description": "False when local collection hit a limit or could not enumerate the requested scope.",
+                "title": "Complete",
+                "type": "boolean"
+              },
+              "excluded_files": {
+                "description": "Files omitted from the submitted snapshot.",
+                "items": {
+                  "maxLength": 4096,
+                  "minLength": 1,
+                  "pattern": "^[^\\u0000]*$",
+                  "type": "string"
+                },
+                "maxItems": 1000,
+                "title": "Excluded Files",
+                "type": "array"
+              },
+              "paths": {
+                "description": "Requested Git pathspecs; empty means the whole worktree.",
+                "items": {
+                  "maxLength": 4096,
+                  "minLength": 1,
+                  "pattern": "^[^\\u0000]*$",
+                  "type": "string"
+                },
+                "maxItems": 1000,
+                "title": "Paths",
+                "type": "array"
+              },
+              "skipped_files": {
+                "description": "Reason-bearing details for files omitted from the submitted snapshot.",
+                "items": {
+                  "$ref": "#/$defs/LocalReviewSkippedFile"
+                },
+                "maxItems": 1000,
+                "title": "Skipped Files",
+                "type": "array"
+              },
+              "stream_id": {
+                "description": "Opaque identity of the local worktree; never an authorization credential.",
+                "maxLength": 64,
+                "pattern": "^[a-f0-9]{64}$",
+                "title": "Stream Id",
+                "type": "string"
+              }
+            },
+            "required": [
+              "stream_id"
+            ],
+            "title": "LocalReviewScope",
+            "type": "object"
+          },
+          "LocalReviewSkippedFile": {
+            "additionalProperties": false,
+            "properties": {
+              "file": {
+                "maxLength": 4096,
+                "minLength": 1,
+                "pattern": "^[^\\u0000]*$",
+                "title": "File",
+                "type": "string"
+              },
+              "why": {
+                "maxLength": 200,
+                "minLength": 1,
+                "pattern": "^[^\\u0000]*$",
+                "title": "Why",
+                "type": "string"
+              }
+            },
+            "required": [
+              "file",
+              "why"
+            ],
+            "title": "LocalReviewSkippedFile",
+            "type": "object"
+          },
+          "ReviewSourceEnum": {
+            "enum": [
+              "local_skill"
+            ],
+            "title": "ReviewSourceEnum",
+            "type": "string"
+          },
+          "SessionContext": {
+            "additionalProperties": false,
+            "properties": {
+              "decisions": {
+                "default": [],
+                "description": "Actual session choices with known rationale. In ordinary prose identify an explicit user requirement, a user-selected option, or an agent implementation choice. Include a source or short quote when useful. Leave unknown ownership/rationale explicit; never invent either. No fixed source tags are required. Put undecided proposals in notes.",
+                "items": {
+                  "maxLength": 8192,
+                  "type": "string"
+                },
+                "maxItems": 50,
+                "title": "Decisions",
+                "type": "array"
+              },
+              "notes": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Review context and supporting evidence: expected behavior and scope, enforced runtime/caller constraints, existing guards and tests including unchanged files, external contracts, verification results, skipped checks and uncertainty. Include checkable references and distinguish facts from assumptions. The review flow owns stored Qodo finding history. Put changes since the previous review in recent_work. Notes uses the existing summary representation and limits; it does not expand them.",
+                "maxLength": 32768,
+                "title": "Notes"
+              },
+              "recent_work": {
+                "description": "What the author did since the previous review of this branch, oldest first — the local stand-in for commit messages pushed since the last review. Read only to judge whether this round is iterating on earlier findings; never rendered into the review.",
+                "items": {
+                  "maxLength": 2000,
+                  "type": "string"
+                },
+                "maxItems": 50,
+                "title": "Recent Work",
+                "type": "array"
+              },
+              "summary": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Existing session narrative; notes is an additive authoring alias.",
+                "maxLength": 32768,
+                "title": "Summary"
+              }
+            },
+            "title": "SessionContext",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "params": {
+            "additionalProperties": false,
+            "properties": {
+              "author": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Author login of the diff (personas + findings sync).",
+                "maxLength": 16384,
+                "title": "Author"
+              },
+              "base_sha": {
+                "description": "base_sha must be a full 40- or 64-character hexadecimal commit SHA pushed to the repository. Resolve the base with git rev-parse and generate the diff against that same commit. Do not retry unchanged input.",
+                "maxLength": 64,
+                "minLength": 40,
+                "pattern": "^(?:[a-fA-F0-9]{40}|[a-fA-F0-9]{64})$",
+                "title": "Base Sha",
+                "type": "string"
+              },
+              "branch": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Branch name.",
+                "maxLength": 16384,
+                "title": "Branch"
+              },
+              "commit_sha": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Commit SHA for the head revision.",
+                "maxLength": 16384,
+                "title": "Commit Sha"
+              },
+              "context_refs": {
+                "default": [],
+                "description": "Fetchable refs (ticket/spec/design/…); ticket refs populate related_tickets and spec refs feed Requirements Gap.",
+                "items": {
+                  "$ref": "#/$defs/ContextRef"
+                },
+                "maxItems": 50,
+                "title": "Context Refs",
+                "type": "array"
+              },
+              "depth": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "fast",
+                      "deep"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Dev review-depth preference: 'deep' pins the extended (multi-model ensemble) tier, 'fast' pins the lite (cheap single-model) tier; None inherits the deploy default (the router).",
+                "maxLength": 16384,
+                "title": "Depth"
+              },
+              "description": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": "",
+                "description": "PR/diff description text.",
+                "maxLength": 65536,
+                "title": "Description"
+              },
+              "diff": {
+                "description": "Inline Git unified diff against base_sha with unquoted diff --git a/ and b/ file headers, never a local path. Collect committed changes since base plus staged, unstaged, and reviewable untracked changes. For tracked files, use git -c core.quotePath=false diff --src-prefix=a/ --dst-prefix=b/ <base_sha> where filenames permit unquoted headers; add untracked-file patches and verify the combined scope. Omit files whose Git headers are quoted or ambiguous (for example, names containing ' b/'); report incomplete coverage. Collect the requested local scope before calling. Exclude sensitive paths unless each exact path was explicitly authorized for this review, plus binary data, symlinks, and files over the transport budget; record each omission in review_scope.excluded_files and review_scope.skipped_files. Stop if you cannot establish what the diff covers.",
+                "maxLength": 4194304,
+                "minLength": 1,
+                "pattern": "\\S",
+                "title": "Diff",
+                "type": "string"
+              },
+              "force_full_review": {
+                "default": false,
+                "description": "Bypass both checkpoint reuse and legacy incremental focus for this attempt.",
+                "title": "Force Full Review",
+                "type": "boolean"
+              },
+              "incremental_diff": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Git patch from the previous checkpoint to the current submitted snapshot.",
+                "maxLength": 4194304,
+                "title": "Incremental Diff"
+              },
+              "previous_checkpoint_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Completed local review checkpoint to compare with, scoped to the authenticated caller.",
+                "maxLength": 32,
+                "pattern": "^[a-f0-9]{32}$",
+                "title": "Previous Checkpoint Id"
+              },
+              "repo_autodetected": {
+                "default": false,
+                "description": "True only when the client derived repository candidates from its local Git remote.",
+                "title": "Repo Autodetected",
+                "type": "boolean"
+              },
+              "repo_candidates": {
+                "description": "Canonical workspace repository candidates derived from an ambiguous local remote.",
+                "items": {
+                  "maxLength": 500,
+                  "minLength": 3,
+                  "pattern": "^[^/\\s:@?#\\\\]+(?:/[^/\\s:@?#\\\\]+)+$",
+                  "type": "string"
+                },
+                "maxItems": 4,
+                "title": "Repo Candidates",
+                "type": "array",
+                "uniqueItems": true
+              },
+              "repo_full_name": {
+                "description": "Provider repo locator 'org/repo' (or 'org/project/repo' for Azure).",
+                "maxLength": 500,
+                "minLength": 3,
+                "pattern": "^[^/\\s:@?#\\\\]+(?:/[^/\\s:@?#\\\\]+)+$",
+                "title": "Repo Full Name",
+                "type": "string"
+              },
+              "repo_host": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Sanitized local remote hostname used to verify path-only self-hosted candidates.",
+                "maxLength": 253,
+                "pattern": "^[a-zA-Z0-9._-]+$",
+                "title": "Repo Host"
+              },
+              "review_scope": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/LocalReviewScope"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Describe the local snapshot sent in diff: stable stream_id for this worktree, requested paths, excluded_files and skipped_files omitted from the diff, allowed_sensitive_files explicitly authorized for this run, and complete=false if enumeration hit a limit or coverage is uncertain. Do not claim a clean review for omitted files."
+              },
+              "review_source": {
+                "$ref": "#/$defs/ReviewSourceEnum",
+                "default": "local_skill",
+                "description": "Origin of this review. Defaults to 'local_skill' for pre-PR."
+              },
+              "session_context": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/SessionContext"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Session decisions and notes (summary is also accepted), plus recent_work for fix-loop intent."
+              },
+              "title": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": "",
+                "description": "PR/diff title text.",
+                "maxLength": 16384,
+                "title": "Title"
+              }
+            },
+            "required": [
+              "repo_full_name",
+              "base_sha",
+              "diff"
+            ],
+            "title": "PrePrCloneReviewPayload",
+            "type": "object",
+            "x-source": "Codium-ai/pr-agent-pro@21abbefe0c80fa05e4f3e77a9eff8570902036b0:pr_agent/managed_agents/pre_pr_clone_review_models.py",
+            "x-source-sha256": "be9cd79edb4a21a7a2c0f10a2bf846173bd36b90124484b9c75850145ce6c15b"
+          },
+          "request_id": {
+            "description": "Stable retry key. Reuse unchanged for the same review, including after reconnect.",
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "user_query": {
+            "maxLength": 16384,
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "request_id",
+          "params"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "version": 1
+}

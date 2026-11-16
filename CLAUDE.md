@@ -9,33 +9,49 @@ code reviewer and Qodo's other agents; requires a Qodo subscription). Not
 affiliated with, authorized, or endorsed by Qodo; the Qodo name and trademark
 belong to Qodo Ltd.
 
-**Current reality vs. intended domain.** The intended domain is managing Qodo,
-but no Qodo-management surface exists yet. Today the runtime is still the
-**agent-first scaffold** cited from teken's `afi-cli` `python-cli` reference: a
-self-describing introspection CLI (`whoami`, `learn`, `explain`, `overview`,
-`doctor`, `cli`). Several artifacts still self-describe this repo as "a clonable
-template" (the `learn`/`explain`/`overview` text, the README "Make it your own"
-section). When you build the actual Qodo surface, add it as new noun groups (see
-*Adding a command*) and update that self-describing text to match.
+**The bridge.** In these docs the **bridge** is this one app: a CLI, an HTTP API,
+an MCP server and a web UI that all run the same verbs from one registry
+(`qodo/registry.py`), between callers and Qodo's remote MCP server. It calls Qodo
+with a personal API key, and **no code path pushes, merges, commits or opens a
+pull request** (`tests/test_no_writes.py` enforces it). The runtime was cited from
+teken's `afi-cli` `python-cli` reference (the agent-first scaffold: `whoami`,
+`learn`, `explain`, `overview`, `doctor`, `cli`); the Qodo surface is built on top
+of it.
+
+**Docs for the three audiences** (each page starts from what the reader can do):
+
+| Audience | Page |
+|----------|------|
+| Operator: run `serve`, tokens, key expiry, exposure policy, `config propose`, fix requests (`findings fix`, `fix propose`), change log, the culture-rules bundle, release order, Known limits | `docs/operations/bridge.md` |
+| Agents: the verbs by noun, the contract, which verbs write, the MCP tools | `docs/agents.md` |
+| Integrators: `qodo.api`, the HTTP routes, the error envelope, the pinned contract | `docs/integrators.md` |
+
+Also `docs/qodo-mcp-tools.md` (the live probe of Qodo's MCP server: what was and
+was not recorded), `docs/rules/qodo/README.md` (the culture-rules bundle) and
+`docs/manual-verification.md`. **Docs describe what is on disk today**: check a
+command, flag, variable, route or default against the code before you write it,
+and mark anything ahead of reality *planned*.
 
 The runtime has **zero third-party dependencies** (`dependencies = []` in
-`pyproject.toml`); `teken` is a dev-only dependency used by the rubric gate.
+`pyproject.toml`); `teken` is a dev-only dependency used by the rubric gate. The extras
+are `server`, `mcp` and `events` (events-cli, for `findings fix`); each is imported lazily.
 Requires Python ≥ 3.12.
 
 ## Commands
 
 ```bash
 uv sync                                  # install runtime + dev deps into .venv
-uv run qodo whoami                       # run the CLI (console script is `qodo`)
+uv run qodo-cli whoami                       # run the CLI (console script is `qodo-cli`)
 uv run pytest -n auto                    # full test suite, parallel (xdist)
 uv run pytest tests/test_cli.py::test_whoami_text   # a single test
 uv run teken cli doctor . --strict       # the agent-first rubric gate CI enforces
 ```
 
-> The installed console script is **`qodo`**. The CLI's argparse `prog` is also
-> `qodo`, so usage, `--version`, error remediation, and every example command
-> invoke `qodo`; `qodo-cli` survives only as the dist/package/brand name (and in
-> titles like the `explain`/`overview` headings). Run `uv run qodo …`.
+> The installed console script is **`qodo-cli`**, matching the distribution name.
+> The CLI's argparse `prog` is also `qodo-cli`, so usage, `--version`, error
+> remediation, and every example command invoke `qodo-cli`. Only the Python
+> import package keeps the short name `qodo` (`import qodo`, `python -m qodo`).
+> Run `uv run qodo-cli …`.
 
 Lint (CI runs each of these; all must pass):
 
@@ -66,6 +82,60 @@ Black/isort/flake8 all use line length 100. Bandit skips B101/B404/B603.
 Each verb/noun lives in its own module under `qodo/cli/_commands/` exposing a
 `register(sub)` function and a handler. Noun groups (like `cli`) add their own
 nested subparsers inside `register`.
+
+### The bridge's modules
+
+One verb registry feeds every surface; nothing is written by hand per surface.
+
+- **`qodo/registry.py`**: a `Verb` (noun, name, params JSON Schema, `writes`,
+  `surfaces`, handler) for each verb. Two kinds: `upstream` (one per Qodo tool the
+  exposure policy names; params come from the packaged `qodo/tool_schemas.json`,
+  rewritten by `scripts/export_tool_schemas.py`) and `local` (`rules get`,
+  `review`, `config`, `findings fix`, `fix propose`, which do not go through the gateway). A handler takes a
+  params dict and `surface=` and raises `CliError`.
+- **`qodo/exposure.py` + `exposure_default.json`**: which Qodo tools are exposed, as
+  which verb, on which of `cli`, `api`, `mcp`. Default deny: an unnamed tool is
+  refused, a tool whose annotation is not read-only needs `allow_write`, and a
+  surface the entry does not list is refused. There is no flag or variable to load
+  another file; `load_policy(path)` is for code.
+- **`qodo/gateway.py`**: the client of Qodo's MCP server (urllib, HTTPS only, no
+  redirects, key redacted from errors); enforces the policy again at call time.
+- **`qodo/upstream_share.py`**: what `serve` shares between calls once
+  `api.share_upstream()` is on: one handshaken gateway per key and policy (rebuilt when stale)
+  and a 30-second cache of a PR's findings for the paged `findings list` (writes clear it).
+  `api._gateway` stays the one seam tests patch; the CLI shares nothing.
+- **`qodo/api.py`**: the public Python API; the CLI's `rules`/`review`/`config`
+  handlers and the registry's handlers call it. `docs/integrators.md` lists it.
+- **`qodo/propose.py` + `propose_default.json`**: `config propose`, a read-only gate;
+  repo, checkout-root (`<root>/<owner>/<name>`) and path allowlists; settings layer
+  as packaged defaults, `$QODO_PROPOSE_CONFIG` or `~/.qodo/propose.json`, then
+  `QODO_PROPOSE_REPOS` and `QODO_PROPOSE_CHECKOUT_ROOTS`. The same module runs
+  `fix propose` under a second profile (`FIX_PROFILE`, `fix_default.json`): any path
+  except a refused set, its own allowlists (`QODO_FIX_REPOS`, `QODO_FIX_CHECKOUT_ROOTS`,
+  the settings file's `fix` section), caps for small code fixes.
+- **`qodo/fix_request.py`**: `findings fix`; checks the PR URL, the repo allowlist
+  (`fix propose`'s, `QODO_FIX_REPOS`) and a rate guard read from the change log, then publishes one
+  `qodo.fix.requested` event through events-cli (imported lazily; `api._publisher()` is
+  the seam tests replace). Publishing an event is not a push, merge or PR.
+- **`qodo/health.py`, `qodo/changelog.py`**: the key's expiry (from
+  `QODO_API_KEY_EXPIRES` or `API_KEY_EXPIRES`, never from the key) and the append-only
+  change log (`$QODO_CHANGE_LOG`, JSON Lines, no key and no finding text; kinds
+  `finding.status_changed`, `config.proposed`, `fix.requested`, `fix.proposed`).
+- **`qodo/server/`**: `serve.py` plans and runs the two listeners (loopback, always,
+  loopback addresses only, Cloudflare Access when `QODO_ACCESS_*` are all set; LAN,
+  service tokens only, only when a LAN host is set), `app.py` builds the FastAPI app
+  (`POST /verbs/<noun>/<name>`, `GET /health`, `/verbs`, `/changes`, `/openapi.json`;
+  roles in `build_policy`), `tokens.py` locates the token file (`QODO_SERVER_TOKENS`).
+- **`qodo/mcp_tools.py`**: one MCP tool per verb on the `mcp` surface, named
+  `<noun>_<name>`; the generic stdio server is `qodo/bridge/mcpserver.py`.
+- **`qodo/bridge/`**: the generic auth, policy, token, Access-JWT, caching and static
+  pieces, **cited** from culture-rules (provenance headers in each file; this repo
+  owns its copy). `qodo/cli/_build.py` builds the argparse commands for `findings`
+  and `history` from the registry.
+- **`api/openapi.json`** is the pinned HTTP contract. After a verb, params schema,
+  role or route changes: `uv run python scripts/export_openapi.py --write`.
+- **`docs/rules/qodo/`**: the culture-rules bundle (configuration only: three flows,
+  five rules, all disabled). `tests/test_culture_rules_bundle.py` pins it.
 
 ### Stable contracts (don't break these — tests and the rubric pin them)
 
@@ -158,6 +228,13 @@ follow the re-sync steps in `docs/skill-sources.md` rather than hand-editing.
 
 ## Adding a command
 
+For a Qodo tool, name it in `qodo/exposure_default.json` instead (and refresh
+`api/openapi.json`; an operator does the same at run time with their own file in
+`QODO_EXPOSURE_POLICY`): the CLI verb, the HTTP route and
+the MCP tool follow from the registry, and `tests/test_surface_parity.py` checks them.
+For a local verb, add it to `_LOCAL_VERBS` in `qodo/registry.py`. A hand-written
+noun group follows the steps below.
+
 1. Create `qodo/cli/_commands/<name>.py` with a handler and a `register(sub)`
    (mirror `whoami.py`). Add a `--json` flag; raise `CliError` on failure.
 2. Wire it into `_build_parser()` in `qodo/cli/__init__.py`.
@@ -179,6 +256,26 @@ git grep -nI -e 'qodo-cli' -e 'qodo' -e 'agentculture/qodo-cli'
 Then rename the package dir, update `[project.scripts]`/`name` in
 `pyproject.toml`, edit `culture.yaml` (`suffix`/`backend`), rewrite the resident
 prompt file, and re-vendor only the skills you need (`docs/skill-sources.md`).
+
+## Web UI (`web/`)
+
+A Vite + React + TypeScript app (Findings | Configuration | Rules) whose shell is cited from
+culture-rules' `web/`. The screens read `config status` (the allowlisted repos), `prs list`
+(Qodo's `litegit-list-prs`, reply never recorded: parsed defensively), `findings list
+--offset/--limit` (pages under 64 KiB), `findings implement|dismiss` (editor, behind a
+confirmation), `findings fix` ("Send an agent to fix", one finding or up to 20 selected, editor,
+behind a confirmation with an optional note; its "Fix requested" marker is read from `GET
+/changes?limit=500`, never assumed) and `rules search|show`; their tests run against fixtures copied from
+`tests/fixtures/qodo_mcp/` (`web/src/fixtures/`); every cited file carries a provenance header with the
+source path and commit. Commands, from `web/`: `npm ci`, `npm run typecheck`, `npm test`,
+`npm run check` (the design tokens), `npm run build`. The browser calls the same-origin `/api`
+prefix, which `qodo-cli serve` strips; in dev `npm run dev` proxies it to `QODO_API_URL`
+(default `http://127.0.0.1:8792`). `api/openapi.json` is checked by `web/src/api/contract.test.ts`.
+
+`hatch_build.py` packages an existing `web/dist` as `qodo/web_dist` (git-ignored build output) and
+never runs Node, so a wheel built without Node is API-only. Release order: `npm ci && npm run
+build` in `web/`, then `uv build` with `QODO_REQUIRE_WEB=1` (a missing build then fails the
+build); `.github/workflows/publish.yml` does exactly this.
 
 ## Conventions and workflow
 

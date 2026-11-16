@@ -1,4 +1,4 @@
-"""Tests for ``qodo config`` — the repo-level Qodo reviewer config verb (#7)."""
+"""Tests for ``qodo-cli config`` — the repo-level Qodo reviewer config verb (#7)."""
 
 from __future__ import annotations
 
@@ -52,7 +52,7 @@ def test_config_show_absent_hints_init(
     assert rc == 0
     out = capsys.readouterr().out
     assert "absent" in out
-    assert "qodo config init" in out
+    assert "qodo-cli config init" in out
 
 
 # --- validate --------------------------------------------------------------

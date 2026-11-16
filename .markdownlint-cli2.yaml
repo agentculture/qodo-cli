@@ -16,6 +16,12 @@ config:
 
 ignores:
   - "node_modules/**"
+  # the virtualenv a CI job creates holds third-party licence files
+  - ".venv/**"
+  - "web/node_modules/**"
+  - "web/dist/**"
+  - "web/coverage/**"
+  - "qodo/web_dist/**"
   - ".local/**"
   - ".afi/**"
   - ".teken/**"

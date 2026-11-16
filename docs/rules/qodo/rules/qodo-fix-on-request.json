@@ -1,0 +1,108 @@
+{
+  "action": {
+    "idempotent": false,
+    "kind": "noop",
+    "name": "Nothing: the work is the workflow's",
+    "only_at_chain_end": false,
+    "params": {},
+    "retry": null,
+    "timeout_s": null
+  },
+  "concurrency_key": "qodo-fix:{trigger.data.repo}",
+  "condition": {
+    "args": [
+      {
+        "cmp": "==",
+        "left": {
+          "field": "source"
+        },
+        "op": "compare",
+        "right": {
+          "literal": "app://qodo-cli"
+        }
+      },
+      {
+        "items": {
+          "literal": [
+            "example-owner/example-repo"
+          ]
+        },
+        "op": "in",
+        "value": {
+          "field": "data.repo"
+        }
+      },
+      {
+        "cmp": ">",
+        "left": {
+          "field": "data.number"
+        },
+        "op": "compare",
+        "right": {
+          "literal": 0
+        }
+      },
+      {
+        "items": {
+          "field": "data.finding_ids"
+        },
+        "op": "any",
+        "where": {
+          "op": "matches",
+          "pattern": "[A-Za-z0-9][A-Za-z0-9._:-]{0,127}",
+          "value": {
+            "item": "."
+          }
+        }
+      },
+      {
+        "items": {
+          "field": "data.finding_ids"
+        },
+        "op": "all",
+        "where": {
+          "op": "matches",
+          "pattern": "[A-Za-z0-9][A-Za-z0-9._:-]{0,127}",
+          "value": {
+            "item": "."
+          }
+        }
+      }
+    ],
+    "op": "and"
+  },
+  "counts_toward_budget": true,
+  "description": "qodo bridge, fix flow: fires on qodo.fix.requested (published by qodo-cli findings fix on the event bus) whose source is app://qodo-cli, for a repo in the allowed list, with a positive PR number and one or more plain finding ids. The workflow ends quietly for a closed or merged pull request and for a head branch containing qodo-fix/ or qodo-config/ (an agent's own), and fails for a fork's pull request. One run at a time per repo (the concurrency key, its own namespace); a request during a run is held, and of several held requests only the newest runs. The fix checkout root differs from the improvement flow's, so the two flows never share a checkout. Ships disabled; see the bundle README before enabling.",
+  "enabled": false,
+  "exclusive_group": null,
+  "id": "qodo-fix-on-request",
+  "max_attempts": null,
+  "may_after": [],
+  "must_after": [],
+  "name": "Fix Qodo findings when a person asks",
+  "on_failure": null,
+  "placement": null,
+  "priority": 0,
+  "resets_attempt_budget": false,
+  "schema_version": "1.0",
+  "supersedes": [],
+  "trigger": {
+    "kind": "event",
+    "params": {
+      "type": "qodo.fix.requested"
+    }
+  },
+  "workflow": {
+    "id": "qodo-fix",
+    "inputs": {
+      "checkout": "/srv/qodo-fix-checkouts/{{ trigger.data.repo }}",
+      "finding_ids": "trigger.data.finding_ids",
+      "note": "trigger.data.note",
+      "number": "trigger.data.number",
+      "pr_url": "https://github.com/{{ trigger.data.repo }}/pull/{{ trigger.data.number }}",
+      "repo": "trigger.data.repo",
+      "requested_by": "trigger.data.requested_by"
+    },
+    "version": null
+  }
+}

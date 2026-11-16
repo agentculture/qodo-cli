@@ -1,0 +1,129 @@
+{
+  "action": {
+    "idempotent": false,
+    "kind": "noop",
+    "name": "Nothing: the work is the workflow's",
+    "only_at_chain_end": false,
+    "params": {},
+    "retry": null,
+    "timeout_s": null
+  },
+  "concurrency_key": "qodo-improve:{trigger.data.repository}",
+  "condition": {
+    "args": [
+      {
+        "cmp": "==",
+        "left": {
+          "field": "data.merged"
+        },
+        "op": "compare",
+        "right": {
+          "literal": true
+        }
+      },
+      {
+        "cmp": "==",
+        "left": {
+          "field": "data.self_authored"
+        },
+        "op": "compare",
+        "right": {
+          "literal": false
+        }
+      },
+      {
+        "cmp": "==",
+        "left": {
+          "field": "data.head_repo"
+        },
+        "op": "compare",
+        "right": {
+          "field": "data.base_repo"
+        }
+      },
+      {
+        "items": {
+          "literal": [
+            "example-owner/example-repo"
+          ]
+        },
+        "op": "in",
+        "value": {
+          "field": "data.repository"
+        }
+      },
+      {
+        "arg": {
+          "field": "data.head_branch"
+        },
+        "op": "exists"
+      },
+      {
+        "cmp": "==",
+        "left": {
+          "field": "data.base_branch"
+        },
+        "op": "compare",
+        "right": {
+          "literal": "main"
+        }
+      },
+      {
+        "arg": {
+          "needle": {
+            "literal": "qodo-fix/"
+          },
+          "op": "contains",
+          "value": {
+            "field": "data.head_branch"
+          }
+        },
+        "op": "not"
+      },
+      {
+        "arg": {
+          "needle": {
+            "literal": "qodo-config/"
+          },
+          "op": "contains",
+          "value": {
+            "field": "data.head_branch"
+          }
+        },
+        "op": "not"
+      }
+    ],
+    "op": "and"
+  },
+  "counts_toward_budget": true,
+  "description": "qodo bridge, improvement flow: fires on github.pr.closed with merged true, on a same-repo PR merged into main (the default branch the fetch and reset commands name) in an allowed repo, never on an event culture-rules' own App wrote, and never for a head branch containing 'qodo-config/' or 'qodo-fix/': the configuration PR this flow opens uses the fixed branch 'qodo-config/update' and the fix flow's PRs use 'qodo-fix/pr-<number>' and target the reviewed PR's branch, so merging either starts nothing (the loop guards). One run at a time per repo (the concurrency key); a merge during a run is held and runs after it, and associate's own busy refusal is the second fence. Ships disabled; see the bundle README before enabling.",
+  "enabled": false,
+  "exclusive_group": null,
+  "id": "qodo-improve-on-merge",
+  "max_attempts": null,
+  "may_after": [],
+  "must_after": [],
+  "name": "Propose a better Qodo configuration when a PR is merged",
+  "on_failure": null,
+  "placement": null,
+  "priority": 0,
+  "resets_attempt_budget": false,
+  "schema_version": "1.0",
+  "supersedes": [],
+  "trigger": {
+    "kind": "event",
+    "params": {
+      "type": "github.pr.closed"
+    }
+  },
+  "workflow": {
+    "id": "qodo-improve",
+    "inputs": {
+      "checkout": "/srv/qodo-checkouts/{{ trigger.data.repository }}",
+      "number": "trigger.data.number",
+      "pr_url": "trigger.data.url",
+      "repo": "trigger.data.repository"
+    },
+    "version": null
+  }
+}

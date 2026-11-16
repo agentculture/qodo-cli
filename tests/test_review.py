@@ -1,4 +1,4 @@
-"""Tests for ``qodo review`` / ``qodo pr`` and the provider mechanics."""
+"""Tests for ``qodo-cli review`` / ``qodo-cli pr`` and the provider mechanics."""
 
 from __future__ import annotations
 

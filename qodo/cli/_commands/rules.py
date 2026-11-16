@@ -1,4 +1,4 @@
-"""``qodo rules`` — surface your org's Qodo coding rules by semantic search.
+"""``qodo-cli rules`` — surface your org's Qodo coding rules by semantic search.
 
 Native reimplementation of ``qodo-ai/qodo-skills`` ``qodo-get-rules``: it reads
 the API key already in ``~/.qodo/config.json`` and POSTs a semantic query to the
@@ -12,23 +12,10 @@ from __future__ import annotations
 
 import argparse
 
-from qodo.cli import _qodo_api
+from qodo import api
+from qodo.cli import _build
 from qodo.cli._commands.overview import emit_overview, rules_sections
 from qodo.cli._output import add_json_flag, emit_result
-
-
-def _resolve_scopes(args: argparse.Namespace) -> list[str] | None:
-    """Decide the scopes to send: explicit ``--scope`` > ``--no-scope`` > auto-detect.
-
-    Returns ``None`` (omit ``scopes`` entirely) when forced off or nothing is
-    detected — never an empty list.
-    """
-    if getattr(args, "no_scope", False):
-        return None
-    if getattr(args, "scopes", None):
-        return args.scopes
-    detected = _qodo_api.detect_scopes()
-    return detected or None
 
 
 def _render_rules(query: str, rules: list[dict[str, object]], scopes: list[str] | None) -> str:
@@ -53,8 +40,10 @@ def _render_rules(query: str, rules: list[dict[str, object]], scopes: list[str] 
 def cmd_rules_get(args: argparse.Namespace) -> int:
     query = args.query
     json_mode = bool(getattr(args, "json", False))
-    scopes = _resolve_scopes(args)
-    rules = _qodo_api.search_rules(query, top_k=args.top_k, scopes=scopes)
+    scopes = api.rules_scopes(
+        scopes=getattr(args, "scopes", None), auto_scope=not getattr(args, "no_scope", False)
+    )
+    rules = api.rules_get(query, top_k=args.top_k, scopes=scopes, auto_scope=False)
     if json_mode:
         emit_result(
             {"query": query, "scopes": scopes, "count": len(rules), "rules": rules},
@@ -75,7 +64,7 @@ def cmd_rules_overview(args: argparse.Namespace) -> int:
 
 
 def _no_verb(args: argparse.Namespace) -> int:
-    # `qodo rules` with no sub-verb prints the noun's overview.
+    # `qodo-cli rules` with no sub-verb prints the noun's overview.
     return cmd_rules_overview(args)
 
 
@@ -97,8 +86,8 @@ def register(sub: argparse._SubParsersAction) -> None:
     get.add_argument(
         "--top-k",
         type=int,
-        default=_qodo_api.DEFAULT_TOP_K,
-        help=f"Max rules to request (default {_qodo_api.DEFAULT_TOP_K}).",
+        default=api.DEFAULT_TOP_K,
+        help=f"Max rules to request (default {api.DEFAULT_TOP_K}).",
     )
     scope_group = get.add_mutually_exclusive_group()
     scope_group.add_argument(
@@ -116,6 +105,8 @@ def register(sub: argparse._SubParsersAction) -> None:
     )
     add_json_flag(get)
     get.set_defaults(func=cmd_rules_get)
+
+    _build.attach(verb, "rules")  # search, list, show, metadata: from the verb registry
 
     ov = verb.add_parser("overview", help="Describe the qodo-cli rules noun.")
     ov.add_argument("target", nargs="?", help="Ignored — overview describes the rules noun.")

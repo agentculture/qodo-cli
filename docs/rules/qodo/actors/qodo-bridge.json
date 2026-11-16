@@ -1,0 +1,24 @@
+{
+  "capabilities": [],
+  "config_source": "db",
+  "description": "The qodo-cli bridge (qodo-cli serve), reached on the loopback of the machine it runs on: http.call runs where this actor lives, so machine is the bridge's machine. The findings flow calls POST /verbs/findings/list (role viewer), the improvement flow POST /verbs/config/propose (role editor) and the fix flow POST /verbs/fix/propose (role editor), so the service token needs the editor role: issue it on the bridge's machine with qodo-cli tokens issue --name <name> --role editor (printed once), store it in grant as QODO_BRIDGE_SERVICE_TOKEN and inject it into the engine node's unit. Replace the base URL in the workflows if the bridge listens elsewhere, and keep allow to exactly that address.",
+  "enabled": true,
+  "harness": null,
+  "id": "qodo-bridge",
+  "kind": "service",
+  "machine": "core",
+  "model": null,
+  "name": "qodo-cli bridge",
+  "params": {
+    "http": {
+      "allow": [
+        "127.0.0.1"
+      ],
+      "headers": {
+        "Authorization": "Bearer grant:QODO_BRIDGE_SERVICE_TOKEN"
+      }
+    }
+  },
+  "repo": null,
+  "schema_version": "1.0"
+}

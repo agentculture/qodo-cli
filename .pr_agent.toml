@@ -19,7 +19,7 @@ not flag these as issues):
   `add_subparsers(parser_class=type(p))` (see qodo/cli/_commands/cli.py). Passing
   `type(p)` is the established idiom and is equivalent to naming
   `_CliArgumentParser` directly — it is not a missing parser_class.
-- `qodo review resolve --reply` drives the user's own `gh` with their own auth;
+- `qodo-cli review resolve --reply` drives the user's own `gh` with their own auth;
   the reply text belongs to the caller, so the tool must not auto-append an agent
   signature.
 See best_practices.md at the repo root for the full conventions.

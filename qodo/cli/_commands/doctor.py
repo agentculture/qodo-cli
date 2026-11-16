@@ -9,7 +9,7 @@ Two groups of checks, reported in one rubric-shaped contract
 * **Qodo setup** (always, against the current repo): whether the repo carries a
   Qodo reviewer config (``.pr_agent.toml`` / ``best_practices.md``) and whether
   client API credentials (``~/.qodo/config.json`` / ``QODO_API_KEY``) are
-  available for ``qodo rules``. These are advisory — their ``remediation`` guides
+  available for ``qodo-cli rules``. These are advisory — their ``remediation`` guides
   an agent through setting them up.
 
 ``healthy`` is true when every **error**-severity check passes; ``warning`` /
@@ -23,8 +23,10 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from datetime import UTC, datetime
 from pathlib import Path
 
+from qodo import health
 from qodo.cli._commands.whoami import find_culture_yaml, read_agent_fields
 from qodo.cli._output import add_json_flag, emit_result
 
@@ -155,7 +157,7 @@ def _qodo_setup_checks(repo_root: Path, home: Path) -> list[dict[str, object]]:
 
 
 def _client_credential_status(home: Path) -> tuple[bool, str, str]:
-    """Whether 'qodo rules' would find a usable API key — never raises.
+    """Whether 'qodo-cli rules' would find a usable API key — never raises.
 
     Mirrors what the rules client actually needs (``qodo/cli/_qodo_api.py``):
     a resolvable ``API_KEY`` from ``QODO_API_KEY`` or a readable, well-formed
@@ -163,15 +165,15 @@ def _client_credential_status(home: Path) -> tuple[bool, str, str]:
     ``(passed, message, remediation)``.
     """
     if os.environ.get("QODO_API_KEY"):
-        return True, "Qodo API key available via QODO_API_KEY (for 'qodo rules')", ""
+        return True, "Qodo API key available via QODO_API_KEY (for 'qodo-cli rules')", ""
 
     cfg_path = home / ".qodo" / "config.json"
     if not cfg_path.is_file():
         return (
             False,
-            "no ~/.qodo/config.json and QODO_API_KEY unset (needed for 'qodo rules')",
+            "no ~/.qodo/config.json and QODO_API_KEY unset (needed for 'qodo-cli rules')",
             'create ~/.qodo/config.json with an "API_KEY" (or export QODO_API_KEY). '
-            "Only 'qodo rules' needs it; 'qodo review' uses your provider-CLI auth.",
+            "Only 'qodo-cli rules' needs it; 'qodo-cli review' uses your provider-CLI auth.",
         )
     try:
         data = json.loads(cfg_path.read_text(encoding="utf-8"))
@@ -190,10 +192,56 @@ def _client_credential_status(home: Path) -> tuple[bool, str, str]:
     if not isinstance(data, dict) or not str(data.get("API_KEY") or "").strip():
         return (
             False,
-            "~/.qodo/config.json has no API_KEY (needed for 'qodo rules')",
+            "~/.qodo/config.json has no API_KEY (needed for 'qodo-cli rules')",
             'add a non-empty "API_KEY" to ~/.qodo/config.json (or export QODO_API_KEY)',
         )
-    return True, "Qodo API key present in ~/.qodo/config.json (for 'qodo rules')", ""
+    return True, "Qodo API key present in ~/.qodo/config.json (for 'qodo-cli rules')", ""
+
+
+_EXPIRY_HOW = (
+    "Qodo does not expose a key's expiry and it cannot be read from the key, so it comes from "
+    "configuration set when the key is created: export QODO_API_KEY_EXPIRES=YYYY-MM-DD or add "
+    '"API_KEY_EXPIRES": "YYYY-MM-DD" next to "API_KEY" in ~/.qodo/config.json'
+)
+
+
+def _key_expiry_check(home: Path, now: datetime) -> dict[str, object]:
+    """Fails when the key is missing, its expiry is unparseable, or it expires in under 14 days.
+
+    Severity ``warning``: the check fails but ``healthy`` and the exit code do not change,
+    like the other advisory Qodo checks (only some verbs need the key). A key with no
+    configured expiry passes and says the expiry is unknown.
+    """
+    st = health.key_status(now=now, home=home)
+    state, days = st["state"], st["days_left"]
+    remediation = ""
+    passed = True
+    if state == "missing":
+        passed, message = False, "no Qodo API key, so no expiry to check"
+        remediation = 'export QODO_API_KEY or add an "API_KEY" to ~/.qodo/config.json. '
+        remediation += _EXPIRY_HOW
+    elif state == "unknown":
+        message = "Qodo key expiry unknown (not configured); not checked. " + _EXPIRY_HOW
+    elif state == "invalid":
+        passed, message = False, f"Qodo key expiry is not a valid ISO date ({st['detail']})"
+        remediation = "use an ISO date such as 2026-12-31. " + _EXPIRY_HOW
+    elif state == "expired":
+        passed = False
+        message = f"Qodo API key expired on {st['expires']} ({-days} days ago)"
+        remediation = "create a new key, then set its new expiry. " + _EXPIRY_HOW
+    elif state == "expiring":
+        passed = False
+        message = f"Qodo API key expires on {st['expires']} ({days} days left, under 14)"
+        remediation = "rotate the key soon, then update its expiry. " + _EXPIRY_HOW
+    else:
+        message = f"Qodo API key expires on {st['expires']} ({days} days left)"
+    return {
+        "id": "qodo_key_expiry",
+        "passed": passed,
+        "severity": "warning",
+        "message": message,
+        "remediation": remediation,
+    }
 
 
 def _repo_root(start: Path) -> Path:
@@ -227,6 +275,7 @@ def _diagnose() -> dict[str, object]:
         )
 
     checks.extend(_qodo_setup_checks(_repo_root(Path.cwd()), Path.home()))
+    checks.append(_key_expiry_check(Path.home(), datetime.now(UTC)))
 
     return {"healthy": _is_healthy(checks), "checks": checks}
 

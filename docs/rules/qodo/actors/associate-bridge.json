@@ -1,0 +1,24 @@
+{
+  "capabilities": [],
+  "config_source": "db",
+  "description": "The associate runs API, reached on the loopback of the machine that holds the dedicated checkout: http.call runs where this actor lives. The improvement and fix flows start a run with POST /runs (role admin) and read it with GET /runs/{run_id} (role viewer), so the service token needs the admin role: issue it with associate tokens issue --name <name> --role admin (printed once), store it in grant as ASSOCIATE_BRIDGE_SERVICE_TOKEN and inject it into the engine node's unit. The workflows write 127.0.0.1:8794, associate serve's default loopback address: change it in both workflows if associate's bridge listens elsewhere.",
+  "enabled": true,
+  "harness": null,
+  "id": "associate-bridge",
+  "kind": "service",
+  "machine": "core",
+  "model": null,
+  "name": "associate bridge",
+  "params": {
+    "http": {
+      "allow": [
+        "127.0.0.1"
+      ],
+      "headers": {
+        "Authorization": "Bearer grant:ASSOCIATE_BRIDGE_SERVICE_TOKEN"
+      }
+    }
+  },
+  "repo": null,
+  "schema_version": "1.0"
+}
