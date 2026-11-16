@@ -5,14 +5,19 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ROUTES, verbPath } from "./client";
-import { VERBS, VERB_PARAMS } from "./qodo";
+import { CHANGES_READ, MAX_FIX_FINDINGS, MAX_FIX_NOTE, VERBS, VERB_PARAMS } from "./qodo";
 import type { ErrorEnvelope } from "./types";
 
 interface Operation {
+  parameters?: { name: string; in: string; schema: { maximum?: number } }[];
   responses?: Record<string, unknown>;
   security?: unknown[];
   requestBody?: {
-    content: { "application/json": { schema: { properties: Record<string, unknown> } } };
+    content: {
+      "application/json": {
+        schema: { properties: Record<string, Record<string, unknown>>; required?: string[] };
+      };
+    };
   };
   "x-role"?: string;
 }
@@ -73,6 +78,24 @@ describe("api/openapi.json", () => {
     for (const verb of [VERBS.findingsList, VERBS.prsList, VERBS.configStatus, VERBS.rulesSearch]) {
       expect(role(verb)).toBe("viewer");
     }
+  });
+
+  it("asks an editor for findings fix and bounds its params as the screen does", () => {
+    const operation = spec.paths[verbPath(...VERBS.findingsFix)].post;
+    expect(operation["x-role"]).toBe("editor");
+    const schema = operation.requestBody?.content["application/json"].schema;
+    expect(schema?.required).toEqual(["pr_url", "finding_ids"]); // note is optional
+    expect(schema?.properties.finding_ids.maxItems).toBe(MAX_FIX_FINDINGS);
+    expect(schema?.properties.note.maxLength).toBe(MAX_FIX_NOTE);
+    expect(Object.keys(schema?.properties ?? {}).sort()).toEqual(
+      [...VERB_PARAMS.findingsFix].sort(),
+    );
+  });
+
+  it("lets /changes return as many entries as the fix markers ask for", () => {
+    const operation = spec.paths[ROUTES.changes.path].get;
+    const limit = operation.parameters?.find((p) => p.name === "limit" && p.in === "query");
+    expect(limit?.schema.maximum).toBeGreaterThanOrEqual(CHANGES_READ);
   });
 
   it("describes the error envelope the client parses", () => {

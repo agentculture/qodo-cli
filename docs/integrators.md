@@ -53,7 +53,9 @@ the exposure policy. Arguments after `*` are keyword-only.
 | `rules_scopes(*, scopes=None, auto_scope=True)` | The scopes `rules_get` would send, or `None` |
 
 `actor` labels who made the change in the change log (`cli`, `api`, `mcp` or any
-short string you choose). The verbs `rules show`, `rules metadata`,
+short string you choose). Over HTTP the server passes the surface and the caller,
+`api:<person>` or `api:token:<token name>` (cleaned of control characters, at most
+120 characters after `api:`). The verbs `rules show`, `rules metadata`,
 `history similar` and `history stats` have no function in `qodo.api`; reach them
 over HTTP or MCP, or through the registry (below).
 
@@ -167,7 +169,7 @@ route.
 | `POST /verbs/fix/propose` | editor | `fix propose` |
 | `GET /health` | public | Service name, version and the Qodo key status, never the key |
 | `GET /verbs` | viewer | Every served verb: noun, name, summary, kind, `writes`, `role`, `method`, `path` and the `params` schema |
-| `GET /changes?limit=N` | viewer | `{"entries": [...]}`, the newest change-log entries (`N` from 1 to 500, default 50) |
+| `GET /changes?limit=N&kind=K` | viewer | `{"entries": [...]}`, the newest change-log entries (`N` from 1 to 500, default 50); with `kind` (for example `fix.requested`), only entries of that kind, and `N` counts those |
 | `GET /openapi.json` | viewer | The schema the server renders |
 
 Anything else needs `admin`, so an unlisted route is closed, not open. When the

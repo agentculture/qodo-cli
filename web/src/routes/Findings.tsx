@@ -4,14 +4,20 @@ import type { ApiError } from "../api/client";
 import {
   DISMISS_REASONS,
   type DismissReason,
+  type FixRequest,
+  MAX_FIX_FINDINGS,
+  MAX_FIX_NOTE,
   OPEN_STATUSES,
   type PrList,
   configStatus,
   describePrUrl,
   dismissFindings,
+  fixRequests,
   implementFindings,
+  isAlreadyRequested,
   listFindings,
   listOpenPrs,
+  requestFix,
 } from "../api/qodo";
 import type { Finding, PullRequest } from "../api/types";
 import Dialog from "../components/Dialog";
@@ -19,17 +25,24 @@ import KeyNotice from "../components/KeyNotice";
 import Problem from "../components/Problem";
 import { asApiError, useLoad } from "../hooks/useLoad";
 import { useTitle } from "../hooks/useTitle";
-import { formatTime, humanize, plural, shortSha, statusWord } from "./words";
+import { formatTime, humanize, plural, shortSha, statusWord, whenAsked, whoAsked } from "./words";
 
 /**
  * Findings (canvas artboard "Main"): the allowlisted repos' open pull requests on the left, one
- * pull request's findings on the right, with Mark implemented and Dismiss behind a confirmation.
+ * pull request's findings on the right, with Mark implemented and Dismiss behind a confirmation,
+ * and Send an agent to fix (one finding, or several selected) behind its own.
  *
  * Data: the repos are the bridge's allowlist (`config status`); each repo's open pull requests
  * come from Qodo's read-only `litegit-list-prs` (`prs list`, reply never recorded: read
  * defensively); a PR's findings from `findings list` a page at a time; the writes are
  * `findings implement` / `findings dismiss` (editor). The selected PR is the `pr` query param, so
  * a pasted URL or a link opens the same view.
+ *
+ * A fix request is `findings fix` (editor): one event on the mesh's bus asking for an agent to fix
+ * the findings on the PR's branch; it changes nothing in Qodo, so the finding stays open. The
+ * "Fix requested" marker on a finding comes from the bridge's change log (`GET /changes`, the
+ * newest `CHANGES_READ` entries, filtered to this PR), never from the click alone. Only a
+ * github.com PR offers it: the bridge refuses any other.
  */
 
 const isHttpUrl = (value: string) => /^https?:\/\/\S+$/i.test(value.trim());
@@ -223,11 +236,25 @@ function PrLink({ pr, current }: { pr: PullRequest; current: boolean }) {
 // --- one pull request -------------------------------------------------------------------------
 
 type Action = { kind: "implement" | "dismiss"; finding: Finding; opener: HTMLElement | null };
+type FixAsk = { findings: Finding[]; opener: HTMLElement | null };
+
+const isOpen = (f: Finding) => OPEN_STATUSES.has(f.attribution_status ?? "");
+
+/** The newest fix request per finding id (the requests come newest first). */
+function newestPerFinding(requests: FixRequest[]): Map<string, FixRequest> {
+  const out = new Map<string, FixRequest>();
+  for (const request of requests) {
+    for (const id of request.finding_ids) if (!out.has(id)) out.set(id, request);
+  }
+  return out;
+}
 
 function PrFindings({ url, known }: { url: string; known?: Known }) {
   const load = useCallback((signal: AbortSignal) => listFindings(url, signal), [url]);
   const { state, reload, refresh } = useLoad(load, url);
   const [action, setAction] = useState<Action | null>(null);
+  const [fixAsk, setFixAsk] = useState<FixAsk | null>(null);
+  const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
   const [announcement, setAnnouncement] = useState("");
   const headingRef = useRef<HTMLHeadingElement>(null);
   const parsed = useMemo(() => describePrUrl(url), [url]);
@@ -243,16 +270,55 @@ function PrFindings({ url, known }: { url: string; known?: Known }) {
       return false;
     }
   })();
+  // a fix request is for a github.com pull request only (the bridge refuses any other)
+  const canFix = onGitHub;
+  const loadFixes = useCallback(
+    (signal: AbortSignal) => (canFix ? fixRequests(url, signal) : Promise.resolve([])),
+    [url, canFix],
+  );
+  const fixes = useLoad(loadFixes, url);
+  const markers = useMemo(
+    () => (fixes.state.status === "ok" ? newestPerFinding(fixes.state.data) : new Map<string, FixRequest>()),
+    [fixes.state],
+  );
+  const openFindings = state.status === "ok" ? state.data.findings.filter(isOpen) : [];
+  // the selection, in the list's order; an id that is no longer an open finding drops out
+  const chosen = openFindings.filter(
+    (f, i) => selected.has(f.id) && openFindings.findIndex((g) => g.id === f.id) === i,
+  );
 
   function act(kind: Action["kind"], finding: Finding, opener: HTMLElement) {
     setAnnouncement("");
     setAction({ kind, finding, opener });
   }
 
+  function askFix(findings: Finding[], opener: HTMLElement) {
+    setAnnouncement("");
+    setFixAsk({ findings, opener });
+  }
+
+  function toggle(finding: Finding) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(finding.id)) next.delete(finding.id);
+      else if (chosen.length < MAX_FIX_FINDINGS) next.add(finding.id);
+      return next;
+    });
+  }
+
   function closeDialog() {
-    const opener = action?.opener;
+    const opener = action?.opener ?? fixAsk?.opener;
     setAction(null);
+    setFixAsk(null);
     if (opener?.isConnected) opener.focus();
+  }
+
+  function fixDone(message: string) {
+    setFixAsk(null);
+    setSelected(new Set());
+    setAnnouncement(message);
+    headingRef.current?.focus();
+    fixes.refresh(); // the marker is read back from the bridge's change log, never assumed
   }
 
   function done(message: string) {
@@ -289,8 +355,38 @@ function PrFindings({ url, known }: { url: string; known?: Known }) {
       ) : state.status === "error" ? (
         <Problem error={state.error} onRetry={reload} />
       ) : (
-        <FindingList findings={state.data.findings} reviewed={state.data.review_session !== null} onAct={act} />
+        <FindingList
+          findings={state.data.findings}
+          reviewed={state.data.review_session !== null}
+          onAct={act}
+          fix={
+            canFix
+              ? {
+                  selected,
+                  full: chosen.length >= MAX_FIX_FINDINGS,
+                  markers,
+                  onToggle: toggle,
+                  onAsk: (finding, opener) => askFix([finding], opener),
+                }
+              : null
+          }
+        />
       )}
+
+      {canFix && fixes.state.status === "error" ? (
+        <p className="muted small">
+          Earlier fix requests could not be read from the bridge's change log (
+          {fixes.state.error.message}), so none are marked.
+        </p>
+      ) : null}
+
+      {canFix && state.status === "ok" ? (
+        <SelectionBar
+          count={chosen.length}
+          onSend={(opener) => askFix(chosen, opener)}
+          onClear={() => setSelected(new Set())}
+        />
+      ) : null}
 
       {action ? (
         <ActionDialog
@@ -298,6 +394,16 @@ function PrFindings({ url, known }: { url: string; known?: Known }) {
           where={where}
           onCancel={closeDialog}
           onDone={done}
+        />
+      ) : null}
+
+      {fixAsk ? (
+        <FixDialog
+          url={url}
+          findings={fixAsk.findings}
+          where={where}
+          onCancel={closeDialog}
+          onDone={fixDone}
         />
       ) : null}
     </>
@@ -352,27 +458,53 @@ function Tile({ n, label }: { n: number; label: string }) {
   );
 }
 
+/** What a card needs for fix requests; `null` when the PR cannot take one. */
+interface FixControls {
+  selected: ReadonlySet<string>;
+  /** The selection holds as many findings as one request carries. */
+  full: boolean;
+  markers: Map<string, FixRequest>;
+  onToggle: (finding: Finding) => void;
+  onAsk: (finding: Finding, opener: HTMLElement) => void;
+}
+
 function FindingList({
   findings,
   reviewed,
   onAct,
+  fix,
 }: {
   findings: Finding[];
   reviewed: boolean;
   onAct: (kind: Action["kind"], finding: Finding, opener: HTMLElement) => void;
+  fix: FixControls | null;
 }) {
   if (findings.length === 0) {
     return reviewed ? <p className="muted">Qodo raised no findings on this pull request.</p> : null;
   }
   // open findings first, each group in Qodo's order
-  const isOpen = (f: Finding) => OPEN_STATUSES.has(f.attribution_status ?? "");
   const ordered = [...findings.filter(isOpen), ...findings.filter((f) => !isOpen(f))];
   return (
     <div className="finding-list">
       {ordered.map((finding, i) => (
-        <FindingCard key={`${finding.id}-${i}`} finding={finding} open={isOpen(finding)} onAct={onAct} />
+        <FindingCard
+          key={`${finding.id}-${i}`}
+          finding={finding}
+          open={isOpen(finding)}
+          onAct={onAct}
+          fix={fix}
+        />
       ))}
     </div>
+  );
+}
+
+function FixMarker({ request }: { request: FixRequest }) {
+  const who = whoAsked(request.actor);
+  return (
+    <p className="fix-marker">
+      {`Fix requested ${whenAsked(request.time)}${who ? ` by ${who}` : ""}.`}
+    </p>
   );
 }
 
@@ -380,16 +512,32 @@ function FindingCard({
   finding,
   open,
   onAct,
+  fix,
 }: {
   finding: Finding;
   open: boolean;
   onAct: (kind: Action["kind"], finding: Finding, opener: HTMLElement) => void;
+  fix: FixControls | null;
 }) {
   const titleId = useId();
   const raised = formatTime(finding.created_at);
   const sha = shortSha(finding.git_sha);
+  const checked = fix?.selected.has(finding.id) ?? false;
+  const marker = fix?.markers.get(finding.id);
   return (
     <article className={open ? "finding" : "finding finding--closed"} aria-labelledby={titleId}>
+      {open && fix ? (
+        <label className="select-fix">
+          <input
+            type="checkbox"
+            checked={checked}
+            disabled={!checked && fix.full}
+            aria-describedby={titleId}
+            onChange={() => fix.onToggle(finding)}
+          />
+          <span>Select for a fix</span>
+        </label>
+      ) : null}
       <div className="chips">
         {finding.category ? <span className="chip chip--category">{finding.category}</span> : null}
         {finding.action_level ? (
@@ -418,6 +566,7 @@ function FindingCard({
           .
         </p>
       ) : null}
+      {marker ? <FixMarker request={marker} /> : null}
       {open ? (
         <div className="finding__actions">
           <button
@@ -436,9 +585,61 @@ function FindingCard({
           >
             Dismiss
           </button>
+          {fix ? (
+            <button
+              type="button"
+              className="btn"
+              aria-describedby={titleId}
+              onClick={(e) => fix.onAsk(finding, e.currentTarget)}
+            >
+              Send an agent to fix
+            </button>
+          ) : null}
         </div>
       ) : null}
     </article>
+  );
+}
+
+// --- several findings at once -----------------------------------------------------------------
+
+function SelectionBar({
+  count,
+  onSend,
+  onClear,
+}: {
+  count: number;
+  onSend: (opener: HTMLElement) => void;
+  onClear: () => void;
+}) {
+  const words = count > 0 ? `${plural(count, "finding")} selected` : "";
+  return (
+    <>
+      {/* always in the page, so a change of the count is announced */}
+      <p className="sr-only" role="status" aria-label="Selection">
+        {words}
+      </p>
+      {count > 0 ? (
+        <section className="select-bar" aria-label="Selected findings">
+          <div className="select-bar__text">
+            <p className="select-bar__count">{words}</p>
+            {count >= MAX_FIX_FINDINGS ? (
+              <p className="field__hint">
+                That is the limit: one request carries at most {MAX_FIX_FINDINGS} findings.
+              </p>
+            ) : null}
+          </div>
+          <div className="select-bar__actions">
+            <button type="button" className="btn btn--primary" onClick={(e) => onSend(e.currentTarget)}>
+              Send an agent to fix {plural(count, "finding")}
+            </button>
+            <button type="button" className="btn btn--quiet" onClick={onClear}>
+              Clear selection
+            </button>
+          </div>
+        </section>
+      ) : null}
+    </>
   );
 }
 
@@ -559,6 +760,156 @@ function ActionDialog({
             : pending
               ? "Dismissing…"
               : "Dismiss finding"}
+        </button>
+      </div>
+    </Dialog>
+  );
+}
+
+// --- asking for an agent fix ------------------------------------------------------------------
+
+/** A failed fix request in words: a headline, and whether the server's own message follows. */
+function fixFailure(error: ApiError): { headline: string; showMessage: boolean } {
+  if (error.status === 403) {
+    return {
+      headline:
+        "Asking an agent for a fix needs the editor role, and this credential does not have it.",
+      showMessage: false,
+    };
+  }
+  if (error.status === 401) {
+    return { headline: `The API did not accept the credential: ${error.message}`, showMessage: false };
+  }
+  if (error.status === 503) {
+    // the events extra is missing, or no broker took the event: either way nothing was asked
+    return {
+      headline: "The bridge cannot reach the event bus, so no agent was asked.",
+      showMessage: true,
+    };
+  }
+  if (error.code === "timeout") {
+    return {
+      headline:
+        "The API did not answer in time, so whether an agent was asked is unknown. Close this and reload the page before asking again.",
+      showMessage: false,
+    };
+  }
+  return { headline: error.message, showMessage: false };
+}
+
+function FixDialog({
+  url,
+  findings,
+  where,
+  onCancel,
+  onDone,
+}: {
+  url: string;
+  findings: Finding[];
+  where: string;
+  onCancel: () => void;
+  onDone: (message: string) => void;
+}) {
+  const [note, setNote] = useState("");
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<ApiError | null>(null);
+  const alertRef = useRef<HTMLDivElement>(null);
+  const noteId = useId();
+  const countId = useId();
+  const one = findings.length === 1;
+  const titleOf = (f: Finding) => f.title || "Untitled finding";
+  const what = one ? `“${titleOf(findings[0])}”` : plural(findings.length, "finding");
+
+  useEffect(() => {
+    if (error) alertRef.current?.scrollIntoView?.({ block: "nearest" });
+  }, [error]);
+
+  async function confirm() {
+    if (pending) return;
+    setPending(true);
+    setError(null);
+    try {
+      await requestFix(
+        url,
+        findings.map((f) => f.id),
+        note,
+      );
+      onDone(`Fix requested: an agent was asked to fix ${what} on ${where}.`);
+    } catch (err) {
+      const failure = asApiError(err);
+      if (isAlreadyRequested(failure)) {
+        onDone(`A fix was already requested for ${what}. The bridge says: ${failure.message}.`);
+        return;
+      }
+      setError(failure);
+      setPending(false);
+    }
+  }
+
+  const failure = error ? fixFailure(error) : null;
+  return (
+    <Dialog
+      title={one ? "Send an agent to fix this finding?" : `Send an agent to fix ${what}?`}
+      onClose={onCancel}
+      canClose={!pending}
+    >
+      {one ? (
+        <p>
+          An agent will be asked to fix <strong>{what}</strong> on {where}, working on this pull
+          request's branch.
+        </p>
+      ) : (
+        <>
+          <p>
+            An agent will be asked to fix these {what} on {where}, working on this pull request's
+            branch:
+          </p>
+          <ul className="fix-list">
+            {findings.map((f) => (
+              <li key={f.id}>{titleOf(f)}</li>
+            ))}
+          </ul>
+        </>
+      )}
+      <p>
+        If it produces a fix, a new pull request against that branch is opened for a person to
+        review. Nothing is merged automatically, and Qodo keeps the{" "}
+        {one ? "finding" : "findings"} open until someone marks {one ? "it" : "them"}.
+      </p>
+      <div className="field">
+        <label className="field__label" htmlFor={noteId}>
+          Anything the agent should know (optional)
+        </label>
+        <textarea
+          id={noteId}
+          className="field__input field__textarea"
+          value={note}
+          maxLength={MAX_FIX_NOTE}
+          rows={3}
+          disabled={pending}
+          aria-describedby={countId}
+          onChange={(e) => setNote(e.target.value.slice(0, MAX_FIX_NOTE))}
+        />
+        <p
+          id={countId}
+          className={note.length >= MAX_FIX_NOTE ? "field__hint field__hint--warn" : "field__hint"}
+        >
+          {note.length} of {MAX_FIX_NOTE} characters
+        </p>
+      </div>
+      {error && failure ? (
+        <div role="alert" className="problem" ref={alertRef}>
+          <p className="problem__message">{failure.headline}</p>
+          {failure.showMessage ? <p>The bridge said: {error.message}</p> : null}
+          {error.remediation ? <p className="problem__hint">Hint: {error.remediation}</p> : null}
+        </div>
+      ) : null}
+      <div className="dialog__actions">
+        <button type="button" className="btn" onClick={onCancel} disabled={pending}>
+          Cancel
+        </button>
+        <button type="button" className="btn btn--primary" onClick={confirm} disabled={pending}>
+          {pending ? "Sending…" : "Send an agent"}
         </button>
       </div>
     </Dialog>

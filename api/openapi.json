@@ -63,6 +63,16 @@
               "minimum": 1,
               "type": "integer"
             }
+          },
+          {
+            "description": "Only entries of this kind; the limit then counts those.",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "pattern": "[a-z][a-z_]{0,30}(\\.[a-z][a-z_]{0,30}){0,3}",
+              "type": "string"
+            }
           }
         ],
         "responses": {

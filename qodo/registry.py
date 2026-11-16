@@ -20,6 +20,9 @@ Two kinds of verb sit beside each other:
 
 A handler takes a params ``dict`` (and the caller's ``surface``, default ``"cli"``) and returns a
 plain JSON-ready object; a failure is a :class:`qodo.cli._errors.CliError`. Standard library only.
+A write records its actor as :func:`qodo.bridge.caller.actor` of the surface: the bare surface,
+or over HTTP ``api:<caller>`` (the server sets the caller around the call), so the handler
+contract stays ``handler(params, surface=...)`` on every surface.
 """
 
 from __future__ import annotations
@@ -30,6 +33,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from qodo.bridge import caller
 from qodo.cli._errors import EXIT_ENV_ERROR, EXIT_USER_ERROR, CliError
 from qodo.exposure import ExposurePolicy, is_read_only, load_policy
 
@@ -431,7 +435,10 @@ def _log_finding_status(status: str) -> Callable[[dict[str, Any], str], None]:
         from qodo import changelog  # lazy, as the handler's own import
 
         changelog.record_finding_status(
-            list(given.get("finding_ids") or []), status, reason=given.get("reason"), actor=surface
+            list(given.get("finding_ids") or []),
+            status,
+            reason=given.get("reason"),
+            actor=caller.actor(surface),
         )
 
     return record
@@ -612,7 +619,9 @@ def _config_propose(params: dict[str, Any] | None = None, *, surface: str = "cli
 
     given = _given(params)
     validate_params(_LOCAL_SCHEMAS[("config", "propose")], given)
-    return api.config_propose(given["repo"], given["checkout"], given["base"], actor=surface)
+    return api.config_propose(
+        given["repo"], given["checkout"], given["base"], actor=caller.actor(surface)
+    )
 
 
 def _findings_fix(params: dict[str, Any] | None = None, *, surface: str = "cli") -> Any:
@@ -621,7 +630,10 @@ def _findings_fix(params: dict[str, Any] | None = None, *, surface: str = "cli")
     given = _given(params)
     validate_params(_LOCAL_SCHEMAS[("findings", "fix")], given)
     return api.findings_fix(
-        given["pr_url"], list(given["finding_ids"]), note=given.get("note"), actor=surface
+        given["pr_url"],
+        list(given["finding_ids"]),
+        note=given.get("note"),
+        actor=caller.actor(surface),
     )
 
 
@@ -630,7 +642,9 @@ def _fix_propose(params: dict[str, Any] | None = None, *, surface: str = "cli") 
 
     given = _given(params)
     validate_params(_LOCAL_SCHEMAS[("fix", "propose")], given)
-    return api.fix_propose(given["repo"], given["checkout"], given["base"], actor=surface)
+    return api.fix_propose(
+        given["repo"], given["checkout"], given["base"], actor=caller.actor(surface)
+    )
 
 
 _PROPOSE_PARAMS = {

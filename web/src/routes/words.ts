@@ -42,3 +42,30 @@ export function formatTime(iso: string | null | undefined): string | null {
 
 export const shortSha = (sha: string | null | undefined) =>
   typeof sha === "string" && sha ? sha.slice(0, 7) : null;
+
+/**
+ * Who a change-log `actor` names, in words: over HTTP the server records `api:<person>` or
+ * `api:token:<name>` (`qodo/bridge/caller.py`); the CLI and MCP record their surface only.
+ * Anything else is shown as given.
+ */
+export function whoAsked(actor: string | null | undefined): string | null {
+  if (!actor) return null;
+  const surfaces: Record<string, string> = { cli: "the CLI", mcp: "an MCP client", api: "the API" };
+  if (surfaces[actor]) return surfaces[actor];
+  const token = /^api:token:(.+)$/.exec(actor);
+  if (token) return `token ${token[1]}`;
+  const agent = /^api:agent:(.+)$/.exec(actor);
+  if (agent) return `agent ${agent[1]}`;
+  const person = /^api:(.+)$/.exec(actor);
+  return person ? person[1] : actor;
+}
+
+/** When something happened, relative to `now`: `just now`, `12 minutes ago`, or `on <time>`. */
+export function whenAsked(iso: string, now: number = Date.now()): string {
+  const at = new Date(iso).getTime();
+  if (Number.isNaN(at)) return `at ${iso}`;
+  const seconds = (now - at) / 1000;
+  if (seconds < 60) return "just now";
+  if (seconds < 3600) return `${plural(Math.floor(seconds / 60), "minute")} ago`;
+  return `on ${formatTime(iso)}`;
+}

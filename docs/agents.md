@@ -71,6 +71,14 @@ event up, an agent fixes the findings in its own checkout, and culture-rules
 opens the fix as a new pull request against the reviewed branch after
 `fix propose` has checked it.
 
+People ask for the same thing from the web UI: on the Findings screen each open
+finding of a `github.com` pull request has **Send an agent to fix**, and several
+selected findings (up to 20) go in one request. The UI sends `findings fix` over
+HTTP with an editor credential, so the event's `requested_by` and the change-log
+line read `api:<person>` or `api:token:<name>`. It needs the `events` extra and a
+broker where `serve` runs, the repo in the allowlist, and the culture-rules rule
+that reacts to `qodo.fix.requested`, which ships disabled.
+
 ### `rules` — Qodo's coding rules
 
 | Verb | What it does |

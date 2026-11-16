@@ -35,8 +35,9 @@ envelope carrying them), and ``data``::
 
     {"pr_url", "repo", "number", "finding_ids", "note", "requested_by"}
 
-``requested_by`` is the calling surface (``cli``, ``api`` or ``mcp``); the HTTP principal's
-identity is not passed to a verb handler today.
+``requested_by`` is the ``actor`` the registry passes: the calling surface (``cli`` or ``mcp``),
+or over HTTP the surface and the caller (``api:person@example.org``, ``api:token:<name>``), a
+label :mod:`qodo.bridge.caller` has cleaned of control characters and capped in length.
 
 events-cli is imported lazily inside :func:`publish` (the ``events`` extra): the base install
 keeps zero third-party dependencies. The broker address is events-cli's own setting,
@@ -310,6 +311,8 @@ def request_fix(
     with _Lock():
         earlier = _recent_request(url, ids, window, _now())
         if earlier is not None:
+            # the web UI tells this refusal from an error by the words "already requested"
+            # (web/src/api/qodo.ts isAlreadyRequested); tests on both sides pin them
             raise _user(
                 f"a fix for these findings was already requested at {earlier.get('time')} "
                 f"(event {earlier.get('event_id')})",

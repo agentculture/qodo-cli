@@ -414,7 +414,7 @@ Its `data` holds identifiers only, never the API key and never finding text:
 | `number` | The pull request number |
 | `finding_ids` | The ids, duplicates removed, in the order given |
 | `note` | The note for the agent, or `null` |
-| `requested_by` | The surface that asked: `cli`, `api` or `mcp` |
+| `requested_by` | Who asked: `cli` or `mcp`, or over HTTP `api:` and the caller (`api:person@example.org` for a person through Access, `api:token:<name>` for a service token) |
 
 The type has three segments, inside culture-rules' default event subscription
 depth (4). The verb returns `{event_id, type, pr_url, repo, number,
@@ -543,8 +543,11 @@ change still succeeds with a warning.
   else `~/.local/state/qodo-cli/changes.jsonl`. The directory is mode 0700 and
   the file 0600.
 - **Format:** JSON Lines, one object per line. Every line has `time` (UTC),
-  `kind` and, when known, `actor`, which is the surface that made the change
-  (`cli`, `api` or `mcp`).
+  `kind` and, when known, `actor`: the surface that made the change (`cli` or
+  `mcp`), or over HTTP `api:` and the caller, `api:<person>` for a person
+  through Cloudflare Access or `api:token:<name>` for a service token (the
+  token's name, never its secret). The caller is cleaned of control characters
+  and cut to 120 characters before it is written.
 - **What a line holds:**
   - `finding.status_changed`: `id` (one line per finding), `status`
     (`implemented` or `dismissed`) and, for a dismissal, `reason`;
@@ -604,6 +607,44 @@ inside the tabs are built separately.
 
 Without a built UI, `serve` still works and `GET /` answers a JSON 404.
 
+### Send an agent to fix (the Findings screen)
+
+On a `github.com` pull request, each open finding has a third action beside
+**Mark implemented** and **Dismiss**: **Send an agent to fix**. It opens a
+confirmation that says what will happen: an agent is asked to fix the finding
+on the pull request's branch; if it produces a fix, a new pull request against
+that branch is opened for a person to review; nothing is merged automatically.
+An optional note ("Anything the agent should know", at most 500 characters,
+with a count) travels in the event. Each open finding also has a **Select for a
+fix** box; with at least one ticked, a bar offers **Send an agent to fix N
+findings** (at most 20 in one request; the bar says when the limit is reached).
+One confirmation sends all the selected ids in one `findings fix` request.
+
+- **After a success** the screen announces "Fix requested" and each requested
+  finding shows a marker, "Fix requested just now by token editor." The marker
+  is read from the bridge's change log (`GET /changes?limit=500&kind=fix.requested`, the
+  `fix.requested` lines for this pull request), so it survives a reload and
+  names who asked; a request older than the newest 500 fix requests is not
+  marked. The finding's status does not change: it stays open in Qodo.
+- **A repeat** of the same request inside the rate-guard window is not an
+  error: the screen says the fix was already requested, with the bridge's
+  message.
+- **Failures** show the bridge's message and hint in the dialog: a repo outside
+  the allowlist; "The bridge cannot reach the event bus" (HTTP 503: the
+  `events` extra is missing or no broker took the event); and, for a viewer
+  token or identity, that the action needs the editor role.
+- A finding that is already implemented or dismissed, and any pull request
+  that is not on `github.com`, has no fix action.
+
+For it to do anything, the operator needs what
+[Before you use it](#before-you-use-it) lists: the `events` extra and a
+reachable broker where `serve` runs, the repo in `QODO_PROPOSE_REPOS`, and the
+editor role for whoever clicks (an editor token, or an Access identity listed
+in `QODO_EDITORS`). Someone on the culture-rules side must also enable
+the rule that reacts to `qodo.fix.requested`: the culture-rules bundle ships it
+disabled, so until it is enabled a request is published and logged and no agent
+runs.
+
 To release a wheel with the UI:
 
 1. `npm ci && npm run build` in `web/`.
@@ -661,9 +702,10 @@ Read these before you rely on the bridge:
   governs Qodo's tools only (see [above](#the-exposure-policy)).
 - **Fix requests are for github.com pull requests only**, because the fix lands
   through culture-rules' GitHub App.
-- **The event names the surface, not the person.** `requested_by` is `cli`,
-  `api` or `mcp`; a verb handler is not given the HTTP caller's identity today,
-  so passing it needs the server to hand the principal to the handler.
+- **The CLI and MCP name only the surface.** Over HTTP `requested_by` and the
+  change log name the caller (`api:<person>`, `api:token:<name>`); a CLI or a
+  stdio MCP call is recorded as `cli` or `mcp`, because whoever runs them is not
+  authenticated by the bridge.
 - **The rate guard is per bridge host.** It reads this host's change log, so two
   bridges sharing a repo do not see each other's requests, and a log that
   cannot be written leaves no memory of a request.

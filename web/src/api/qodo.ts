@@ -1,4 +1,4 @@
-import { ApiError, postVerb } from "./client";
+import { ApiError, ROUTES, getJson, postVerb, query } from "./client";
 import type {
   ConfigStatus,
   FindingsPage,
@@ -16,6 +16,7 @@ export const VERBS = {
   findingsList: ["findings", "list"],
   findingsImplement: ["findings", "implement"],
   findingsDismiss: ["findings", "dismiss"],
+  findingsFix: ["findings", "fix"],
   prsList: ["prs", "list"],
   configStatus: ["config", "status"],
   rulesSearch: ["rules", "search"],
@@ -27,6 +28,7 @@ export const VERB_PARAMS: Record<keyof typeof VERBS, readonly string[]> = {
   findingsList: ["pr_url", "offset", "limit"],
   findingsImplement: ["finding_ids"],
   findingsDismiss: ["finding_ids", "reason"],
+  findingsFix: ["pr_url", "finding_ids", "note"],
   prsList: ["repo", "state", "max_results"],
   configStatus: [],
   rulesSearch: ["query", "scopes"],
@@ -48,6 +50,13 @@ export const DISMISS_REASONS = [
   { value: "rejected", label: "Rejected", help: "Understood and declined." },
 ] as const;
 export type DismissReason = (typeof DISMISS_REASONS)[number]["value"];
+
+/** `findings fix` takes 1 to this many finding ids in one request (its params schema). */
+export const MAX_FIX_FINDINGS = 20;
+/** The longest note `findings fix` takes, in characters (its params schema). */
+export const MAX_FIX_NOTE = 500;
+/** The change-log entries read to find a PR's fix requests (`GET /changes`'s own maximum). */
+export const CHANGES_READ = 500;
 
 /** Qodo's open statuses (the `get-pr-review-findings` description). Only these can change. */
 export const OPEN_STATUSES = new Set([
@@ -110,6 +119,96 @@ export async function dismissFindings(
 ): Promise<void> {
   const [noun, name] = VERBS.findingsDismiss;
   await postVerb<unknown>(noun, name, { finding_ids: ids, reason }, signal);
+}
+
+/** What `findings fix` returns: the published event's id and what it asked for. */
+export interface FixRequested {
+  event_id: string;
+  type: string;
+  pr_url: string;
+  repo: string;
+  number: number;
+  finding_ids: string[];
+}
+
+/**
+ * A write (an event on the mesh's bus, not a change in Qodo): ask for an agent to fix findings on
+ * a github.com pull request. The body is exactly `{pr_url, finding_ids}` plus `note` when the note
+ * holds more than whitespace.
+ */
+export async function requestFix(
+  prUrl: string,
+  ids: string[],
+  note?: string,
+  signal?: AbortSignal,
+): Promise<FixRequested> {
+  const [noun, name] = VERBS.findingsFix;
+  const params: Record<string, unknown> = { pr_url: prUrl, finding_ids: ids };
+  if (note && note.trim()) params.note = note;
+  return postVerb<FixRequested>(noun, name, params, signal);
+}
+
+/**
+ * The bridge's refusal of a repeat (`qodo/fix_request.py`: the same PR and the same set of ids
+ * within the window). It has no code of its own (a 400 `user_error`), so it is told by its
+ * message; it is not a failure for the person: the fix was already asked for.
+ */
+export const isAlreadyRequested = (error: ApiError): boolean =>
+  error.status === 400 && /already requested/i.test(error.message);
+
+/** One `fix.requested` line of the change log (`qodo/changelog.py` `record_fix_request`). */
+export interface FixRequest {
+  time: string;
+  actor: string | null;
+  pr_url: string;
+  finding_ids: string[];
+  event_id: string | null;
+}
+
+/** Two PR URLs name the same pull request (same host, repo and number; case-insensitive). */
+export function samePr(a: string, b: string): boolean {
+  const host = (url: string) => {
+    try {
+      return new URL(url).hostname.toLowerCase();
+    } catch {
+      return null;
+    }
+  };
+  const x = describePrUrl(a);
+  const y = describePrUrl(b);
+  return (
+    host(a) !== null &&
+    host(a) === host(b) &&
+    x.repo !== null &&
+    x.repo.toLowerCase() === y.repo?.toLowerCase() &&
+    x.number !== null &&
+    x.number === y.number
+  );
+}
+
+/**
+ * The fix requests the bridge logged for one pull request, newest first: the newest
+ * `CHANGES_READ` change-log entries (`GET /changes` has no filter), kept when they are
+ * `fix.requested` lines for this PR. Bounded: the bridge returns the newest `CHANGES_READ` fix
+ * requests of all PRs, so only a request older than those is not shown.
+ */
+export async function fixRequests(prUrl: string, signal?: AbortSignal): Promise<FixRequest[]> {
+  const reply = await getJson<unknown>(`${ROUTES.changes.path}${query({ limit: CHANGES_READ, kind: "fix.requested" })}`, signal);
+  if (!isObject(reply) || !Array.isArray(reply.entries)) throw badReply("changes");
+  const out: FixRequest[] = [];
+  for (const e of reply.entries) {
+    if (!isObject(e) || e.kind !== "fix.requested") continue;
+    if (typeof e.pr_url !== "string" || !samePr(e.pr_url, prUrl)) continue;
+    if (typeof e.time !== "string" || !Array.isArray(e.finding_ids)) continue;
+    out.push({
+      time: e.time,
+      actor: typeof e.actor === "string" ? e.actor : null,
+      pr_url: e.pr_url,
+      finding_ids: e.finding_ids.filter((id): id is string => typeof id === "string"),
+      event_id: typeof e.event_id === "string" ? e.event_id : null,
+    });
+  }
+  return out.reverse(); // the log is oldest first
 }
 
 /** Each allowlisted repo's configuration files, validation and proposals. */
