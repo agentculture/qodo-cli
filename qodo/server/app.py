@@ -391,7 +391,6 @@ def create_app(
             doc = get_openapi(
                 title="qodo-cli API",
                 version=API_VERSION,
-                summary="Qodo findings, rules and review history over HTTP (unofficial).",
                 description=(
                     "One operation per qodo-cli verb on the api surface: POST /verbs/<noun>/<name> "
                     "with the verb's params as a JSON object. Unofficial: not affiliated with "
@@ -399,6 +398,9 @@ def create_app(
                 ),
                 routes=app.routes,
             )
+            doc["info"][
+                "summary"
+            ] = "Qodo findings, rules and review history over HTTP (unofficial)."
             components = doc.setdefault("components", {})
             components["securitySchemes"] = {
                 "bearerAuth": {

@@ -24,10 +24,10 @@ def test_the_label_names_a_person_a_token_or_an_agent_never_a_secret():
 
 
 def test_a_hostile_identity_is_neutralised():
-    hostile = 'eve\n{"kind":"finding.status_changed"}\r\x1b[2J‮ ' + "x" * 5000
+    hostile = 'eve\n{"kind":"finding.status_changed"}\r\x1b[2J\u202e\u2028' + "x" * 5000
     out = caller.clean(hostile)
     assert "\n" not in out and "\r" not in out and "\x1b" not in out
-    assert "‮" not in out and " " not in out
+    assert "\u202e" not in out and "\u2028" not in out
     assert len(out) <= caller.MAX_LABEL_CHARS and out.endswith("...")
     assert out.startswith('eve {"kind":"finding.status_changed"}')
     label = caller.label(Principal("a\tb\n" + "y" * 400, "service"))
