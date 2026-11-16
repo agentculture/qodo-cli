@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "comment": "Which upstream Qodo MCP tools are exposed, under what verb, on which surfaces. A tool not named here is refused. allow_write marks a tool whose upstream annotation is not read-only; without it such a tool is refused.",
+  "tools": [
+    {"tool": "get-pr-review-findings", "verb": "findings list", "surfaces": ["cli", "api", "mcp"], "allow_write": false},
+    {"tool": "pr-review-mark-implemented", "verb": "findings implement", "surfaces": ["cli", "api", "mcp"], "allow_write": true},
+    {"tool": "pr-review-dismiss", "verb": "findings dismiss", "surfaces": ["cli", "api", "mcp"], "allow_write": true},
+    {"tool": "rules-search", "verb": "rules search", "surfaces": ["cli", "api", "mcp"], "allow_write": false},
+    {"tool": "rules-list", "verb": "rules list", "surfaces": ["cli", "api", "mcp"], "allow_write": false},
+    {"tool": "rules-get", "verb": "rules show", "surfaces": ["cli", "api", "mcp"], "allow_write": false},
+    {"tool": "rules-metadata", "verb": "rules metadata", "surfaces": ["cli", "api", "mcp"], "allow_write": false},
+    {"tool": "pull-request-review-history", "verb": "history file", "surfaces": ["cli", "api", "mcp"], "allow_write": false},
+    {"tool": "pull-request-similar-suggestions", "verb": "history similar", "surfaces": ["cli", "api", "mcp"], "allow_write": false},
+    {"tool": "pull-request-stats", "verb": "history stats", "surfaces": ["cli", "api", "mcp"], "allow_write": false}
+  ]
+}

@@ -16,10 +16,12 @@ valid); this module is the only caller of them. Failures raise
 from __future__ import annotations
 
 import tomllib
+import urllib.parse
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from qodo import gateway as _gateway_mod
 from qodo.cli import _providers, _qodo_api
 from qodo.cli._errors import EXIT_USER_ERROR, CliError
 
@@ -54,6 +56,140 @@ def rules_scopes(*, scopes: list[str] | None = None, auto_scope: bool = True) ->
     if not auto_scope:
         return None
     return _qodo_api.detect_scopes() or None
+
+
+# --- upstream gateway (Qodo's MCP server, behind the exposure policy) ---------------
+
+DISMISS_REASONS = ("false_positive", "intentional", "deferred", "rejected")
+MAX_FINDING_IDS = 100
+
+
+def _gateway() -> _gateway_mod.Gateway:
+    """The gateway these functions call through (one patch point for tests and integrators)."""
+    return _gateway_mod.Gateway()
+
+
+def _need(value: Any, what: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise CliError(
+            code=EXIT_USER_ERROR,
+            message=f"{what} is required",
+            remediation=f"pass a non-empty {what}",
+        )
+    return value.strip()
+
+
+def _finding_ids(ids: Any) -> list[str]:
+    if not isinstance(ids, (list, tuple)) or not ids:
+        raise CliError(
+            code=EXIT_USER_ERROR,
+            message="finding ids are required",
+            remediation="pass 1 to 100 finding ids, from `findings list`",
+        )
+    if len(ids) > MAX_FINDING_IDS:
+        raise CliError(
+            code=EXIT_USER_ERROR,
+            message=f"at most {MAX_FINDING_IDS} finding ids per call, got {len(ids)}",
+            remediation="split the ids into batches (one call per PR)",
+        )
+    return [_need(i, "finding id") for i in ids]
+
+
+def _given(**kwargs: Any) -> dict[str, Any]:
+    return {k: v for k, v in kwargs.items() if v is not None}
+
+
+def findings_list(pr_url: str, *, extended: bool = False) -> dict[str, Any]:
+    """Qodo's findings on a PR, addressed by its URL (``get-pr-review-findings``).
+
+    Returns ``{"finding_count", "findings", "pr_url", "review_session"}``; ``extended`` adds
+    locations, snippets and dismissal details.
+    """
+    url = _need(pr_url, "pr_url")
+    if urllib.parse.urlparse(url).scheme not in ("http", "https"):
+        raise CliError(
+            code=EXIT_USER_ERROR,
+            message=f"pr_url must be a PR URL, got {url!r}",
+            remediation="pass the pull request's web URL, e.g. https://github.com/org/repo/pull/1",
+        )
+    args = {"pr_url": url}
+    if extended:
+        args["extended"] = True
+    return _gateway().call("get-pr-review-findings", args)
+
+
+def findings_implement(ids: list[str]) -> dict[str, Any]:
+    """Mark findings implemented, 1-100 ids in one call (``pr-review-mark-implemented``).
+
+    A write. Returns the upstream reply (its shape was never recorded).
+    """
+    return _gateway().call("pr-review-mark-implemented", {"finding_ids": _finding_ids(ids)})
+
+
+def findings_dismiss(ids: list[str], reason: str) -> dict[str, Any]:
+    """Dismiss findings with a reason (``pr-review-dismiss``): one of ``DISMISS_REASONS``.
+
+    A write. Returns the upstream reply (its shape was never recorded).
+    """
+    if reason not in DISMISS_REASONS:
+        raise CliError(
+            code=EXIT_USER_ERROR,
+            message=f"dismiss reason must be one of {', '.join(DISMISS_REASONS)}",
+            remediation="pass --reason with one of the allowed values",
+        )
+    return _gateway().call(
+        "pr-review-dismiss", {"finding_ids": _finding_ids(ids), "reason": reason}
+    )
+
+
+def rules_search(
+    query: str, *, top_k: int | None = None, scopes: list[str] | None = None
+) -> dict[str, Any]:
+    """Semantic rules search through the MCP ``rules-search`` tool: ``{"rules": [...]}``.
+
+    Unlike :func:`rules_get` (the older HTTP path, auto-scoped from the git origin), this goes
+    through the exposure policy; scopes are only those passed.
+    """
+    return _gateway().call(
+        "rules-search", _given(query=_need(query, "query"), top_k=top_k, scopes=scopes)
+    )
+
+
+def rules_list(
+    *,
+    state: str | None = None,
+    categories: list[str] | None = None,
+    severity: str | None = None,
+    scopes: list[str] | None = None,
+    name_contains: str | None = None,
+    page: int | None = None,
+    page_size: int | None = None,
+) -> dict[str, Any]:
+    """List rules, filtered (``rules-list``); only the filters given are sent."""
+    return _gateway().call(
+        "rules-list",
+        _given(
+            state=state,
+            categories=categories,
+            severity=severity,
+            scopes=scopes,
+            name_contains=name_contains,
+            page=page,
+            page_size=page_size,
+        ),
+    )
+
+
+def review_history(repo: str, path: str, *, limit: int | None = None) -> dict[str, Any]:
+    """Past review suggestions for a file or directory (``pull-request-review-history``).
+
+    ``path`` is required: history is per file, searched upward. Built against the input schema
+    only: the upstream tool failed when probed, so its reply shape is unconfirmed.
+    """
+    return _gateway().call(
+        "pull-request-review-history",
+        _given(repo=_need(repo, "repo"), file_path=_need(path, "file path"), limit=limit),
+    )
 
 
 # --- review ------------------------------------------------------------------

@@ -83,3 +83,4 @@ skips = ["B101", "B404", "B603"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+markers = ["schema_only: built against the recorded input schema only; no successful upstream reply was ever seen"]
