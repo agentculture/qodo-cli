@@ -464,3 +464,53 @@ def test_an_operators_policy_cannot_expose_a_write_without_saying_so(tmp_path, m
         gateway.call("litegit-post-comment", {})
     assert "not read-only" in err.value.message
     assert not fake.calls
+
+
+def test_an_operators_policy_decides_every_surface(tmp_path, monkeypatch):
+    """With QODO_EXPOSURE_POLICY set, the CLI, the HTTP routes and the MCP tools all follow the
+    operator's file: what it names is there, on the surfaces it names, and nothing else is."""
+    from qodo import mcp_tools
+    from qodo.cli import main
+    from qodo.server.app import create_app
+
+    path = tmp_path / "policy.json"
+    path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "tools": [
+                    {"tool": "rules-metadata", "verb": "catalogue facts", "surfaces": ["cli"]},
+                    {"tool": "rules-list", "verb": "catalogue list", "surfaces": ["api", "mcp"]},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv(exposure_mod.ENV_POLICY, str(path))
+    monkeypatch.setattr(reg, "_DEFAULT", None)  # a new process reads the policy once
+
+    class NoTokens:
+        def authenticate(self, token):
+            return None
+
+    upstream_routes = {
+        route.path
+        for route in create_app(tokens=NoTokens(), web_dist=None).routes
+        if getattr(route, "path", "").startswith("/verbs/")
+    }
+    local = {f"/verbs/{v.noun}/{v.name}" for v in reg.default_registry().on_surface("api")}
+    local -= {"/verbs/catalogue/list"}
+    assert upstream_routes - local == {"/verbs/catalogue/list"}
+    assert "/verbs/findings/list" not in upstream_routes  # the shipped policy's verb is gone
+
+    names = {tool.name for tool in mcp_tools.tools()}
+    assert "catalogue_list" in names and "catalogue_facts" not in names
+    assert "findings_list" not in names and "rules_search" not in names
+
+    with pytest.raises(SystemExit) as shown:
+        main(["catalogue", "facts", "--help"])
+    assert shown.value.code == 0
+    for gone in (["catalogue", "list", "--help"], ["findings", "list", "--help"]):
+        with pytest.raises(SystemExit) as refused:
+            main(gone)
+        assert refused.value.code != 0
