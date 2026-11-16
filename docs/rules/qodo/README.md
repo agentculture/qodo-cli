@@ -236,8 +236,8 @@ Outputs: `run` (the last run reply), `pr_number`, `pr_url` and `pr_skipped`.
     pull request's head branch, so the fix PR targets the reviewed PR; the
     branch is `qodo-fix/pr-<number>`, fixed per reviewed PR; the labels are
     `qodo-fix` and `automated`; the title names the PR, and the body names
-    the PR, the finding ids, who asked (`requested_by`, as the bridge sent it)
-    and that an agent wrote it. If a fix PR for that pull request is still
+    the PR, the finding ids and that an agent wrote it. Who asked is not put
+    in the PR (it can be a person's address); it is in the bridge's change log. If a fix PR for that pull request is still
     open, the step completes with `skipped: branch_exists`, and the run still
     ends `succeeded`. A base branch name that is not a plain branch name is
     refused by `github.pr_open` (`bad_input`), so nothing is written.

@@ -1972,7 +1972,7 @@
           "params": {
             "actor": "github-app",
             "base": "inputs.head_branch",
-            "body": "An agent wrote this change to fix the Qodo findings {{ inputs.ids }} on {{ inputs.pr_url }}. Requested by: {{ inputs.requested_by }} (through qodo-cli). qodo-cli fix propose checked it against the pull request's head {{ inputs.proposal.base_sha }}: no CI, dependency, reviewer or agent configuration file, small text files only. This pull request targets #{{ inputs.number }}'s branch, so merging it adds the fix to #{{ inputs.number }}; it starts no improvement run. Review it like any change.",
+            "body": "An agent wrote this change to fix the Qodo findings {{ inputs.ids }} on {{ inputs.pr_url }}. It was requested through qodo-cli; who asked is in the bridge's change log, not here. qodo-cli fix propose checked it against the pull request's head {{ inputs.proposal.base_sha }}: no CI, dependency, reviewer or agent configuration file, small text files only. This pull request targets #{{ inputs.number }}'s branch, so merging it adds the fix to #{{ inputs.number }}; it starts no improvement run. Review it like any change.",
             "branch": "qodo-fix/pr-{{ inputs.number }}",
             "files": "inputs.proposal.files",
             "labels": [

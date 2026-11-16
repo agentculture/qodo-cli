@@ -1343,7 +1343,8 @@ def test_a_fix_request_runs_associate_on_the_pr_head_and_opens_one_pr_against_it
     assert opened["head"]["ref"] == "qodo-fix/pr-7"
     assert opened["labels"] == FIX_LABELS
     assert "#7" in opened["title"]
-    assert "f1, f2" in opened["body"] and REQUESTER in opened["body"]
+    assert "f1, f2" in opened["body"]
+    assert REQUESTER not in opened["body"]  # who asked may be a person's address: never public
     assert f"https://github.com/{REPO}/pull/7" in opened["body"]
     assert "agent" in opened["body"]
     assert world.github.trees[0]["base_tree"] == "f" * 40  # on the PR head's tree
