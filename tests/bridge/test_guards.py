@@ -50,6 +50,20 @@ def test_values_compare_json_normalised():
     COMMANDS.check(EDITOR, doc({"x": ("ls",)}), doc({"x": ["ls"]}))
 
 
+def test_false_zero_and_empty_are_values_not_absence():
+    def with_value(value):
+        return {"id": "r1", "kind": "runner", "params": {"commands": value}}
+
+    for value in (False, 0, {}, [], ""):
+        with pytest.raises(GuardDenied):
+            COMMANDS.check(EDITOR, doc(), with_value(value))
+        with pytest.raises(GuardDenied):
+            COMMANDS.check(EDITOR, with_value(value), doc())
+        COMMANDS.check(EDITOR, with_value(value), with_value(value))
+    with pytest.raises(GuardDenied):
+        COMMANDS.check(EDITOR, with_value(True), with_value(False))
+
+
 def test_a_guard_that_does_not_apply_is_inert():
     COMMANDS.check(EDITOR, doc({"x": ["ls"]}, kind="agent"), doc({"x": ["rm"]}, kind="agent"))
 

@@ -30,6 +30,7 @@ import base64
 import hashlib
 import hmac
 import json
+import math
 import threading
 import time
 import urllib.request
@@ -175,7 +176,8 @@ def _parse_keys(document: Any) -> dict[str, tuple[int, int]]:
 def _num(value: Any) -> float | None:
     if isinstance(value, bool) or not isinstance(value, int | float):
         return None
-    return float(value)
+    number = float(value)
+    return number if math.isfinite(number) else None  # NaN compares false to every clock
 
 
 class AccessVerifier:

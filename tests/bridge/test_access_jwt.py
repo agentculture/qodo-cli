@@ -70,6 +70,12 @@ def test_expired_token_is_rejected():
     assert reason(verifier(), token(claims(exp=NOW))) == "expired"
 
 
+def test_non_finite_timestamps_are_malformed():
+    for bad in (float("nan"), float("inf"), float("-inf")):
+        assert reason(verifier(), token(claims(exp=bad))) == "malformed"
+        assert reason(verifier(), token(claims(nbf=bad))) == "malformed"
+
+
 def test_not_yet_valid_token_is_rejected():
     assert reason(verifier(), token(claims(nbf=NOW + 60))) == "not_yet_valid"
 

@@ -34,8 +34,9 @@ class GuardDenied(Forbidden):
 
 
 def _normal(value: Any) -> Any:
-    """JSON-normalised, so a tuple and a list compare equal; empty counts as absent."""
-    return json.loads(json.dumps(value, sort_keys=True, default=str)) if value else None
+    """JSON-normalised, so a tuple and a list compare equal. Only ``None`` is absent:
+    ``False``, ``0`` and an empty container are values, and setting one is a change."""
+    return None if value is None else json.loads(json.dumps(value, sort_keys=True, default=str))
 
 
 @dataclass(frozen=True)

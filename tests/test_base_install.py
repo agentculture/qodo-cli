@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import subprocess
 import sys
 import tomllib
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 PYPROJECT = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
@@ -76,3 +79,30 @@ def test_no_third_party_import_in_the_base_package():
     for path in (ROOT / "qodo").rglob("*.py"):
         text = path.read_text(encoding="utf-8")
         assert not pattern.search(text), f"{path} imports a third-party package at module level"
+
+
+def test_a_clean_base_install_holds_no_third_party_package(tmp_path):
+    """Install the project alone into a new environment: it is the only distribution there,
+    and every existing verb runs from that environment's own command."""
+    uv = shutil.which("uv")
+    if uv is None:
+        pytest.skip("uv is not installed")
+    venv = tmp_path / "venv"
+    python = venv / "bin" / "python"
+
+    def run(*argv, **kw):
+        return subprocess.run(argv, capture_output=True, text=True, check=False, **kw)
+
+    assert run(uv, "venv", "-q", str(venv)).returncode == 0
+    installed = run(uv, "pip", "install", "-q", "--python", str(python), str(ROOT))
+    if installed.returncode != 0:
+        pytest.skip(f"the build needs the network: {installed.stderr.strip()[-200:]}")
+    listed = run(uv, "pip", "list", "--python", str(python), "--format", "json")
+    assert [d["name"] for d in json.loads(listed.stdout)] == [PYPROJECT["project"]["name"]]
+    command = venv / "bin" / "qodo-cli"
+    for verb in VERBS:
+        argv = verb if "--help" in verb else [*verb, "--json"]
+        done = run(str(command), *argv, cwd=ROOT)
+        allowed = (0, 1) if verb == ["doctor"] else (0,)
+        assert done.returncode in allowed, (verb, done.stderr)
+        assert "Traceback" not in done.stderr, (verb, done.stderr)
