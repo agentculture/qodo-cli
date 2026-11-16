@@ -294,6 +294,12 @@
       "source_port": "text",
       "target": "open_pr",
       "target_port": "checked"
+    },
+    {
+      "source": "proposal",
+      "source_port": "value",
+      "target": "same_head",
+      "target_port": "proposal"
     }
   ],
   "enabled": true,
@@ -625,7 +631,7 @@
         "explain": "text",
         "until": {
           "op": "matches",
-          "pattern": "1:.*",
+          "pattern": "1:[\\s\\S]*",
           "value": {
             "field": "text"
           }
@@ -1316,7 +1322,7 @@
         "until": {
           "arg": {
             "op": "matches",
-            "pattern": "running\\|.*",
+            "pattern": "running\\|[\\s\\S]*",
             "value": {
               "field": "text"
             }
@@ -1409,7 +1415,7 @@
         "explain": "text",
         "until": {
           "op": "matches",
-          "pattern": "(0\\|.*)|(1\\|finished\\|True\\|.*)",
+          "pattern": "(0\\|[\\s\\S]*)|(1\\|finished\\|True\\|[\\s\\S]*)",
           "value": {
             "field": "text"
           }
@@ -1670,7 +1676,7 @@
         "explain": "text",
         "until": {
           "op": "matches",
-          "pattern": "(True.*)|([: ]*)",
+          "pattern": "(True[\\s\\S]*)|([: ]*)",
           "value": {
             "field": "text"
           }
@@ -1793,31 +1799,36 @@
               1
             ],
             "where": {
+              "op": "or",
               "args": [
                 {
+                  "op": "not",
                   "arg": {
-                    "arg": {
-                      "var": "head_sha"
+                    "op": "compare",
+                    "cmp": "==",
+                    "left": {
+                      "var": "proposal_ok"
                     },
-                    "op": "exists"
-                  },
-                  "op": "not"
+                    "right": {
+                      "literal": true
+                    }
+                  }
                 },
                 {
+                  "op": "compare",
                   "cmp": "==",
                   "left": {
                     "var": "head_sha"
                   },
-                  "op": "compare",
                   "right": {
                     "var": "base_commit"
                   }
                 }
-              ],
-              "op": "or"
+              ]
             },
             "with": {
-              "base_commit": "inputs.run.base_commit"
+              "base_commit": "inputs.run.base_commit",
+              "proposal_ok": "inputs.proposal.ok"
             }
           },
           "description": "",
@@ -1833,6 +1844,12 @@
             {
               "description": "",
               "name": "run",
+              "required": false,
+              "type": "object"
+            },
+            {
+              "description": "",
+              "name": "proposal",
               "required": false,
               "type": "object"
             }
@@ -1925,7 +1942,7 @@
         "explain": "text",
         "until": {
           "op": "matches",
-          "pattern": "1:.*",
+          "pattern": "1:[\\s\\S]*",
           "value": {
             "field": "text"
           }
@@ -1944,6 +1961,12 @@
         {
           "description": "",
           "name": "run",
+          "required": false,
+          "type": "object"
+        },
+        {
+          "description": "",
+          "name": "proposal",
           "required": false,
           "type": "object"
         }

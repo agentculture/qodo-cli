@@ -1505,6 +1505,18 @@ def test_a_pr_head_that_moved_during_the_run_fails_and_opens_nothing(pem):
     assert world.github.pulls == [] and world.github.trees == []
 
 
+def test_a_pr_whose_head_cannot_be_read_gets_no_fix_pr(pem):
+    """With an accepted proposal, the head check passes only on an equal sha: a missing one
+    fails the run, and nothing is opened (least of all against the default branch)."""
+    world = fix_world(pem)
+    world.github.reviewed[7] = pull(7, head_sha="")
+    world.fix_request()
+    world.settle(150)
+    (run,) = fix_runs(world)
+    assert run["status"] == "failed"
+    assert world.github.pulls == [] and world.github.trees == []
+
+
 def test_an_open_fix_pr_for_that_pr_makes_the_next_request_end_branch_exists(pem):
     world = fix_world(pem)
     world.fix_request(finding_ids=["f1"])

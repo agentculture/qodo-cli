@@ -115,7 +115,8 @@ The fix rule fires on `qodo.fix.requested` when all of these hold:
 
 The rule maps the PR URL from the allowed repo and the number
 (`https://github.com/<repo>/pull/<number>`), not from the event's `pr_url`. It
-maps `requested_by` as it comes, for the PR body.
+maps `requested_by` as it comes; the workflow keeps it in the run and does not
+put it in the PR, because it can be a person's address.
 
 Its concurrency key is `qodo-fix:{trigger.data.repo}`: one fix run per repo at
 a time, in a namespace of its own, so it never shares a key with the
@@ -414,5 +415,5 @@ the fix flow, disable `qodo-fix-on-request`. Nothing else needs undoing.
 - **The head may move after the last check.** `same_head` reads the pull
   request seconds before `github.pr_open` builds on the branch's tip. A push
   in those seconds is not caught.
-- **`requested_by` is shown as the bridge sent it**, in the fix PR's body. The
-  rule does not check its shape.
+- **`requested_by` is not checked by the rule.** It is kept in the run's inputs
+  and never written to the pull request. Who asked is in the bridge's change log.

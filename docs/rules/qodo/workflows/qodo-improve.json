@@ -619,7 +619,7 @@
         "until": {
           "arg": {
             "op": "matches",
-            "pattern": "running\\|.*",
+            "pattern": "running\\|[\\s\\S]*",
             "value": {
               "field": "text"
             }
@@ -705,7 +705,7 @@
         "explain": "text",
         "until": {
           "op": "matches",
-          "pattern": "finished\\|True\\|.*",
+          "pattern": "finished\\|True\\|[\\s\\S]*",
           "value": {
             "field": "text"
           }
@@ -960,7 +960,7 @@
         "explain": "text",
         "until": {
           "op": "matches",
-          "pattern": "(True.*)|([: ]*)",
+          "pattern": "(True[\\s\\S]*)|([: ]*)",
           "value": {
             "field": "text"
           }
