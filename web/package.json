@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "qodo-cli web UI: Findings | Configuration | Rules (the shell; the screens come later).",
+  "description": "qodo-cli web UI: Findings | Configuration | Rules.",
   "license": "MIT",
   "scripts": {
     "dev": "vite",

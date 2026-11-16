@@ -33,6 +33,7 @@ returned, are in `tests/fixtures/qodo_mcp/tool_schemas.json`.
 | `pull-request-review-history` | **repo**, provider, **file_path**, limit, acceptance_status, category, include_code_hunks |
 | `pull-request-similar-suggestions` | **repo**, provider, **query**, embed_type, folder_path, category, acceptance_status, top_k, include_code_hunks |
 | `pull-request-stats` | **repo**, provider |
+| `litegit-list-prs` | **repo**, state, base_branch, since, max_results |
 
 Points that differ from what the spec assumed:
 
@@ -81,6 +82,17 @@ Testability, Compliance, Accessibility, Architecture, Documentation),
 severities `error`, `warning` and `recommendation`, and source types `User`,
 `Qodo Library`, `Code Patterns`, `Compliance Checklist` and `Repository File`.
 
+## Not confirmed: `litegit-list-prs`
+
+The web UI's Findings screen lists a repo's open pull requests through
+`litegit-list-prs` (verb `prs list`), the one read-only upstream tool that
+lists pull requests for a repo. It was **not called** by the probe: only its
+input schema is recorded, so its reply shape is unknown. The UI reads it
+defensively (a list of objects with a number, a title and a URL, under any of
+a few likely keys) and says so when it cannot read a reply. Its web fixture
+(`web/src/fixtures/prs.ts`) is hand-written from the schema, not recorded.
+Re-probe it before relying on it.
+
 ## Not confirmed: the history tools
 
 `pull-request-review-history`, `pull-request-similar-suggestions` and
@@ -104,7 +116,7 @@ some conflict with the bridge's rules:
 - `start-pre-pr-review` with the `*-managed-agent-*` tools starts a review.
   The first version does not trigger reviews.
 - `review-skills-*`, `review-notes-*`, `cross-repo-*` and the read-only
-  `litegit-*` tools are out of scope.
+  `litegit-*` tools other than `litegit-list-prs` are out of scope.
 
 ## Configuration: what Qodo's current reference says
 

@@ -592,6 +592,20 @@ def config_init(root: Path | None = None, *, force: bool = False) -> dict[str, A
     return {"repo_root": str(repo_root), "written": written, "skipped": skipped, "forced": force}
 
 
+def config_status(repo: str | None = None, *, settings: Any = None) -> dict[str, Any]:
+    """What Qodo reads in each allowlisted repo (or in ``repo``, which must be allowlisted).
+
+    ``{"configured", "truncated", "repos": [{"repo", "checkout", "files", "validation",
+    "warnings", "proposals"}]}``: file names, kinds, sizes and validation, never contents
+    (see :mod:`qodo.config_status`). A repo outside the allowlist is a user error, raised
+    before the filesystem is touched. ``settings`` defaults to
+    :func:`qodo.propose.load_settings` (the same allowlists as ``config propose``).
+    """
+    from qodo import config_status as _status
+
+    return _status.status(repo, settings=settings)
+
+
 def config_propose(
     repo: str,
     checkout: str,

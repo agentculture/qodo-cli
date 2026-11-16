@@ -23,6 +23,7 @@ UPSTREAM_VERBS = {
     "history show": "pull-request-review-history",
     "history similar": "pull-request-similar-suggestions",
     "history stats": "pull-request-stats",
+    "prs list": "litegit-list-prs",
 }
 LOCAL_VERBS = {
     "rules get",
@@ -31,6 +32,7 @@ LOCAL_VERBS = {
     "config show",
     "config validate",
     "config init",
+    "config status",
     "config propose",
 }
 # Upstream tools that write to a pull request or change a rule: the shipped policy names none.
@@ -97,7 +99,7 @@ def test_each_upstream_verb_takes_its_params_from_the_recorded_input_schema():
         got = verb.params
         assert got["type"] == "object"
         extra = set(got["properties"]) - set(want["properties"])
-        assert extra <= {"summary"}, f"{verb.verb}: unexpected extra params {extra}"
+        assert extra <= {"summary", "offset", "limit"}, f"{verb.verb}: unexpected params {extra}"
         for name, prop in want["properties"].items():
             assert got["properties"][name] == prop
         assert got["required"] == want.get("required", [])

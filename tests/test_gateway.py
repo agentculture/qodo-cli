@@ -185,7 +185,7 @@ def test_tool_error_reply_becomes_clierror():
 # --- policy and default-deny ----------------------------------------------------
 
 
-def test_default_policy_names_exactly_ten_tools_with_two_writes():
+def test_default_policy_names_exactly_eleven_tools_with_two_writes():
     p = exposure_mod.load_policy()
     assert {e.tool for e in p.entries} == {
         "get-pr-review-findings",
@@ -198,6 +198,7 @@ def test_default_policy_names_exactly_ten_tools_with_two_writes():
         "pull-request-review-history",
         "pull-request-similar-suggestions",
         "pull-request-stats",
+        "litegit-list-prs",  # read-only: the Findings screen's open PRs by repo
     }
     assert {e.tool for e in p.entries if e.allow_write} == {
         "pr-review-mark-implemented",

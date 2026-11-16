@@ -5,11 +5,16 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ROUTES, verbPath } from "./client";
+import { VERBS, VERB_PARAMS } from "./qodo";
 import type { ErrorEnvelope } from "./types";
 
 interface Operation {
   responses?: Record<string, unknown>;
   security?: unknown[];
+  requestBody?: {
+    content: { "application/json": { schema: { properties: Record<string, unknown> } } };
+  };
+  "x-role"?: string;
 }
 interface OpenApi {
   paths: Record<string, Record<string, Operation>>;
@@ -46,6 +51,27 @@ describe("api/openapi.json", () => {
       ["config", "propose"],
     ]) {
       expect(spec.paths[verbPath(noun, name)]?.post, `${noun} ${name}`).toBeDefined();
+    }
+  });
+
+  it("holds every verb the screens call, as a POST taking every param they send", () => {
+    for (const [key, [noun, name]] of Object.entries(VERBS)) {
+      const operation = spec.paths[verbPath(noun, name)]?.post;
+      expect(operation, `${noun} ${name}`).toBeDefined();
+      const schema = operation?.requestBody?.content["application/json"].schema;
+      for (const param of VERB_PARAMS[key as keyof typeof VERBS]) {
+        expect(schema?.properties, `${noun} ${name} takes ${param}`).toHaveProperty(param);
+      }
+    }
+  });
+
+  it("asks a viewer for the reads and an editor for the two writes", () => {
+    const role = ([noun, name]: readonly [string, string]) =>
+      spec.paths[verbPath(noun, name)].post["x-role"];
+    expect(role(VERBS.findingsImplement)).toBe("editor");
+    expect(role(VERBS.findingsDismiss)).toBe("editor");
+    for (const verb of [VERBS.findingsList, VERBS.prsList, VERBS.configStatus, VERBS.rulesSearch]) {
+      expect(role(verb)).toBe("viewer");
     }
   });
 
