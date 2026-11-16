@@ -305,6 +305,24 @@ _REDUCERS: dict[str, Callable[[dict[str, Any], dict[str, Any]], Any]] = {
 }
 
 
+def _log_finding_status(status: str) -> Callable[[dict[str, Any], str], None]:
+    def record(given: dict[str, Any], surface: str) -> None:
+        from qodo import changelog  # lazy, as the handler's own import
+
+        changelog.record_finding_status(
+            list(given.get("finding_ids") or []), status, reason=given.get("reason"), actor=surface
+        )
+
+    return record
+
+
+#: What a successful call of a write tool records in the change log (``qodo.changelog``).
+_AFTER: dict[str, Callable[[dict[str, Any], str], None]] = {
+    "pr-review-mark-implemented": _log_finding_status("implemented"),
+    "pr-review-dismiss": _log_finding_status("dismissed"),
+}
+
+
 # --- the upstream verbs ---------------------------------------------------------------------------
 
 
@@ -312,6 +330,7 @@ def _upstream_handler(tool: str, schema: dict[str, Any]) -> Handler:
     local_names = tuple(_LOCAL_PARAMS.get(tool, {}))
     preflight = _PREFLIGHT.get(tool)
     reduce = _REDUCERS.get(tool)
+    after = _AFTER.get(tool)
 
     def handler(params: dict[str, Any] | None = None, *, surface: str = "cli") -> Any:
         from qodo import api  # lazy: api imports the gateway, which imports the cli package
@@ -322,6 +341,8 @@ def _upstream_handler(tool: str, schema: dict[str, Any]) -> Handler:
         if preflight is not None:
             preflight(given)
         reply = api._gateway().call(tool, given, surface=surface)
+        if after is not None:
+            after(given, surface)
         return reduce(reply, local) if reduce is not None else reply
 
     return handler

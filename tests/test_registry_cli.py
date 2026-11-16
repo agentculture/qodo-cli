@@ -10,6 +10,7 @@ from qodo import api
 from qodo import gateway as gw
 from qodo import registry as reg
 from qodo.cli import main
+from qodo.cli._errors import CliError
 from qodo.explain import resolve
 from tests.fake_qodo_mcp import FakeUpstream
 
@@ -281,6 +282,40 @@ def test_the_cli_calls_the_gateway_for_the_cli_surface(monkeypatch, capsys):
     monkeypatch.setattr(api, "_gateway", lambda: G())
     run(capsys, "rules", "metadata", "--json")
     assert seen == ["cli"]
+
+
+def test_a_finding_change_through_the_registry_is_logged_per_finding(monkeypatch, tmp_path):
+    from qodo import changelog
+    from qodo.registry import default_registry
+
+    monkeypatch.setenv("QODO_CHANGE_LOG", str(tmp_path / "changes.jsonl"))
+
+    class G:
+        fail = False
+
+        def call(self, name, arguments=None, *, surface=None):
+            if self.fail:
+                raise CliError(code=2, message="upstream down", remediation="retry")
+            return {}
+
+    g = G()
+    monkeypatch.setattr(api, "_gateway", lambda: g)
+    reg = default_registry()
+    reg.get("findings", "implement").handler({"finding_ids": ["a", "b"]}, surface="mcp")
+    reg.get("findings", "dismiss").handler(
+        {"finding_ids": ["c"], "reason": "deferred"}, surface="api"
+    )
+    lines = changelog.read()
+    assert [(e["id"], e["status"], e["actor"]) for e in lines] == [
+        ("a", "implemented", "mcp"),
+        ("b", "implemented", "mcp"),
+        ("c", "dismissed", "api"),
+    ]
+    assert lines[2]["reason"] == "deferred" and "reason" not in lines[0]
+    g.fail = True
+    with pytest.raises(CliError):
+        reg.get("findings", "implement").handler({"finding_ids": ["d"]})
+    assert len(changelog.read()) == 3  # a failed change logs nothing
 
 
 def test_config_propose_is_a_command_that_says_it_is_not_implemented(capsys):
