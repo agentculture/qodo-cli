@@ -689,8 +689,10 @@ def test_the_cli_returns_the_files(co, root, monkeypatch, capsys):
 def test_the_cli_reports_an_environment_error(root, monkeypatch, capsys):
     _env_for(monkeypatch, root)
     (root / "acme" / "widgets").mkdir(parents=True)
-    rc = main(["config", "propose", "--repo", REPO, "--checkout", str(root / "acme/widgets"), "--base",
-               "main", "--json"])  # fmt: skip
+    place = str(root / "acme" / "widgets")
+    rc = main(
+        ["config", "propose", "--repo", REPO, "--checkout", place, "--base", "main", "--json"]
+    )
     assert rc == 2 and json.loads(capsys.readouterr().err)["remediation"]
 
 
