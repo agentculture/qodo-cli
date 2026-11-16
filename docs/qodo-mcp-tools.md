@@ -48,6 +48,17 @@ Points that differ from what the spec assumed:
   `pull-request-review-history` requires `repo` and `file_path`, and searches
   upward from that path.
 
+## What was recorded and what was not
+
+A sanitized reply is recorded in `tests/fixtures/qodo_mcp/` for
+`get-pr-review-findings`, `rules-search`, `rules-list`, `rules-get` and
+`rules-metadata`, and the error reply for `pull-request-review-history`.
+
+**`pr-review-mark-implemented` and `pr-review-dismiss` were not called.** Qodo
+marks both as destructive, and a call changes a real finding on a real pull
+request. Only their input schemas are recorded; their reply shape is unknown
+until one is called on purpose.
+
 ## What a finding looks like
 
 From `get-pr-review-findings` on a merged PR (compact form; fixture
