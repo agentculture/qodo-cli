@@ -314,3 +314,32 @@ def test_serve_turns_sharing_on(monkeypatch):
     monkeypatch.setattr(api, "share_upstream", lambda *a, **k: seen.append((a, k)))
     srv.serve([])
     assert seen == [((), {})]
+
+
+def test_a_reply_fetched_before_a_write_finished_is_never_stored():
+    """A read misses the cache and fetches; a write completes and clears the cache; the read's
+    reply (from before the write) must not be stored afterwards."""
+    cache = share.ReplyCache()
+    began = cache.generation  # the read notes this before it fetches
+    cache.clear()  # the write finished meanwhile
+    cache.put("pr", {"findings": ["before the write"]}, generation=began)
+    assert cache.get("pr") is None
+    cache.put("pr", {"findings": ["after"]}, generation=cache.generation)
+    assert cache.get("pr") == {"findings": ["after"]}
+
+
+def test_a_write_during_a_paged_read_leaves_no_stale_page(shared, fake, monkeypatch):
+    real = api._call
+    state = {"wrote": False}
+
+    def call(gateway, tool, arguments, surface):
+        reply = real(gateway, tool, arguments, surface)
+        if tool == api.FINDINGS_TOOL and not state["wrote"]:
+            state["wrote"] = True  # a write lands while this read is still in flight
+            api.findings_dismiss([UUID], "deferred")
+        return reply
+
+    monkeypatch.setattr(api, "_call", call)
+    page()
+    page()  # the first read's reply was not stored, so this one reads again
+    assert len(findings_calls(fake)) == 2

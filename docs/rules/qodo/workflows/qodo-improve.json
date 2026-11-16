@@ -132,6 +132,12 @@
       "source_port": "text",
       "target": "open_pr",
       "target_port": "checked"
+    },
+    {
+      "source": "run",
+      "source_port": "value",
+      "target": "open_pr",
+      "target_port": "run"
     }
   ],
   "enabled": true,
@@ -1008,7 +1014,8 @@
               "automated"
             ],
             "repo": "inputs.repo",
-            "title": "Qodo configuration: proposed update"
+            "title": "Qodo configuration: proposed update",
+            "base_sha": "inputs.run.base_commit"
           }
         },
         "builtin": "action",
@@ -1050,6 +1057,12 @@
           "name": "checked",
           "required": true,
           "type": "string"
+        },
+        {
+          "description": "",
+          "name": "run",
+          "required": false,
+          "type": "object"
         }
       ],
       "kind": "code",

@@ -67,6 +67,9 @@ class ReplyCache:
         self._ttl, self._max_entries, self._max_bytes = ttl, max_entries, max_bytes
         self._clock = clock
         self._lock = threading.Lock()
+        #: Counts clears. A reader notes it before it fetches and hands it to ``put``, so a
+        #: reply fetched before a write finished is never stored after that write cleared.
+        self.generation = 0
         self._items: OrderedDict[Any, tuple[float, int, Any]] = OrderedDict()
         self.size_bytes = 0
 
@@ -81,13 +84,15 @@ class ReplyCache:
                 return None
             return copy.deepcopy(item[2])
 
-    def put(self, key: Any, value: Any) -> None:
+    def put(self, key: Any, value: Any, *, generation: int | None = None) -> None:
         """Keep a copy of ``value`` (a reply larger than the whole cache is not kept)."""
         size = _size(value)
         if size > self._max_bytes:
             return
         stored = (self._clock() + self._ttl, size, copy.deepcopy(value))
         with self._lock:
+            if generation is not None and generation != self.generation:
+                return  # the cache was cleared since this read began: the reply may be stale
             if key in self._items:
                 self._drop(key)
             self._items[key] = stored
@@ -98,6 +103,7 @@ class ReplyCache:
     def clear(self) -> None:
         with self._lock:
             self._items.clear()
+            self.generation += 1
             self.size_bytes = 0
 
     def _drop(self, key: Any) -> None:

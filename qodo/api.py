@@ -130,8 +130,9 @@ def _upstream_call(
     hit = pool.cache.get(key)
     if hit is not None:
         return hit
+    generation = pool.cache.generation  # before the fetch: a write meanwhile voids this reply
     reply = _call(gateway, tool, arguments, surface)
-    pool.cache.put(key, reply)
+    pool.cache.put(key, reply, generation=generation)
     return reply
 
 

@@ -174,7 +174,9 @@ Outputs: `new_head` (1 or 0) and `findings`, the counts object.
 9. **`github.pr_open`** on `github-app`, with the files the bridge returned.
    The branch is `qodo-config/update`, the labels are `qodo-config` and
    `automated`, and the title is fixed. The body names the merged PR and the
-   checked base. If a configuration PR is still open, the step completes with
+   checked base. The step passes `base_sha`, the commit the agent started from:
+   if `main` has moved since, the files would overwrite the newer tip, so the
+   step is refused `base_moved` and the run fails with nothing opened. If a configuration PR is still open, the step completes with
    `skipped: branch_exists`. That is how the at-most-one-open-PR rule works,
    and the run still ends `succeeded`.
 
@@ -415,8 +417,9 @@ the fix flow, disable `qodo-fix-on-request`. Nothing else needs undoing.
   `too_large`.
 - **Held fix requests coalesce.** Of several requests for one repo held during
   a run, only the newest runs (above).
-- **The head may move after the last check.** `same_head` reads the pull
-  request seconds before `github.pr_open` builds on the branch's tip. A push
-  in those seconds is not caught.
+- **The head may move during the run.** `same_head` fails the run when the pull
+  request's head moved while the agent worked, and `github.pr_open` is given
+  `base_sha` as well, so a push in the seconds after that check is refused
+  `base_moved` instead of being overwritten. Ask for the fix again.
 - **`requested_by` is not checked by the rule.** It is kept in the run's inputs
   and never written to the pull request. Who asked is in the bridge's change log.

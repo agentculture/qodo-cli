@@ -5,7 +5,10 @@ The bundle is configuration for culture-rules >= 0.47.0 (the first release with
 with the reason, when it is not importable, older than 0.47.0 or lacks ``github.pr_open``. Run it
 for real with::
 
-    uv run --with /path/to/culture-rules pytest tests/test_culture_rules_bundle.py
+    uv run --with-editable /path/to/culture-rules pytest tests/test_culture_rules_bundle.py
+
+(``--with-editable``, not ``--with``: uv caches a build of a path it was given with ``--with``
+and keeps using it after the source changes.)
 
 End to end, the shipped definitions are imported with culture-rules' own import code into a
 ``MemoryStore``; GitHub events are recorded by culture-rules' real webhook receiver
@@ -986,6 +989,30 @@ def test_a_merge_runs_associate_then_opens_one_pr_with_the_literal_branch_and_la
     polls = [p for p in world.bridges.paths() if p.startswith("GET /runs/")]
     assert len(polls) == 3
     assert [c for c, _ in world.runner.commands].count("pause") == 3
+
+
+def test_main_moving_while_the_agent_worked_opens_no_pr(pem):
+    """The proposal holds whole files made from the commit the run started on. If main has
+    moved since, opening the PR would write them over the newer tip, so the step is refused."""
+    world = improve_world(pem)
+    world.github.refs["main"] = SHA_B  # main gained a commit; the agent worked on BASE_SHA
+    world.github.commits[SHA_B] = {"tree": {"sha": BASE_TREE}}
+    world.merge()
+    world.settle(120)
+    (run,) = improve_runs(world)
+    assert run["status"] == "failed"
+    assert run["error"]["step"] == "open_pr"
+    assert "base_moved" in json.dumps(run["error"])
+    assert world.github.pulls == []
+    assert world.github.trees == []
+
+
+def test_both_flows_tell_the_open_pr_step_which_commit_the_files_were_made_from():
+    for name in ("qodo-improve", "qodo-fix"):
+        workflow = json.loads((BUNDLE / "workflows" / f"{name}.json").read_text(encoding="utf-8"))
+        steps = workflow.get("workflow", workflow)["steps"]
+        (open_pr,) = [s for s in steps if s["id"] == "open_pr"]
+        assert open_pr["config"]["action"]["params"]["base_sha"] == "inputs.run.base_commit", name
 
 
 def test_nothing_to_merge_ends_quietly_with_no_pr(pem):

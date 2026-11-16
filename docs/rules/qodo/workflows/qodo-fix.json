@@ -300,6 +300,12 @@
       "source_port": "value",
       "target": "same_head",
       "target_port": "proposal"
+    },
+    {
+      "source": "run",
+      "source_port": "value",
+      "target": "open_pr",
+      "target_port": "run"
     }
   ],
   "enabled": true,
@@ -2003,7 +2009,8 @@
               "automated"
             ],
             "repo": "inputs.repo",
-            "title": "Fix Qodo findings on #{{ inputs.number }}"
+            "title": "Fix Qodo findings on #{{ inputs.number }}",
+            "base_sha": "inputs.run.base_commit"
           }
         },
         "builtin": "action",
@@ -2069,6 +2076,12 @@
           "name": "checked",
           "required": true,
           "type": "string"
+        },
+        {
+          "description": "",
+          "name": "run",
+          "required": false,
+          "type": "object"
         }
       ],
       "kind": "code",
