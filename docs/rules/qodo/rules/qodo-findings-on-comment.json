@@ -1,0 +1,100 @@
+{
+  "action": {
+    "idempotent": false,
+    "kind": "noop",
+    "name": "Nothing: the work is the workflow's",
+    "only_at_chain_end": false,
+    "params": {},
+    "retry": null,
+    "timeout_s": null
+  },
+  "concurrency_key": "qodo-findings:{trigger.data.repository}#{trigger.data.number}",
+  "condition": {
+    "args": [
+      {
+        "items": {
+          "literal": [
+            "qodo-code-review[bot]"
+          ]
+        },
+        "op": "in",
+        "value": {
+          "field": "data.author"
+        }
+      },
+      {
+        "cmp": "==",
+        "left": {
+          "field": "data.self_authored"
+        },
+        "op": "compare",
+        "right": {
+          "literal": false
+        }
+      },
+      {
+        "cmp": "==",
+        "left": {
+          "field": "data.head_repo"
+        },
+        "op": "compare",
+        "right": {
+          "field": "data.base_repo"
+        }
+      },
+      {
+        "cmp": "==",
+        "left": {
+          "field": "data.draft"
+        },
+        "op": "compare",
+        "right": {
+          "literal": false
+        }
+      },
+      {
+        "items": {
+          "literal": [
+            "example-owner/example-repo"
+          ]
+        },
+        "op": "in",
+        "value": {
+          "field": "data.repository"
+        }
+      }
+    ],
+    "op": "and"
+  },
+  "counts_toward_budget": true,
+  "description": "qodo bridge, findings flow: fires on github.comment.created when the author is Qodo's bot (a literal login list), on a same-repo, non-draft PR in an allowed repo, never on an event culture-rules' own App wrote (self_authored must be explicitly false, so the App actor needs its self_identity). The three findings rules share one concurrency key per repo and PR with max_attempts 1: a burst of events from one Qodo review starts one run, and the next push (github.pr.synchronize, not self-authored) or green checks open the budget again; the workflow's keyset step skips a head commit it already collected. Ships disabled; see the bundle README before enabling.",
+  "enabled": false,
+  "exclusive_group": null,
+  "id": "qodo-findings-on-comment",
+  "max_attempts": 1,
+  "may_after": [],
+  "must_after": [],
+  "name": "Collect Qodo's findings when Qodo posts a comment on a PR",
+  "on_failure": null,
+  "placement": null,
+  "priority": 0,
+  "resets_attempt_budget": false,
+  "schema_version": "1.0",
+  "supersedes": [],
+  "trigger": {
+    "kind": "event",
+    "params": {
+      "type": "github.comment.created"
+    }
+  },
+  "workflow": {
+    "id": "qodo-findings",
+    "inputs": {
+      "head_sha": "trigger.data.head_sha",
+      "number": "trigger.data.number",
+      "pr_url": "trigger.data.url",
+      "repo": "trigger.data.repository"
+    },
+    "version": null
+  }
+}

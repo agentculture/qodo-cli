@@ -1,0 +1,413 @@
+{
+  "description": "Once per PR head commit, after Qodo's own review lands, asks the qodo-cli bridge for the PR's findings and keeps the counts (open, closed, by status) as the run's outputs.",
+  "edges": [
+    {
+      "source": "inputs",
+      "source_port": "repo",
+      "target": "seen",
+      "target_port": "repo"
+    },
+    {
+      "source": "inputs",
+      "source_port": "number",
+      "target": "seen",
+      "target_port": "number"
+    },
+    {
+      "source": "inputs",
+      "source_port": "head_sha",
+      "target": "seen",
+      "target_port": "head_sha"
+    },
+    {
+      "source": "inputs",
+      "source_port": "pr_url",
+      "target": "list",
+      "target_port": "pr_url"
+    },
+    {
+      "source": "seen",
+      "source_port": "kept",
+      "target": "list",
+      "target_port": "kept"
+    },
+    {
+      "source": "list",
+      "source_port": "body",
+      "target": "findings",
+      "target_port": "text"
+    },
+    {
+      "source": "inputs",
+      "source_port": "repo",
+      "target": "remember",
+      "target_port": "repo"
+    },
+    {
+      "source": "inputs",
+      "source_port": "number",
+      "target": "remember",
+      "target_port": "number"
+    },
+    {
+      "source": "inputs",
+      "source_port": "head_sha",
+      "target": "remember",
+      "target_port": "head_sha"
+    },
+    {
+      "source": "findings",
+      "source_port": "value",
+      "target": "remember",
+      "target_port": "value"
+    }
+  ],
+  "enabled": true,
+  "id": "qodo-findings",
+  "inputs": [
+    {
+      "description": "",
+      "name": "repo",
+      "required": true,
+      "type": "string"
+    },
+    {
+      "description": "",
+      "name": "number",
+      "required": true,
+      "type": "integer"
+    },
+    {
+      "description": "",
+      "name": "head_sha",
+      "required": true,
+      "type": "string"
+    },
+    {
+      "description": "",
+      "name": "pr_url",
+      "required": true,
+      "type": "string"
+    }
+  ],
+  "name": "Collect Qodo's findings on a PR",
+  "notes": "Steps: keyset.filter on repo#number@head_sha (set qodo-findings-heads, 90 days); http.call POST /verbs/findings/list with summary true (counts, ids, statuses and URLs only, under the 64 KiB http.call cap) through qodo-bridge, only when the head is new; json.parse of the reply; keyset.add of the same key, last, so a failed run marks nothing and the next Qodo event for that head retries, while a duplicate after a success is filtered. The first version only collects and shows: it dismisses or implements nothing.",
+  "outputs": [
+    {
+      "name": "new_head",
+      "source": "steps.seen.outputs.kept",
+      "type": "integer"
+    },
+    {
+      "name": "findings",
+      "source": "steps.findings.outputs.value",
+      "type": "object"
+    }
+  ],
+  "schema_version": "1.0",
+  "steps": [
+    {
+      "body": [],
+      "config": {
+        "builtin": "keyset.filter",
+        "key_field": "key",
+        "normalise": {},
+        "set": "qodo-findings-heads",
+        "window_days": 90,
+        "with": {
+          "items": [
+            {
+              "key": "{{ inputs.repo }}#{{ inputs.number }}@{{ inputs.head_sha }}"
+            }
+          ]
+        }
+      },
+      "description": "",
+      "enabled": true,
+      "id": "seen",
+      "inputs": [
+        {
+          "description": "",
+          "name": "repo",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "description": "",
+          "name": "number",
+          "required": true,
+          "type": "integer"
+        },
+        {
+          "description": "",
+          "name": "head_sha",
+          "required": true,
+          "type": "string"
+        }
+      ],
+      "kind": "code",
+      "max_iterations": null,
+      "name": "Skip a head commit already collected",
+      "notes": "",
+      "outputs": [
+        {
+          "description": "",
+          "name": "items",
+          "required": true,
+          "type": "array"
+        },
+        {
+          "description": "",
+          "name": "kept",
+          "required": true,
+          "type": "integer"
+        },
+        {
+          "description": "",
+          "name": "dropped",
+          "required": true,
+          "type": "integer"
+        },
+        {
+          "description": "",
+          "name": "keyless",
+          "required": true,
+          "type": "integer"
+        }
+      ],
+      "placement": null,
+      "retry": null,
+      "timeout_s": null
+    },
+    {
+      "body": [],
+      "config": {
+        "action": {
+          "kind": "http.call",
+          "params": {
+            "actor": "qodo-bridge",
+            "body": {
+              "pr_url": "inputs.pr_url",
+              "summary": true
+            },
+            "method": "POST",
+            "url": "http://127.0.0.1:8792/verbs/findings/list"
+          }
+        },
+        "builtin": "action",
+        "when": {
+          "cmp": ">",
+          "left": {
+            "var": "kept"
+          },
+          "op": "compare",
+          "right": {
+            "literal": 0
+          }
+        }
+      },
+      "description": "",
+      "enabled": true,
+      "id": "list",
+      "inputs": [
+        {
+          "description": "",
+          "name": "pr_url",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "description": "",
+          "name": "kept",
+          "required": true,
+          "type": "integer"
+        }
+      ],
+      "kind": "code",
+      "max_iterations": null,
+      "name": "Ask the bridge for the PR's findings",
+      "notes": "",
+      "outputs": [
+        {
+          "description": "",
+          "name": "status",
+          "required": true,
+          "type": "integer"
+        },
+        {
+          "description": "",
+          "name": "body",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "description": "",
+          "name": "truncated",
+          "required": true,
+          "type": "boolean"
+        }
+      ],
+      "placement": null,
+      "retry": null,
+      "timeout_s": 120
+    },
+    {
+      "body": [],
+      "config": {
+        "builtin": "json.parse",
+        "shape": {
+          "extra": "drop",
+          "fields": {
+            "counts": {
+              "extra": "drop",
+              "fields": {
+                "closed": {
+                  "min": 0,
+                  "type": "int"
+                },
+                "open": {
+                  "min": 0,
+                  "type": "int"
+                },
+                "other": {
+                  "min": 0,
+                  "type": "int"
+                },
+                "total": {
+                  "min": 0,
+                  "type": "int"
+                }
+              },
+              "type": "object"
+            },
+            "findings": {
+              "default": [],
+              "max_items": 1000,
+              "type": "list"
+            },
+            "pr_url": {
+              "default": null,
+              "nullable": true,
+              "type": "text"
+            }
+          },
+          "type": "object"
+        },
+        "when": {
+          "arg": {
+            "var": "text"
+          },
+          "op": "exists"
+        }
+      },
+      "description": "",
+      "enabled": true,
+      "id": "findings",
+      "inputs": [
+        {
+          "description": "",
+          "name": "text",
+          "required": false,
+          "type": "any"
+        }
+      ],
+      "kind": "code",
+      "max_iterations": null,
+      "name": "Read the counts",
+      "notes": "",
+      "outputs": [
+        {
+          "description": "",
+          "name": "value",
+          "required": true,
+          "type": "object"
+        }
+      ],
+      "placement": null,
+      "retry": null,
+      "timeout_s": null
+    },
+    {
+      "body": [],
+      "config": {
+        "builtin": "keyset.add",
+        "key_field": "key",
+        "max_keys": 1,
+        "normalise": {},
+        "set": "qodo-findings-heads",
+        "when": {
+          "arg": {
+            "var": "value"
+          },
+          "op": "exists"
+        },
+        "window_days": 90,
+        "with": {
+          "items": [
+            {
+              "key": "{{ inputs.repo }}#{{ inputs.number }}@{{ inputs.head_sha }}"
+            }
+          ]
+        }
+      },
+      "description": "",
+      "enabled": true,
+      "id": "remember",
+      "inputs": [
+        {
+          "description": "",
+          "name": "repo",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "description": "",
+          "name": "number",
+          "required": true,
+          "type": "integer"
+        },
+        {
+          "description": "",
+          "name": "head_sha",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "description": "",
+          "name": "value",
+          "required": false,
+          "type": "object"
+        }
+      ],
+      "kind": "code",
+      "max_iterations": null,
+      "name": "Remember the head commit",
+      "notes": "",
+      "outputs": [
+        {
+          "description": "",
+          "name": "added",
+          "required": true,
+          "type": "integer"
+        },
+        {
+          "description": "",
+          "name": "already_present",
+          "required": true,
+          "type": "integer"
+        },
+        {
+          "description": "",
+          "name": "keyless",
+          "required": true,
+          "type": "integer"
+        }
+      ],
+      "placement": null,
+      "retry": null,
+      "timeout_s": null
+    }
+  ],
+  "variables": [],
+  "version": 1
+}
