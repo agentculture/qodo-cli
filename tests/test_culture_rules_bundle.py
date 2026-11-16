@@ -966,6 +966,17 @@ def test_a_propose_refusal_ends_with_its_reason_and_opens_nothing(pem):
     assert world.github.pulls == [] and world.github.trees == []
 
 
+def test_a_refusal_with_no_reason_still_fails_the_flow(pem):
+    world = improve_world(pem)
+    world.bridges.proposal = {"ok": False}
+    world.merge()
+    world.settle(120)
+    (run,) = improve_runs(world)
+    assert run["status"] == "failed"
+    assert run["error"]["step"] == "refusal"
+    assert world.github.pulls == [] and world.github.trees == []
+
+
 def test_an_open_configuration_pr_makes_the_next_run_end_branch_exists_without_failing(pem):
     world = improve_world(pem)
     world.merge(7)
