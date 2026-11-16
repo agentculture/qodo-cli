@@ -110,7 +110,7 @@ def _render_resolve(pr_number: int, items: list[dict]) -> str:
 def cmd_review_resolve(args: argparse.Namespace) -> int:
     json_mode = bool(getattr(args, "json", False))
     result = api.review_resolve(
-        list(getattr(args, "comment_id", None) or []),
+        list(getattr(args, "ids", None) or []),
         pr=getattr(args, "pr", None),
         all=bool(getattr(args, "all", False)),
         severity=getattr(args, "severity", None),
@@ -164,8 +164,10 @@ def register(sub: argparse._SubParsersAction) -> None:
         help="Reply to, acknowledge, and resolve Qodo comment(s).",
     )
     resolvep.add_argument(
-        "comment_id",
+        "ids",
+        metavar="COMMENT_ID",
         nargs="*",
+        default=[],
         help="Inline review comment id(s) to resolve (omit when using --all/--severity).",
     )
     resolvep.add_argument(

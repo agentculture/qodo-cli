@@ -439,12 +439,17 @@ def _review_resolve(params: dict[str, Any] | None = None, *, surface: str = "cli
 
     given = _given(params)
     validate_params(_LOCAL_SCHEMAS[("review", "resolve")], given)
+    from types import SimpleNamespace
+
+    from qodo.cli._commands.review import _maybe_sign  # the one place a reply is signed
+
+    reply = SimpleNamespace(reply=given.get("reply"), sign=bool(given.get("sign")))
     result = api.review_resolve(
         list(given.get("ids", [])),
         pr=given.get("pr"),
         all=bool(given.get("all")),
         severity=given.get("severity"),
-        reply=given.get("reply"),
+        reply=lambda: _maybe_sign(reply),
         resolve_thread=not given.get("no_resolve_thread"),
     )
     return {key: result[key] for key in ("pr", "count", "ok", "resolved")}
@@ -507,6 +512,7 @@ _LOCAL_SCHEMAS: dict[tuple[str, str], dict[str, Any]] = {
             "all": {"type": "boolean", "description": "Resolve every inline Qodo comment."},
             "severity": {"type": "string", "enum": ["HIGH", "MEDIUM", "LOW"]},
             "reply": {"type": "string", "description": "A reply to post before acknowledging."},
+            "sign": {"type": "boolean", "description": "Append the nick signature to the reply."},
             "no_resolve_thread": {"type": "boolean", "description": "Skip thread resolution."},
         }
     ),

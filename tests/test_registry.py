@@ -381,3 +381,23 @@ def test_without_summary_the_full_reply_is_returned(stub):
         .handler({"pr_url": "https://github.com/o/r/pull/1"})
     )
     assert out == stub.reply
+
+
+def test_the_review_resolve_handler_passes_the_reply_and_signs_only_when_asked(monkeypatch):
+    from qodo.cli._commands import review
+
+    seen = []
+
+    def fake_resolve(ids, *, pr, all, severity, reply, resolve_thread):  # noqa: A002
+        seen.append(reply() if callable(reply) else reply)
+        return {"pr": 7, "count": len(ids), "ok": True, "resolved": []}
+
+    monkeypatch.setattr(api, "review_resolve", fake_resolve)
+    monkeypatch.setattr(review, "read_agent_fields", lambda: {"nick": "tester"})
+    handler = reg.default_registry().get("review", "resolve").handler
+    handler({"ids": ["1"], "reply": "done"})
+    handler({"ids": ["1"], "reply": "done", "sign": True})
+    handler({"ids": ["1"]})
+    assert seen == ["done", "done\n\n- tester (Claude)", None]
+    with pytest.raises(CliError):
+        handler({"ids": ["1"], "sign": True})  # signing needs a reply

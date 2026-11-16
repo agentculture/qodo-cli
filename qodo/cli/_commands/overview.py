@@ -35,6 +35,8 @@ _VERBS = [
     "config propose --repo R --checkout PATH --base REF — return a checkout's committed Qodo "
     "config change only if it is safe (read-only; allowlisted repo, root and paths)",
     "serve — run the HTTP API (the 'server' extra): POST /verbs/<noun>/<name> for each api verb",
+    "mcp — serve the mcp-surface verbs as MCP tools over stdio (the 'mcp' extra): one tool per "
+    "verb, named <noun>_<name>",
     "tokens issue|list|revoke — the API's service tokens (a token is printed once, at issue)",
     "whoami — identity probe (nick, version, backend, model)",
     "learn — structured self-teaching prompt",
