@@ -16,6 +16,10 @@ config:
 
 ignores:
   - "node_modules/**"
+  - "web/node_modules/**"
+  - "web/dist/**"
+  - "web/coverage/**"
+  - "qodo/web_dist/**"
   - ".local/**"
   - ".afi/**"
   - ".teken/**"

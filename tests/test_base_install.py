@@ -160,26 +160,27 @@ def _serve_and_get(command, env, port, paths):
         proc.stderr.close()
 
 
-def test_the_wheel_with_the_server_extra_serves_with_no_node_on_the_path(tmp_path):
-    """Build the wheel, install it with the ``server`` extra into a new environment and run
-    ``qodo-cli serve`` from there, on a PATH that holds no ``node``: ``/health`` answers, a token
-    issued by the same install opens ``/verbs``, and a UI build placed in the installed package
-    is served."""
+def _run(*argv, **kw):
+    return subprocess.run(argv, capture_output=True, text=True, check=False, **kw)
+
+
+def _install_wheel(tmp_path, *, with_ui: bool):
+    """Build the wheel (without the UI unless ``with_ui``), install it with the ``server`` extra
+    into a new environment and issue a viewer token there. Returns the command, the environment's
+    python, the env for running it (a PATH holding no ``node``) and the bearer header."""
     uv = shutil.which("uv")
     if uv is None:
         pytest.skip("uv is not installed")
-
-    def run(*argv, **kw):
-        return subprocess.run(argv, capture_output=True, text=True, check=False, **kw)
-
-    built = run(uv, "build", "--wheel", "--out-dir", str(tmp_path / "dist"), str(ROOT))
+    build_env = {**os.environ, "QODO_REQUIRE_WEB": "", "QODO_SKIP_WEB": "" if with_ui else "1"}
+    built = _run(uv, "build", "--wheel", "--out-dir", str(tmp_path / "dist"), str(ROOT),
+                 env=build_env)  # fmt: skip
     if built.returncode != 0:
         pytest.skip(f"the build needs the network: {built.stderr.strip()[-200:]}")
     wheel = next((tmp_path / "dist").glob("qodo_cli-*.whl"))
     venv = tmp_path / "venv"
     python = venv / "bin" / "python"
-    assert run(uv, "venv", "-q", str(venv)).returncode == 0
-    installed = run(uv, "pip", "install", "-q", "--python", str(python), f"{wheel}[server]")
+    assert _run(uv, "venv", "-q", str(venv)).returncode == 0
+    installed = _run(uv, "pip", "install", "-q", "--python", str(python), f"{wheel}[server]")
     if installed.returncode != 0:
         pytest.skip(f"the extra's packages need the network: {installed.stderr.strip()[-200:]}")
 
@@ -194,10 +195,36 @@ def test_the_wheel_with_the_server_extra_serves_with_no_node_on_the_path(tmp_pat
     }
     os.makedirs(env["HOME"])
     command = venv / "bin" / "qodo-cli"
-    issued = run(str(command), "tokens", "issue", "--name", "t", "--role", "viewer", "--json",
-                 env=env)  # fmt: skip
+    issued = _run(str(command), "tokens", "issue", "--name", "t", "--role", "viewer", "--json",
+                  env=env)  # fmt: skip
     assert issued.returncode == 0, issued.stderr
     bearer = {"Authorization": f"Bearer {json.loads(issued.stdout)['token']}"}
+    return command, python, env, bearer
+
+
+def _built_ui() -> Path | None:
+    """``web/dist``, built now when it is absent and npm is available (None: neither)."""
+    dist = ROOT / "web" / "dist"
+    if (dist / "index.html").is_file():
+        return dist
+    npm = shutil.which("npm")
+    if npm is None:
+        return None
+    web = ROOT / "web"
+    steps = [] if (web / "node_modules").is_dir() else [[npm, "ci"]]
+    for argv in [*steps, [npm, "run", "build"]]:
+        if _run(*argv, cwd=web).returncode != 0:
+            return None  # no network, or a broken toolchain: the caller skips and says so
+    return dist if (dist / "index.html").is_file() else None
+
+
+def test_the_wheel_with_the_server_extra_serves_with_no_node_on_the_path(tmp_path):
+    """Build the wheel, install it with the ``server`` extra into a new environment and run
+    ``qodo-cli serve`` from there, on a PATH that holds no ``node``: ``/health`` answers, a token
+    issued by the same install opens ``/verbs``, and a UI build placed in the installed package
+    is served."""
+    run = _run
+    command, python, env, bearer = _install_wheel(tmp_path, with_ui=False)
 
     health, verbs, root = _serve_and_get(
         command, env, _free_port(),
@@ -217,3 +244,35 @@ def test_the_wheel_with_the_server_extra_serves_with_no_node_on_the_path(tmp_pat
     (dist / "index.html").write_text("<!doctype html><title>ui</title>", encoding="utf-8")
     (page,) = _serve_and_get(command, env, _free_port(), [("/", {**bearer, "Accept": "text/html"})])
     assert page[0] == 200 and "<title>ui</title>" in page[1]
+
+
+def test_the_wheel_ships_the_built_ui_and_serve_returns_it_at_the_root(tmp_path):
+    """With ``web/dist`` built, the wheel carries it as ``qodo/web_dist`` and the installed
+    ``qodo-cli serve`` (no Node on the PATH) answers ``/`` with the real ``index.html`` and one
+    of its hashed assets."""
+    dist = _built_ui()
+    if dist is None:
+        pytest.skip("web/dist is absent and npm is unavailable (or cannot build): "
+                    "run `npm ci && npm run build` in web/ first")  # fmt: skip
+    command, python, env, bearer = _install_wheel(tmp_path, with_ui=True)
+    site = _run(
+        str(python), "-I", "-c", "import qodo, pathlib; print(pathlib.Path(qodo.__file__).parent)",
+        cwd=tmp_path,
+    )  # fmt: skip
+    packaged = Path(site.stdout.strip()) / "web_dist"
+    assert (packaged / "index.html").read_bytes() == (dist / "index.html").read_bytes()
+
+    index = (dist / "index.html").read_text(encoding="utf-8")
+    asset = re.search(r'(?:src|href)="(/assets/[^"]+\.js)"', index)
+    assert asset, index
+    html = {**bearer, "Accept": "text/html"}
+    root, route, script, health = _serve_and_get(
+        command, env, _free_port(),
+        [("/", html), ("/configuration", html), (asset.group(1), bearer), ("/health", None)],
+    )  # fmt: skip
+    assert root[0] == 200 and root[1] == index
+    assert route[0] == 200 and route[1] == index  # a client-side route falls back to the shell
+    assert script[0] == 200 and script[1] == (dist / asset.group(1).lstrip("/")).read_text(
+        encoding="utf-8"
+    )
+    assert health[0] == 200 and json.loads(health[1])["service"] == "qodo-cli"

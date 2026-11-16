@@ -1,0 +1,178 @@
+/*
+ * App layer over culture-design/tokens.css. Values come from the design canvas
+ * (the Findings, Configuration and Rules screens: sample content, real styling):
+ * a 1200px content width, 24px 16px 64px page padding, a 32px gap between the header and
+ * the page, the pill navigation with 11px 22px tabs and the key status in 14px soft ink.
+ * Every color is a tokens.css custom property or one of the app tokens below, which carry
+ * a dark-mode twin (prefers-color-scheme only, as upstream; the canvas is light only).
+ *
+ * Shape cited from culture-rules web/src/styles/app.css @ b7f861f690b57c4355f81371cc02ad1dd2ae9cac
+ * (cite-don't-import: this repo owns its copy).
+ */
+
+:root {
+  --danger: #9a2f1b;
+  --warn: #8a4a00;
+  --nav-line: rgba(35, 42, 77, 0.14);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --danger: #f2789a;
+    --warn: #f2b774;
+    --nav-line: rgba(233, 236, 248, 0.14);
+  }
+}
+
+/* The canvas sits on flat sky-paper: no dawn gradient behind the app. */
+body::before {
+  display: none;
+}
+
+body {
+  background: var(--bg);
+}
+
+.app {
+  min-height: 100dvh;
+  box-sizing: border-box;
+  padding: 24px 16px 64px;
+}
+
+.app__frame {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+/* ---------- header ---------- */
+
+.app-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.app-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-dot {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.app-header__wordmark {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--nav-line);
+  border-radius: 999px;
+  background: var(--surface);
+}
+
+.tabs__tab {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 11px 22px;
+  border-radius: 999px;
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.tabs__tab:hover {
+  color: var(--accent);
+}
+
+.tabs__tab:focus-visible {
+  border-radius: 999px;
+}
+
+.tabs__tab[aria-current="page"] {
+  background: var(--accent-strong);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.key-status {
+  display: block;
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+/* a key that needs attention says so in color and in weight, never in color alone */
+.key-status[data-key-state="expiring"] {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.key-status[data-key-state="expired"],
+.key-status[data-key-state="missing"],
+.key-status[data-key-state="invalid"] {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+/* ---------- placeholder tabs ---------- */
+
+.page {
+  min-width: 0;
+}
+
+.page__title {
+  margin: 0 0 12px;
+  font-family: var(--font-display);
+  font-size: 40px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.page__lede {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+
+main:focus {
+  outline: none;
+}
+
+@media (max-width: 720px) {
+  .tabs {
+    order: 3;
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .tabs__tab {
+    flex: 1 1 auto;
+    justify-content: center;
+    padding-inline: 12px;
+  }
+
+  .page__title {
+    font-size: 32px;
+  }
+}

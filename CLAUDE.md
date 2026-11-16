@@ -180,3 +180,17 @@ git grep -nI -e 'qodo-cli' -e 'qodo' -e 'agentculture/qodo-cli'
 Then rename the package dir, update `[project.scripts]`/`name` in
 `pyproject.toml`, edit `culture.yaml` (`suffix`/`backend`), rewrite the resident
 prompt file, and re-vendor only the skills you need (`docs/skill-sources.md`).
+
+## Web UI (`web/`)
+
+A Vite + React + TypeScript shell (Findings | Configuration | Rules; the screens are built
+later) cited from culture-rules' `web/`; every cited file carries a provenance header with the
+source path and commit. Commands, from `web/`: `npm ci`, `npm run typecheck`, `npm test`,
+`npm run check` (the design tokens), `npm run build`. The browser calls the same-origin `/api`
+prefix, which `qodo-cli serve` strips; in dev `npm run dev` proxies it to `QODO_API_URL`
+(default `http://127.0.0.1:8792`). `api/openapi.json` is checked by `web/src/api/contract.test.ts`.
+
+`hatch_build.py` packages an existing `web/dist` as `qodo/web_dist` (git-ignored build output) and
+never runs Node, so a wheel built without Node is API-only. Release order: `npm ci && npm run
+build` in `web/`, then `uv build` with `QODO_REQUIRE_WEB=1` (a missing build then fails the
+build); `.github/workflows/publish.yml` does exactly this.

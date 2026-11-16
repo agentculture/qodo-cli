@@ -1,0 +1,13 @@
+# Cited from culture-rules web/.gitignore @ b7f861f690b57c4355f81371cc02ad1dd2ae9cac; the Playwright entries are dropped.
+# Node / Vite build artifacts. package.json and package-lock.json ARE tracked.
+node_modules/
+dist/
+coverage/
+.vite/
+# Vite local env overrides — never committed.
+.env.local
+.env.*.local
+/test-results/
+/blob-report/
+# TypeScript incremental build info
+*.tsbuildinfo
