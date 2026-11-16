@@ -458,3 +458,45 @@ def test_gateway_is_stdlib_only():
             for m in mods:
                 top = m.split(".")[0]
                 assert top in sys.stdlib_module_names or top == "qodo", (name, m)
+
+
+# --- review fixes -----------------------------------------------------------------
+
+
+def test_a_destructive_hint_overrides_a_read_only_hint():
+    both = {"readOnlyHint": True, "destructiveHint": True}
+    assert not exposure_mod.is_read_only(both)
+    assert exposure_mod.is_read_only({"readOnlyHint": True, "destructiveHint": False})
+    assert exposure_mod.is_read_only({"readOnlyHint": True})
+
+
+def test_a_call_from_a_surface_the_policy_does_not_list_is_refused():
+    policy = exposure_mod.parse_policy(
+        {
+            "version": 1,
+            "tools": [
+                {
+                    "tool": "rules-metadata",
+                    "verb": "rules metadata",
+                    "surfaces": ["mcp"],
+                    "allow_write": False,
+                }
+            ],
+        }
+    )
+    fake = FakeUpstream()
+    g = gw.Gateway(policy, api_key=KEY, opener=fake)
+    with pytest.raises(CliError) as ei:
+        g.call("rules-metadata", surface="api")
+    assert ei.value.code == 1 and "surface" in ei.value.message
+    assert fake.requests == []  # refused before any request
+    assert isinstance(g.call("rules-metadata", surface="mcp"), dict)
+
+
+def test_the_rules_search_api_is_refused_when_the_policy_does_not_name_rules_search(monkeypatch):
+    monkeypatch.setattr(gw._qodo_api, "search_rules", lambda *a, **k: [{"name": "r"}])
+    empty = exposure_mod.parse_policy({"version": 1, "tools": []})
+    g = gw.Gateway(empty, api_key=KEY, opener=FakeUpstream())
+    with pytest.raises(CliError) as ei:
+        g.search_rules_api("q")
+    assert ei.value.code == 1 and "not exposed" in ei.value.message

@@ -217,15 +217,25 @@ class Gateway:
                     remediation=f"known arguments: {', '.join(sorted(props))}",
                 )
 
-    def call(self, name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
+    def call(
+        self, name: str, arguments: dict[str, Any] | None = None, *, surface: str | None = None
+    ) -> dict[str, Any]:
         """Call an upstream tool by name; returns its ``structuredContent``.
 
         Refused before any call when the policy does not name the tool, when it is not offered
-        upstream, or when it is not read-only and the policy does not allow the write. An
+        upstream, when ``surface`` (``cli``, ``api`` or ``mcp``; every surface passes its own)
+        is not one the policy lists for it, or when it is not read-only and the policy does not
+        allow the write. An
         ``isError`` reply raises :class:`CliError` (exit 1).
         """
         arguments = dict(arguments or {})
         entry = self.policy.require(name)
+        if surface is not None and surface not in entry.surfaces:
+            raise CliError(
+                code=EXIT_USER_ERROR,
+                message=f"tool {name!r} is not exposed on the {surface} surface",
+                remediation="add the surface to its policy entry to expose it there",
+            )
         tool = self._upstream(name)
         if not is_read_only(tool.get("annotations")) and not entry.allow_write:
             raise CliError(
@@ -251,7 +261,11 @@ class Gateway:
     def search_rules_api(
         self, query: str, *, top_k: int = _qodo_api.DEFAULT_TOP_K, scopes: list[str] | None = None
     ) -> list[dict[str, Any]]:
-        """Wrap the rules search API (``<base>/rules/search``); ranked rules, as ``rules_get``."""
+        """Wrap the rules search API (``<base>/rules/search``); ranked rules, as ``rules_get``.
+
+        It is the same capability as the ``rules-search`` tool, so the policy must name that
+        tool or the search is refused."""
+        self.policy.require("rules-search")
         return _qodo_api.search_rules(query, top_k=top_k, scopes=scopes)
 
 

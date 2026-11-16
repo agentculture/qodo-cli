@@ -125,5 +125,10 @@ def load_policy(path: Path | str | None = None) -> ExposurePolicy:
 
 
 def is_read_only(annotations: Any) -> bool:
-    """True only when the annotations say ``readOnlyHint`` is true; absent means not read-only."""
-    return isinstance(annotations, dict) and annotations.get("readOnlyHint") is True
+    """True only when the annotations say ``readOnlyHint`` is true and do not say
+    ``destructiveHint`` is true; absent annotations mean not read-only."""
+    if not isinstance(annotations, dict):
+        return False
+    return (
+        annotations.get("readOnlyHint") is True and annotations.get("destructiveHint") is not True
+    )
