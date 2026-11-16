@@ -272,12 +272,13 @@ def test_rules_get_is_the_older_http_search(monkeypatch):
     assert seen["query"] == "q" and seen["scopes"] == ["a/b"]
 
 
-def test_config_propose_is_registered_and_not_implemented():
+def test_config_propose_is_a_registered_read_only_local_verb():
     verb = reg.default_registry().get("config", "propose")
     assert verb is not None and verb.kind == "local"
+    assert verb.writes is False and "api" in verb.surfaces
     with pytest.raises(CliError) as err:
-        verb.handler({})
-    assert "not implemented" in err.value.message and err.value.remediation
+        verb.handler({})  # repo, checkout and base are required
+    assert err.value.code == EXIT_USER_ERROR and "missing required" in err.value.message
 
 
 # --- findings list --summary -------------------------------------------------------------

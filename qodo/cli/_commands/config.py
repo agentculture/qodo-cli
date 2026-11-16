@@ -7,7 +7,9 @@ and raises false positives). This is distinct from the *client*
 ``~/.qodo/config.json`` that :mod:`qodo.api` (rules) reads for ``qodo-cli rules``.
 
 ``show`` / ``validate`` are read-only; ``init`` scaffolds the two files when
-absent (never overwriting without ``--force``). Cite-faithful to Qodo Merge's
+absent (never overwriting without ``--force``). ``propose`` (built from the verb
+registry, logic in :mod:`qodo.propose`) is read-only too: it returns a checkout's
+committed config change only when it is safe. Cite-faithful to Qodo Merge's
 configuration docs; see ``docs/qodo-skills-sources.md``.
 """
 
@@ -123,7 +125,12 @@ def _config_sections() -> list[dict[str, object]]:
                 "config show — show the repo reviewer config (.pr_agent.toml + best_practices.md)",
                 "config validate — validate the reviewer config (exit 1 if invalid)",
                 "config init [--force] — scaffold a minimal reviewer config when absent",
-                *_build.noun_items("config", ["config show", "config validate", "config init"]),
+                "config propose --repo R --checkout PATH --base REF — return a checkout's "
+                "committed config change only if every path is allowlisted and every file "
+                "validates; a refusal names a reason and carries no contents",
+                *_build.noun_items(
+                    "config", ["config show", "config validate", "config init", "config propose"]
+                ),
                 "config overview — describe the config noun (this command)",
             ],
         },
@@ -139,7 +146,10 @@ def _config_sections() -> list[dict[str, object]]:
         {
             "title": "Conventions",
             "items": [
-                "show/validate are read-only; init never overwrites without --force",
+                "show/validate/propose are read-only; init never overwrites without --force",
+                "propose never pushes, merges or opens a PR; its allowlists are configuration "
+                "(qodo/propose_default.json, QODO_PROPOSE_CONFIG, QODO_PROPOSE_REPOS, "
+                "QODO_PROPOSE_CHECKOUT_ROOTS)",
                 "cite-faithful to Qodo Merge's configuration docs; supports --json",
             ],
         },

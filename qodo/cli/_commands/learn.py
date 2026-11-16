@@ -32,6 +32,8 @@ Commands
   qodo-cli review resolve <id>  Reply to and acknowledge a Qodo comment.
   qodo-cli pr ...               Alias for `review`.
   qodo-cli config show          Show/validate/init the repo Qodo reviewer config.
+  qodo-cli config propose       Check a committed Qodo config change against a base and
+                                return it only if safe (read-only; never opens a PR).
   qodo-cli whoami               Identity from culture.yaml.
   qodo-cli learn                This self-teaching prompt.
   qodo-cli explain <path>...    Markdown docs for any noun/verb path.
@@ -55,6 +57,7 @@ More detail
 -----------
   qodo-cli explain rules
   qodo-cli explain review
+  qodo-cli explain config propose
 """
 
 
@@ -68,6 +71,11 @@ def _as_json_payload() -> dict[str, object]:
             {"path": ["review", "list"], "summary": "List the Qodo bot's PR comments."},
             {"path": ["review", "resolve"], "summary": "Reply to / acknowledge a comment."},
             {"path": ["config", "show"], "summary": "Manage the repo Qodo reviewer config."},
+            {
+                "path": ["config", "propose"],
+                "summary": "Check a committed Qodo config change against a base; return it "
+                "only if safe (read-only).",
+            },
             {"path": ["whoami"], "summary": "Identity probe from culture.yaml."},
             {"path": ["learn"], "summary": "Self-teaching prompt."},
             {"path": ["explain"], "summary": "Markdown docs by path."},

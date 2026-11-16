@@ -581,3 +581,31 @@ def config_init(root: Path | None = None, *, force: bool = False) -> dict[str, A
         (repo_root / name).write_text(content, encoding="utf-8")
         written.append(name)
     return {"repo_root": str(repo_root), "written": written, "skipped": skipped, "forced": force}
+
+
+def config_propose(
+    repo: str,
+    checkout: str,
+    base: str,
+    *,
+    settings: Any = None,
+    actor: str | None = None,
+) -> dict[str, Any]:
+    """Is the change ``checkout``'s committed HEAD makes against ``base`` a safe Qodo config
+    change for ``repo``? A read: nothing is written to the checkout or anywhere else.
+
+    Success: ``{"ok": True, "repo", "base", "base_sha", "head", "files": [{"path", "content"}],
+    "warnings": [{"code", "path", "detail"}]}``. Refusal: ``{"ok": False, "reason", "detail",
+    "paths"}``, never with file contents (the reasons are ``qodo.propose.REASONS``). A broken
+    environment raises :class:`CliError`. ``settings`` defaults to
+    :func:`qodo.propose.load_settings` (the repo, checkout-root and path allowlists). After a
+    success one line (the repo and the paths) goes to the change log, with ``actor``.
+    """
+    from qodo import propose as _propose
+
+    result = _propose.propose(
+        repo, checkout, base, settings if settings is not None else _propose.load_settings()
+    )
+    if result["ok"]:
+        _changelog.record_config_proposal(repo, [f["path"] for f in result["files"]], actor=actor)
+    return result

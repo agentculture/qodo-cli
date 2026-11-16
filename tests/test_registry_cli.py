@@ -318,13 +318,10 @@ def test_a_finding_change_through_the_registry_is_logged_per_finding(monkeypatch
     assert len(changelog.read()) == 3  # a failed change logs nothing
 
 
-def test_config_propose_is_a_command_that_says_it_is_not_implemented(capsys):
-    rc, out, err = run(capsys, "config", "propose", "--json")
-    assert rc == 1 and out == ""
-    payload = json.loads(err)
-    assert "not implemented" in payload["message"] and payload["remediation"]
-    rc, _, err = run(capsys, "config", "propose")
-    assert rc == 1 and err.startswith("error:") and "hint:" in err
+def test_config_propose_is_a_command_with_required_flags(capsys):
+    with pytest.raises(SystemExit):
+        main(["config", "propose", "--json"])
+    assert "--repo" in capsys.readouterr().err
 
 
 def test_a_verb_the_policy_does_not_put_on_the_cli_has_no_command(monkeypatch, capsys):
