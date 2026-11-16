@@ -69,6 +69,8 @@ over HTTP or MCP, or through the registry (below).
 | `config_validate(root=None)` | `{"valid", "checks": [{"id", "ok", "severity", "message", "remediation"}]}`. `valid` is false only when an `error`-severity check fails |
 | `config_init(root=None, *, force=False)` | **Write.** `{"repo_root", "written", "skipped", "forced"}`. Refuses a symlink or a non-regular path before writing anything |
 | `config_propose(repo, checkout, base, *, settings=None, actor=None)` | See below |
+| `fix_propose(repo, checkout, base, *, settings=None, actor=None)` | See below |
+| `findings_fix(pr_url, finding_ids, *, note=None, actor=None, settings=None)` | **Write** (an event, not Qodo). See below |
 
 ### `config_propose`
 
@@ -84,6 +86,30 @@ and path allowlists ([operator guide](operations/bridge.md#config-propose-and-it
   not an exception.
 - A broken environment (git missing or timed out, a checkout that is not a git
   repository, an invalid settings file) raises `CliError` with code `2`.
+
+### `fix_propose`
+
+The same gate for an agent's committed code fix, with the same result shapes and
+reasons (`warnings` is always empty). `settings` defaults to
+`qodo.propose.load_settings(profile=qodo.propose.FIX_PROFILE)`: its own repo
+allowlist and checkout roots, any normal path except the refused set in
+`qodo/fix_default.json`, at most 20 files and a reply under 64 KiB
+([operator guide](operations/bridge.md#fix-requests-findings-fix-and-fix-propose)).
+A success logs one `fix.proposed` line (the repo and the paths).
+
+### `findings_fix`
+
+Publishes one `qodo.fix.requested` event on the mesh's event bus through
+events-cli (the `events` extra, imported only here) and returns
+`{"event_id", "type", "pr_url", "repo", "number", "finding_ids"}`. It does not
+call Qodo. A refusal raises `CliError` with code `1` and publishes and logs
+nothing: a URL that is not a `github.com` pull request, ids outside 1 to 20 plain
+ids, a note over 500 characters, a repo outside `config propose`'s repo allowlist
+(`settings`, default `qodo.propose.load_settings()`), or a repeat within
+`QODO_FIX_REQUEST_WINDOW` seconds. Without events-cli, with a malformed
+`EVENTS_BROKER_PORT` or with no broker taking the event it raises code `2`.
+`api._publisher()` returns the publish function (`fix_request.publish`); replace
+it to publish elsewhere, or in a test.
 
 ### Verbs by params dict
 
@@ -137,6 +163,8 @@ route.
 | `POST /verbs/history/similar` | viewer | `history similar` |
 | `POST /verbs/history/stats` | viewer | `history stats` |
 | `POST /verbs/config/propose` | editor | `config propose` |
+| `POST /verbs/findings/fix` | editor | `findings fix` (write: publishes one event) |
+| `POST /verbs/fix/propose` | editor | `fix propose` |
 | `GET /health` | public | Service name, version and the Qodo key status, never the key |
 | `GET /verbs` | viewer | Every served verb: noun, name, summary, kind, `writes`, `role`, `method`, `path` and the `params` schema |
 | `GET /changes?limit=N` | viewer | `{"entries": [...]}`, the newest change-log entries (`N` from 1 to 500, default 50) |
@@ -204,13 +232,14 @@ today.
 | 413 | `body_too_large` | The body is over 64 KiB |
 | 415 | `unsupported_media_type` | A body that is not `application/json` |
 | 500 | `internal_error` | An unexpected failure; nothing more is disclosed |
-| 503 | `environment_error` | Qodo, or this server's own configuration, could not complete the call (no key, Qodo unreachable) |
+| 503 | `environment_error` | Qodo, or this server's own configuration, could not complete the call (no key, Qodo unreachable, no `events` extra or no event broker for `findings fix`) |
 
 A path no rule lists needs `admin`, so a caller below `admin` gets 401 or 403
 for an unknown path or a wrong method before it can get 404 or 405.
 
-A `config propose` refusal is not an error: it is a 200 with `"ok": false` in
-the body.
+A `config propose` or `fix propose` refusal is not an error: it is a 200 with
+`"ok": false` in the body. A `findings fix` refusal (repo not allowlisted, a
+repeat within the window) is a 400.
 
 ### The pinned contract
 

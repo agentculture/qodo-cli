@@ -358,6 +358,18 @@ wheels = [
 ]
 
 [[package]]
+name = "events-cli"
+version = "0.10.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "paho-mqtt" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b0/7f/41fab1475aa258823746e2da62d9822e0ad4cbaf855a5d066931d70ee11b/events_cli-0.10.0.tar.gz", hash = "sha256:835d82fc94703533d78bb156cea773f01b19f4c9d1cb3dd8bd82e22d373c1399", size = 486897, upload-time = "2026-07-24T22:04:09.697Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a6/be/91ce7df0b81579384ed51a98c15ccff0f542e226f6319ee2d0739e3bbd3a/events_cli-0.10.0-py3-none-any.whl", hash = "sha256:03aef3d5d92671b2b879a26a3f731d6b08134ade56536e2b775b6a118d6f6be3", size = 144880, upload-time = "2026-07-24T22:04:08.31Z" },
+]
+
+[[package]]
 name = "execnet"
 version = "2.1.2"
 source = { registry = "https://pypi.org/simple" }
@@ -581,6 +593,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d7/f1/e7a6dd94a8d4a5626c03e4e99c87f241ba9e350cd9e6d75123f992427270/packaging-26.2.tar.gz", hash = "sha256:ff452ff5a3e828ce110190feff1178bb1f2ea2281fa2075aadb987c2fb221661", size = 228134, upload-time = "2026-04-24T20:15:23.917Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/df/b2/87e62e8c3e2f4b32e5fe99e0b86d576da1312593b39f47d8ceef365e95ed/packaging-26.2-py3-none-any.whl", hash = "sha256:5fc45236b9446107ff2415ce77c807cee2862cb6fac22b8a73826d0693b0980e", size = 100195, upload-time = "2026-04-24T20:15:22.081Z" },
+]
+
+[[package]]
+name = "paho-mqtt"
+version = "2.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/da/66/bba39edaac853235385c59e1e30600cd104b8779164c181780742d8095fc/paho_mqtt-2.2.0.tar.gz", hash = "sha256:bcf706f03f1f49e0fc3ae166dc7b67ee35463496f8bdfd7c9c36181f6ba635c9", size = 133751, upload-time = "2026-11-04T20:10:51.405Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bf/af/fea4b0ee14cee6149f18d180430a14be0963b9a4fbc7875421a7de75f831/paho_mqtt-2.2.0-py3-none-any.whl", hash = "sha256:3243630f7c2b05f71d1de8c6f59865eb04d3a59ae8c866e92377faed6753db4d", size = 77202, upload-time = "2026-11-04T20:10:50.148Z" },
 ]
 
 [[package]]
@@ -960,6 +981,9 @@ version = "0.10.0"
 source = { editable = "." }
 
 [package.optional-dependencies]
+events = [
+    { name = "events-cli" },
+]
 mcp = [
     { name = "mcp" },
 ]
@@ -973,6 +997,7 @@ dev = [
     { name = "bandit" },
     { name = "black" },
     { name = "cryptography" },
+    { name = "events-cli" },
     { name = "fastapi" },
     { name = "flake8" },
     { name = "httpx" },
@@ -988,17 +1013,19 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "events-cli", marker = "extra == 'events'", specifier = ">=0.10" },
     { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.115" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.2,<2" },
     { name = "uvicorn", marker = "extra == 'server'", specifier = ">=0.30" },
 ]
-provides-extras = ["server", "mcp"]
+provides-extras = ["server", "mcp", "events"]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "bandit", specifier = ">=1.7.5" },
     { name = "black", specifier = ">=23.7.0" },
     { name = "cryptography", specifier = ">=42" },
+    { name = "events-cli", specifier = ">=0.10" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "flake8", specifier = ">=6.1" },
     { name = "httpx", specifier = ">=0.27" },

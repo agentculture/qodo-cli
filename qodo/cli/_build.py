@@ -25,7 +25,9 @@ from qodo.cli._output import add_json_flag, emit_result
 from qodo.registry import Verb
 
 NOUN_HELP = {
-    "findings": "Qodo's findings on a pull request: list them, mark implemented, dismiss.",
+    "findings": "Qodo's findings on a pull request: list them, mark implemented, dismiss, or "
+    "ask for an agent to fix them.",
+    "fix": "Check an agent's committed code fix before culture-rules proposes it as a PR.",
     "history": "What Qodo's PR history says about a file, a similar change, or a repo.",
     "prs": "A repo's pull requests, as Qodo's read-only litegit tool lists them.",
 }
@@ -221,14 +223,21 @@ def missing_lines(existing_text: str) -> list[str]:
 
 
 def noun_sections(noun: str) -> list[dict[str, object]]:
+    verbs = cli_verbs(noun)
+    conventions = []
+    if any(v.kind == "upstream" for v in verbs):
+        conventions += [
+            "built from the exposure policy: a tool the policy does not name has no verb",
+            "calls Qodo's remote MCP server with QODO_API_KEY; supports --json",
+            "exit 1 on bad input or a refused call, 2 when Qodo cannot be reached",
+        ]
+    local = [f"{v.noun} {v.name}" for v in verbs if v.kind == "local"]
+    if local:
+        conventions += [
+            f"{', '.join(local)}: local (no exposure policy, no Qodo call); supports --json; "
+            f"`qodo-cli explain <verb>` says what each checks and refuses"
+        ]
     return [
         {"title": "Verbs", "items": noun_items(noun) + [f"{noun} overview — describe this noun"]},
-        {
-            "title": "Conventions",
-            "items": [
-                "built from the exposure policy: a tool the policy does not name has no verb",
-                "calls Qodo's remote MCP server with QODO_API_KEY; supports --json",
-                "exit 1 on bad input or a refused call, 2 when Qodo cannot be reached",
-            ],
-        },
+        {"title": "Conventions", "items": conventions},
     ]

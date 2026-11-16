@@ -34,6 +34,11 @@ _VERBS = [
     "config show|validate|init — manage the repo-level Qodo reviewer config",
     "config propose --repo R --checkout PATH --base REF — return a checkout's committed Qodo "
     "config change only if it is safe (read-only; allowlisted repo, root and paths)",
+    "findings fix --pr-url URL --finding-ids ID — ask for an agent to fix findings: publish one "
+    "qodo.fix.requested event on the mesh's bus (the 'events' extra; allowlisted repo, rate "
+    "guard; never opens a PR)",
+    "fix propose --repo R --checkout PATH --base REF — return an agent's committed code fix only "
+    "if it is safe (read-only; its own allowlists; refused paths; small fixes only)",
     "serve — run the HTTP API (the 'server' extra): POST /verbs/<noun>/<name> for each api verb",
     "mcp — serve the mcp-surface verbs as MCP tools over stdio (the 'mcp' extra): one tool per "
     "verb, named <noun>_<name>",

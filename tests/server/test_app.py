@@ -161,7 +161,8 @@ def test_an_editor_can_change_a_finding(client, auth, gateway):
 def test_the_role_table():
     reg = registry.default_registry()
     for verb in reg.on_surface("api"):
-        expected = "editor" if verb.writes or verb.verb == "config propose" else "viewer"
+        gates = ("config propose", "fix propose")
+        expected = "editor" if verb.writes or verb.verb in gates else "viewer"
         assert role_for(verb) == expected, verb.verb
     policy = build_policy(reg)
     assert policy.required_role("GET", "/health") is None

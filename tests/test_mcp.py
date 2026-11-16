@@ -120,7 +120,8 @@ def test_an_unexposed_upstream_tool_is_absent_and_a_call_to_it_is_refused(monkey
     # the policy names one upstream tool: no other upstream tool is served (the local verbs
     # that are on mcp are not upstream tools)
     assert "catalogue_facts" in names
-    assert not {n for n in names if n.split("_")[0] in ("findings", "history")}
+    upstream_named = {n for n in names if n.split("_")[0] in ("findings", "history")}
+    assert upstream_named == {"findings_fix"}  # a local verb, not an upstream tool
     res = call(tools, "findings_list", {"pr_url": PR})
     assert res.isError and "unknown tool" in res.content[0].text
 
