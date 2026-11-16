@@ -101,6 +101,14 @@ _ERRORS = {
 }
 
 
+def _whole(raw: str, high: int, *, low: int = 1) -> bool:
+    """True when ``raw`` is ASCII digits for a number from ``low`` to ``high``.
+
+    ``str.isdigit()`` alone also accepts digits such as superscript two, which ``int()`` rejects.
+    """
+    return raw.isascii() and raw.isdigit() and low <= int(raw) <= high
+
+
 def route_path(verb: Verb) -> str:
     """``/verbs/<noun>/<name>``; a name that is not a plain lower-case token is refused."""
     for part in (verb.noun, verb.name):
@@ -213,8 +221,14 @@ def create_app(
 
     @app.middleware("http")
     async def authorize(request: Request, call_next: Any) -> Any:
-        """The credential and the role, before any handler (and so before any body is read)."""
-        method, path = request.method, request.url.path
+        """The credential and the role, before any handler (and so before any body is read).
+
+        The role is looked up on ``scope["path"]``, the decoded path the router matches (after the
+        ``/api`` prefix shim, which runs outside this middleware), never on ``request.url.path``:
+        that one is re-parsed from a URL, so a ``?`` or ``#`` that arrived percent-encoded inside
+        the path could cut it short (``/health%3F/../x`` read as ``/health``, the public rule).
+        """
+        method, path = request.method, request.scope["path"]
         try:
             if policy.required_role(method, path) is not None:
                 principal = resolver.resolve(dict(request.headers.items()))
@@ -237,7 +251,7 @@ def create_app(
     async def read_params(request: Request) -> dict[str, Any]:
         """The JSON object body, read with a hard size cap (a chunked body too)."""
         declared = request.headers.get("content-length")
-        if declared is not None and (not declared.isdigit() or int(declared) > MAX_BODY_BYTES):
+        if declared is not None and not _whole(declared, MAX_BODY_BYTES, low=0):
             raise _Refused(
                 413, "body_too_large", f"the body must be at most {MAX_BODY_BYTES} bytes"
             )
@@ -348,7 +362,7 @@ def create_app(
     )
     async def changes(request: Request) -> Any:
         raw = request.query_params.get("limit", str(DEFAULT_CHANGES))
-        if not raw.isdigit() or not 1 <= int(raw) <= MAX_CHANGES:
+        if not _whole(raw, MAX_CHANGES):
             return fail(400, "user_error", f"limit must be a whole number from 1 to {MAX_CHANGES}")
         kind = request.query_params.get("kind")
         if kind is not None and not re.fullmatch(CHANGE_KIND_PATTERN, kind):

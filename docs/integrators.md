@@ -59,6 +59,14 @@ short string you choose). Over HTTP the server passes the surface and the caller
 `history similar` and `history stats` have no function in `qodo.api`; reach them
 over HTTP or MCP, or through the registry (below).
 
+Each call builds a new gateway (an MCP handshake and Qodo's tool list, then the
+call), which suits a process that makes one call. A long-lived process can call
+`api.share_upstream()` once, as `qodo-cli serve` does: calls then reuse one
+gateway per API key and exposure policy (rebuilt after a failure that suggests a
+stale session or tool list), and the paged form of the `findings list` verb
+reads a PR's full reply from a 30-second cache that `findings implement` and
+`findings dismiss` clear. `api.share_upstream(False)` turns it off.
+
 ### Functions that read or write locally
 
 | Function | Returns |
@@ -106,8 +114,9 @@ events-cli (the `events` extra, imported only here) and returns
 `{"event_id", "type", "pr_url", "repo", "number", "finding_ids"}`. It does not
 call Qodo. A refusal raises `CliError` with code `1` and publishes and logs
 nothing: a URL that is not a `github.com` pull request, ids outside 1 to 20 plain
-ids, a note over 500 characters, a repo outside `config propose`'s repo allowlist
-(`settings`, default `qodo.propose.load_settings()`), or a repeat within
+ids, a note over 500 characters, a repo outside `fix propose`'s repo allowlist
+(`settings`, default `qodo.propose.load_settings(profile=qodo.propose.FIX_PROFILE)`,
+so the request gate is the proposal gate), or a repeat within
 `QODO_FIX_REQUEST_WINDOW` seconds. Without events-cli, with a malformed
 `EVENTS_BROKER_PORT` or with no broker taking the event it raises code `2`.
 `api._publisher()` returns the publish function (`fix_request.publish`); replace

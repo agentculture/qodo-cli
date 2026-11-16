@@ -10,12 +10,18 @@ Default deny: a tool the :mod:`qodo.exposure` policy does not name is refused, a
 upstream annotation is not ``readOnlyHint: true`` (or has no annotation, or is not offered) is
 refused unless the policy marks it ``allow_write``. The endpoint must be HTTPS and the API key is
 never put in an error message, a repr or a log.
+
+One gateway may serve several threads at once (the server shares one, see
+:mod:`qodo.upstream_share`): request ids are taken under a lock, and the handshake and the tool
+list are set up once under another. ``stale`` turns true after a transport or protocol failure,
+or when a tool is missing from the cached tool list: a sharer then builds a new gateway.
 """
 
 from __future__ import annotations
 
 import json
 import socket
+import threading
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -77,6 +83,10 @@ class Gateway:
         self._next_id = 0
         self._ready = False
         self._tools: dict[str, dict[str, Any]] | None = None
+        self._id_lock = threading.Lock()
+        self._setup_lock = threading.RLock()
+        #: True once a failure suggests the session or the tool list is stale.
+        self.stale = False
 
     def __repr__(self) -> str:
         return f"Gateway(endpoint={self._endpoint!r})"
@@ -87,6 +97,7 @@ class Gateway:
         return text.replace(self._key, "[redacted]") if self._key else text
 
     def _env_error(self, message: str, remediation: str = "") -> CliError:
+        self.stale = True
         return CliError(code=EXIT_ENV_ERROR, message=self._redact(message), remediation=remediation)
 
     def _post(self, message: dict[str, Any]) -> bytes:
@@ -142,12 +153,17 @@ class Gateway:
                 return m
         raise self._env_error("Qodo MCP reply held no JSON-RPC response", "report this upstream")
 
+    def _take_id(self) -> int:
+        with self._id_lock:
+            self._next_id += 1
+            return self._next_id
+
     def _request(self, method: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
-        self._next_id += 1
-        message: dict[str, Any] = {"jsonrpc": "2.0", "id": self._next_id, "method": method}
+        request_id = self._take_id()
+        message: dict[str, Any] = {"jsonrpc": "2.0", "id": request_id, "method": method}
         if params is not None:
             message["params"] = params
-        reply = self._decode(self._post(message), self._next_id)
+        reply = self._decode(self._post(message), request_id)
         error = reply.get("error")
         if error is not None:
             detail = error.get("message", "") if isinstance(error, dict) else ""
@@ -156,19 +172,28 @@ class Gateway:
         return result if isinstance(result, dict) else {}
 
     def _handshake(self) -> None:
-        if self._ready:
-            return
-        self._request(
-            "initialize",
-            {"protocolVersion": PROTOCOL_VERSION, "capabilities": {}, "clientInfo": _CLIENT_INFO},
-        )
-        self._post({"jsonrpc": "2.0", "method": "notifications/initialized"})
-        self._ready = True
+        with self._setup_lock:
+            if self._ready:
+                return
+            self._request(
+                "initialize",
+                {
+                    "protocolVersion": PROTOCOL_VERSION,
+                    "capabilities": {},
+                    "clientInfo": _CLIENT_INFO,
+                },
+            )
+            self._post({"jsonrpc": "2.0", "method": "notifications/initialized"})
+            self._ready = True
 
     # --- tools ---------------------------------------------------------------
 
     def list_tools(self) -> list[dict[str, Any]]:
         """Every upstream tool (``name``, ``description``, ``inputSchema``, ``annotations``)."""
+        with self._setup_lock:
+            return self._list_tools()
+
+    def _list_tools(self) -> list[dict[str, Any]]:
         self._handshake()
         tools: list[dict[str, Any]] = []
         cursor: str | None = None
@@ -184,11 +209,14 @@ class Gateway:
         return tools
 
     def _upstream(self, name: str) -> dict[str, Any]:
-        if self._tools is None:
-            self.list_tools()
-        assert self._tools is not None
-        tool = self._tools.get(name)
+        with self._setup_lock:
+            if self._tools is None:
+                self._list_tools()
+            tools = self._tools
+        assert tools is not None
+        tool = tools.get(name)
         if tool is None:
+            self.stale = True  # the cached list may predate the tool
             raise CliError(
                 code=EXIT_USER_ERROR,
                 message=f"tool {name!r} is not offered by the Qodo MCP server",

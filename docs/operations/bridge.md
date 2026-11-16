@@ -101,6 +101,18 @@ qodo-cli serve --lan-host 192.0.2.10             # plus a LAN listener on :8793
 SIGINT or SIGTERM. It exits 1 on a refused configuration and 2 when the
 `server` extra is missing.
 
+Calls to Qodo from a running `serve` share one connection setup: the MCP
+handshake and Qodo's tool list are done once and reused across requests, for as
+long as the API key and the exposure policy stay the same. A failed call (Qodo
+unreachable, an HTTP or protocol error, a tool missing from the cached list)
+makes the next call start again. Paging through one pull request's findings
+(`findings list` with `offset`/`limit`, what the Findings screen does) makes one
+call to Qodo: the full reply is kept for 30 seconds, for paging only. A
+`findings implement` or `findings dismiss` through the bridge clears it, and
+the unpaged and `summary` forms always ask Qodo. A change made in Qodo's own UI
+can take up to 30 seconds to show in a page. The CLI makes one call per process
+and shares nothing.
+
 ### The two listeners
 
 | Listener | Binds | Accepts | Off unless |
@@ -135,7 +147,7 @@ Every setting is a flag or an environment variable; a flag wins.
 |  | `QODO_PROPOSE_CONFIG` | `~/.qodo/propose.json` | `config propose` settings file |
 |  | `QODO_PROPOSE_REPOS` | empty | `config propose` repo allowlist |
 |  | `QODO_PROPOSE_CHECKOUT_ROOTS` | empty | `config propose` checkout roots |
-|  | `QODO_FIX_REPOS` | empty | `fix propose` repo allowlist |
+|  | `QODO_FIX_REPOS` | empty | `fix propose` and `findings fix` repo allowlist |
 |  | `QODO_FIX_CHECKOUT_ROOTS` | empty | `fix propose` checkout roots |
 |  | `QODO_FIX_REQUEST_WINDOW` | `300` | `findings fix` rate guard, in seconds (`0` turns it off) |
 |  | `EVENTS_BROKER_HOST` | `127.0.0.1` | events-cli's broker host, for `findings fix` |
@@ -376,11 +388,11 @@ It checks, in this order, and refuses before anything is published or logged:
    no user, port, query or fragment), 1 to 20 finding ids (letters, digits,
    `.` `_` `:` `-`, at most 128 characters each) and an optional note of at most
    500 characters. Exit 1, HTTP 400.
-2. **The repo allowlist.** The PR's `owner/name` must be in the bridge's repo
-   allowlist, the one `config propose` uses (`QODO_PROPOSE_REPOS`, or `repos` in
-   the settings file). An empty allowlist refuses everything. This is what keeps
-   a token holder from aiming an agent at an arbitrary repository. Exit 1, HTTP
-   400.
+2. **The repo allowlist.** The PR's `owner/name` must be in the fix repo
+   allowlist, the one `fix propose` uses (`QODO_FIX_REPOS`, or `fix.repos` in
+   the settings file), so a request is accepted exactly when its fix could be.
+   An empty allowlist refuses everything. This is what keeps a token holder
+   from aiming an agent at an arbitrary repository. Exit 1, HTTP 400.
 3. **The rate guard.** The same PR and the same set of finding ids (in any
    order) requested within `QODO_FIX_REQUEST_WINDOW` seconds (default 300) is
    refused with the time and event id of the first request. The memory is the
@@ -522,9 +534,10 @@ A name that only resembles one of these (`docs/.github-notes.md`,
 
 1. Install the `events` extra where the bridge runs, and run a broker
    (`events up`) or point `EVENTS_BROKER_HOST` / `EVENTS_BROKER_PORT` at one.
-2. List each repo in `QODO_PROPOSE_REPOS` (for `findings fix`) **and** in
-   `QODO_FIX_REPOS` (for `fix propose`): they are separate on purpose, and a
-   repo in only the first gets a request whose fix is then refused.
+2. List each repo in `QODO_FIX_REPOS` (or the settings file's `fix.repos`):
+   `findings fix` and `fix propose` both read it, so a repo can have a fix
+   requested exactly when its fix can be checked. `QODO_PROPOSE_REPOS` is
+   `config propose`'s and plays no part here.
 3. Set `QODO_FIX_CHECKOUT_ROOTS` to where culture-rules' fix checkouts live.
 4. Issue an `editor` token for whatever calls `findings fix` and `fix propose`
    over HTTP.
@@ -598,8 +611,9 @@ least these (the README has the full list):
   `QODO_PROPOSE_CHECKOUT_ROOTS` here, with each repo in `QODO_PROPOSE_REPOS`;
 - the bridge URL, `http://127.0.0.1:8792` as shipped, reachable from the machine
   the culture-rules actor runs on;
-- associate's bridge port (the bundle writes `8794` as a placeholder), a token
-  for it, and the GitHub App actor settings;
+- associate's bridge address (the bundle writes `127.0.0.1:8794`, associate
+  serve's default), a token for it (`associate tokens issue --name <name> --role
+  admin`), and the GitHub App actor settings;
 - for the fix flow, its own checkout root (`/srv/qodo-fix-checkouts` as shipped,
   different from the improvement root), in `QODO_FIX_CHECKOUT_ROOTS` here and in
   associate's `ASSOCIATE_RUNS_ROOTS`, each repo in `QODO_FIX_REPOS`, and the
@@ -649,7 +663,7 @@ One confirmation sends all the selected ids in one `findings fix` request.
 
 For it to do anything, the operator needs what
 [Before you use it](#before-you-use-it) lists: the `events` extra and a
-reachable broker where `serve` runs, the repo in `QODO_PROPOSE_REPOS`, and the
+reachable broker where `serve` runs, the repo in `QODO_FIX_REPOS`, and the
 editor role for whoever clicks (an editor token, or an Access identity listed
 in `QODO_EDITORS`). Someone on the culture-rules side must also enable
 the rule that reacts to `qodo.fix.requested`: the culture-rules bundle ships it

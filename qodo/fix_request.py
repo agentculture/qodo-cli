@@ -12,9 +12,11 @@ Order of checks, each refusing before anything is published or logged:
 
 1. the params: ``pr_url`` is a github.com pull request URL, 1 to :data:`MAX_FINDING_IDS` plain
    finding ids, an optional note of at most :data:`MAX_NOTE_CHARS` characters (exit 1);
-2. the **repo allowlist**: the PR's ``owner/name`` must be in ``config propose``'s repo allowlist
-   (``QODO_PROPOSE_REPOS`` or the settings file, :func:`qodo.propose.load_settings`), so a token
-   holder cannot aim an agent at an arbitrary repository; an empty allowlist refuses everything
+2. the **repo allowlist**: the PR's ``owner/name`` must be in ``fix propose``'s repo allowlist
+   (``QODO_FIX_REPOS`` or the settings file's ``fix`` section,
+   ``qodo.propose.load_settings(profile=FIX_PROFILE)``), the same list that gates the proposal
+   the request leads to, so a token holder cannot aim an agent at an arbitrary repository and no
+   agent runs for a repo whose fix would be refused; an empty allowlist refuses everything
    (exit 1);
 3. the **rate guard**: the same PR and the same set of finding ids requested within
    ``QODO_FIX_REQUEST_WINDOW`` seconds (default :data:`DEFAULT_WINDOW_SECONDS`; ``0`` turns it
@@ -304,11 +306,13 @@ def request_fix(
     url, repo, number = parse_pr_url(pr_url)
     ids = _finding_ids(finding_ids)
     text = _note(note)
-    allowed = (settings if settings is not None else propose.load_settings(env=env)).repos
-    if repo not in allowed:
+    if settings is None:  # fix propose's allowlist: the request gate is the proposal gate
+        settings = propose.load_settings(env=env, profile=propose.FIX_PROFILE)
+    if repo not in settings.repos:
         raise _user(
             f"{repo} is not in the bridge's repo allowlist; no agent was asked",
-            f"an operator lists the repo in {propose.ENV_REPOS} (or the settings file's repos)",
+            f"an operator lists the repo in {propose.ENV_FIX_REPOS} "
+            "(or the settings file's fix.repos)",
         )
     window = window_seconds(env)
     with _Lock():

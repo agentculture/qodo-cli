@@ -6,6 +6,8 @@
 # Adapted: default_web_dist() is gone: the app passes its own build directory;
 # Adapted: the scope flag and docstring examples no longer name the source app; the caching
 #          import is relative.
+# Adapted: a path with a `..` segment, a `?`, a `#`, a backslash or a control character is
+#          refused before it is resolved (_unsafe), with the API's JSON 404.
 """Serve a packaged web build from the API. No Node at runtime.
 
 When the build exists, ``install`` (called by ``create_app``) adds:
@@ -17,7 +19,9 @@ When the build exists, ``install`` (called by ``create_app``) adds:
   where the path is also an API route (``/things``, ``/things/x``, ...); API
   clients (curl, the CLI, ``fetch`` under ``/api``) never send that Accept and keep the API;
 - a catch-all ``GET`` that serves files from the build and falls back to ``index.html`` for
-  client-side routes (``/things/x``, ...), kept out of the OpenAPI document.
+  client-side routes (``/things/x``, ...), kept out of the OpenAPI document. A path that holds a
+  ``..`` segment, a ``?`` or ``#`` (which only arrive percent-encoded), a backslash or a control
+  character is refused with a JSON 404 before anything is resolved, browser or not.
 
 Everything, static files included, sits behind the same authentication as the API (the
 Cloudflare edge attaches the credential to every same-origin request). Imported lazily, with
@@ -38,6 +42,24 @@ __all__ = ["API_PREFIX", "install"]
 API_PREFIX = "/api"
 _FLAG = "bridge_api_prefixed"
 _UI = "/_ui"
+#: Characters a UI file path never holds: a query or fragment marker that arrived
+#: percent-encoded, and a backslash (a separator on some systems).
+_REFUSED_CHARS = frozenset("?#\\")
+
+
+def _unsafe(path: str) -> bool:
+    """True when ``path`` must not be resolved: a ``..`` segment, a refused or control character."""
+    if ".." in path.split("/"):
+        return True
+    return any(c in _REFUSED_CHARS or ord(c) < 32 or 127 <= ord(c) < 160 for c in path)
+
+
+def _not_found(message: str):
+    from fastapi.responses import JSONResponse  # lazy: the ``server`` extra
+
+    return JSONResponse(
+        {"error": {"code": "not_found", "message": message, "errors": []}}, status_code=404
+    )
 
 
 class _ApiPrefix:
@@ -81,7 +103,7 @@ def install(app: "FastAPI", web_dist: Path | None) -> bool:
     ``web_dist`` is the app's own build directory (None: nothing to serve, False).
     """
     from fastapi import Request  # lazy: the ``server`` extra
-    from fastapi.responses import FileResponse, JSONResponse, Response
+    from fastapi.responses import FileResponse, Response
 
     if web_dist is None:
         return False
@@ -94,10 +116,9 @@ def install(app: "FastAPI", web_dist: Path | None) -> bool:
     @app.get("/{path:path}", include_in_schema=False)
     def spa(path: str, request: Request) -> Response:
         if request.scope.get(_FLAG):
-            return JSONResponse(
-                {"error": {"code": "not_found", "message": "no such API route", "errors": []}},
-                status_code=404,
-            )
+            return _not_found("no such API route")
+        if _unsafe(path):
+            return _not_found("no such route")
         candidate = (root / path).resolve()
         if path and candidate.is_file() and candidate.is_relative_to(root):
             hashed = candidate.is_relative_to(root / "assets")
@@ -105,10 +126,7 @@ def install(app: "FastAPI", web_dist: Path | None) -> bool:
         if path and "text/html" not in request.headers.get("accept", ""):
             # not a browser navigation and not a built file: an API client asked for a path
             # that is no route, so answer like the API does instead of with the SPA page
-            return JSONResponse(
-                {"error": {"code": "not_found", "message": "no such route", "errors": []}},
-                status_code=404,
-            )
+            return _not_found("no such route")
         return FileResponse(index, headers={"Cache-Control": SHELL})
 
     app.add_middleware(_ApiPrefix)

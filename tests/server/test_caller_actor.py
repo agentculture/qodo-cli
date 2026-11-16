@@ -34,7 +34,7 @@ class FakePublisher:
 @pytest.fixture
 def pub(monkeypatch, tmp_path) -> FakePublisher:
     monkeypatch.setenv("QODO_PROPOSE_CONFIG", str(tmp_path / "absent.json"))
-    monkeypatch.setenv("QODO_PROPOSE_REPOS", "acme/widgets")
+    monkeypatch.setenv("QODO_FIX_REPOS", "acme/widgets")
     monkeypatch.delenv("QODO_FIX_REQUEST_WINDOW", raising=False)
     fake = FakePublisher()
     monkeypatch.setattr(api, "_publisher", lambda: fake)

@@ -38,8 +38,10 @@ class FakePublisher:
 
 @pytest.fixture
 def allow(monkeypatch, tmp_path):
+    # the fix profile's allowlist, the one `fix propose` checks; config propose's is not read
     monkeypatch.setenv("QODO_PROPOSE_CONFIG", str(tmp_path / "absent.json"))
-    monkeypatch.setenv("QODO_PROPOSE_REPOS", REPO)
+    monkeypatch.setenv("QODO_FIX_REPOS", REPO)
+    monkeypatch.delenv("QODO_PROPOSE_REPOS", raising=False)
     monkeypatch.delenv("QODO_FIX_REQUEST_WINDOW", raising=False)
 
 
@@ -178,12 +180,35 @@ def _refused(pub, code=EXIT_USER_ERROR, **kw):
 
 def test_a_repo_outside_the_allowlist_is_refused_before_anything_is_published(pub):
     err = _refused(pub, pr_url="https://github.com/evil/repo/pull/1")
-    assert "allowlist" in err.message and "QODO_PROPOSE_REPOS" in err.remediation
+    assert "allowlist" in err.message and "QODO_FIX_REPOS" in err.remediation
 
 
 def test_an_empty_allowlist_refuses_everything(pub, monkeypatch):
-    monkeypatch.setenv("QODO_PROPOSE_REPOS", "")
+    monkeypatch.setenv("QODO_FIX_REPOS", "")
     _refused(pub)
+
+
+def test_a_repo_only_in_config_proposes_allowlist_is_refused(pub, monkeypatch):
+    # the request gate is the proposal gate: a repo fix propose would refuse gets no agent
+    monkeypatch.setenv("QODO_FIX_REPOS", "acme/other")
+    monkeypatch.setenv("QODO_PROPOSE_REPOS", REPO)
+    err = _refused(pub)
+    assert "QODO_FIX_REPOS" in err.remediation
+
+
+def test_a_repo_only_in_the_fix_allowlist_can_be_requested(pub, monkeypatch):
+    monkeypatch.setenv("QODO_PROPOSE_REPOS", "acme/other")
+    out = api.findings_fix(PR, IDS, actor="cli")
+    assert out["repo"] == REPO and len(pub.calls) == 1
+
+
+def test_the_settings_files_fix_section_is_the_allowlist(pub, monkeypatch, tmp_path):
+    settings = tmp_path / "propose.json"
+    settings.write_text(json.dumps({"repos": ["acme/other"], "fix": {"repos": [REPO]}}), "utf-8")
+    monkeypatch.setenv("QODO_PROPOSE_CONFIG", str(settings))
+    monkeypatch.delenv("QODO_FIX_REPOS", raising=False)
+    _refused(pub, pr_url="https://github.com/acme/other/pull/1")
+    assert api.findings_fix(PR, IDS, actor="cli")["repo"] == REPO
 
 
 def test_the_allowlist_is_checked_before_the_rate_guard_and_the_bus(pub, monkeypatch):
@@ -428,7 +453,8 @@ def test_explain_learn_and_overview_describe_findings_fix(capsys):
     from qodo.explain import resolve
 
     text = resolve(("findings", "fix"))
-    assert "qodo.fix.requested" in text and "QODO_PROPOSE_REPOS" in text
+    assert "qodo.fix.requested" in text and "QODO_FIX_REPOS" in text
+    assert "QODO_PROPOSE_REPOS" not in text
     assert "EVENTS_BROKER_HOST" in text and "qodo-cli[events]" in text
     for argv in (["learn"], ["overview"], ["findings", "overview"]):
         assert main(argv) == 0

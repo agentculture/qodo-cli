@@ -200,6 +200,13 @@ def test_access_config_rejects_bad_listen_address():
         AccessListenerConfig.from_env({**ENV, "APP_ACCESS_LISTEN": "nope"}, "APP_")
 
 
+@pytest.mark.parametrize("port", ["\u00b2", "87\u00b2", "\u0663"])
+def test_access_config_rejects_a_unicode_digit_port(port):
+    # str.isdigit() accepts these; int() rejects the superscript one with a ValueError
+    with pytest.raises(AccessConfigError):
+        AccessListenerConfig.from_env({**ENV, "APP_ACCESS_LISTEN": f"127.0.0.1:{port}"}, "APP_")
+
+
 def test_access_env_names_follow_the_prefix():
     assert access_env("APP_") == tuple(ENV)
     assert access_env("OTHER_")[0] == "OTHER_ACCESS_LISTEN"

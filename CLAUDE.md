@@ -100,6 +100,10 @@ One verb registry feeds every surface; nothing is written by hand per surface.
   another file; `load_policy(path)` is for code.
 - **`qodo/gateway.py`**: the client of Qodo's MCP server (urllib, HTTPS only, no
   redirects, key redacted from errors); enforces the policy again at call time.
+- **`qodo/upstream_share.py`**: what `serve` shares between calls once
+  `api.share_upstream()` is on: one handshaken gateway per key and policy (rebuilt when stale)
+  and a 30-second cache of a PR's findings for the paged `findings list` (writes clear it).
+  `api._gateway` stays the one seam tests patch; the CLI shares nothing.
 - **`qodo/api.py`**: the public Python API; the CLI's `rules`/`review`/`config`
   handlers and the registry's handlers call it. `docs/integrators.md` lists it.
 - **`qodo/propose.py` + `propose_default.json`**: `config propose`, a read-only gate;
@@ -110,7 +114,7 @@ One verb registry feeds every surface; nothing is written by hand per surface.
   except a refused set, its own allowlists (`QODO_FIX_REPOS`, `QODO_FIX_CHECKOUT_ROOTS`,
   the settings file's `fix` section), caps for small code fixes.
 - **`qodo/fix_request.py`**: `findings fix`; checks the PR URL, the repo allowlist
-  (`config propose`'s) and a rate guard read from the change log, then publishes one
+  (`fix propose`'s, `QODO_FIX_REPOS`) and a rate guard read from the change log, then publishes one
   `qodo.fix.requested` event through events-cli (imported lazily; `api._publisher()` is
   the seam tests replace). Publishing an event is not a push, merge or PR.
 - **`qodo/health.py`, `qodo/changelog.py`**: the key's expiry (from

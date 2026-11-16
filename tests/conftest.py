@@ -12,3 +12,12 @@ def _isolated_change_log(tmp_path_factory: pytest.TempPathFactory, monkeypatch: 
     path: Path = tmp_path_factory.mktemp("changelog") / "changes.jsonl"
     monkeypatch.setenv("QODO_CHANGE_LOG", str(path))
     yield
+
+
+@pytest.fixture(autouse=True)
+def _no_shared_upstream():
+    """No test leaves the server's shared gateway or findings cache on for the next one."""
+    yield
+    from qodo import api
+
+    api.share_upstream(False)

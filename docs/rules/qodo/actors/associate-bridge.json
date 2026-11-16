@@ -1,7 +1,7 @@
 {
   "capabilities": [],
   "config_source": "db",
-  "description": "The associate runs API, reached on the loopback of the machine that holds the dedicated checkout: http.call runs where this actor lives. The improvement flow starts a run with POST /runs (role admin) and reads it with GET /runs/{id} (role viewer), so the service token needs the admin role; stored in grant as ASSOCIATE_BRIDGE_SERVICE_TOKEN and injected into the engine node's unit. The port 8794 in the workflow is a placeholder: set it to the port the associate bridge listens on.",
+  "description": "The associate runs API, reached on the loopback of the machine that holds the dedicated checkout: http.call runs where this actor lives. The improvement and fix flows start a run with POST /runs (role admin) and read it with GET /runs/{run_id} (role viewer), so the service token needs the admin role: issue it with associate tokens issue --name <name> --role admin (printed once), store it in grant as ASSOCIATE_BRIDGE_SERVICE_TOKEN and inject it into the engine node's unit. The workflows write 127.0.0.1:8794, associate serve's default loopback address: change it in both workflows if associate's bridge listens elsewhere.",
   "enabled": true,
   "harness": null,
   "id": "associate-bridge",

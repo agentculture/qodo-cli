@@ -262,21 +262,23 @@ are disabled.
    - qodo-cli serve listens on `http://127.0.0.1:8792` by default. That URL is
      in `qodo-findings` (`list`), `qodo-improve` (`propose`) and `qodo-fix`
      (`propose`).
-   - associate's runs API is written as `http://127.0.0.1:8794`. **8794 is a
-     placeholder**: set the port associate's bridge listens on, in `start`
-     and `poll` of both `qodo-improve` and `qodo-fix`.
+   - associate's runs API is written as `http://127.0.0.1:8794`, associate
+     serve's default loopback address. If associate's bridge listens
+     elsewhere, change it in `start` and `poll` of both `qodo-improve` and
+     `qodo-fix`.
    - The actors run where `machine` says, `core` as shipped. `http.call` runs
      where its actor lives, so loopback works only on that machine.
 4. **The `http.call` destination allowlist.** Each service actor allows
    exactly `127.0.0.1`. If a bridge listens elsewhere, change both the URL and
    `params.http.allow`.
 5. **The grants that hold the two service tokens.**
-   - Mint a qodo-cli service token with the **editor** role (`config propose`
-     and `fix propose` need it; `findings list` needs viewer) and store it in
-     grant as
-     `QODO_BRIDGE_SERVICE_TOKEN`.
-   - Mint an associate token with the **admin** role (`POST /runs` needs it)
-     and store it as `ASSOCIATE_BRIDGE_SERVICE_TOKEN`.
+   - Issue a qodo-cli service token with the **editor** role (`config
+     propose` and `fix propose` need it; `findings list` needs viewer) on the
+     bridge's machine, `qodo-cli tokens issue --name <name> --role editor`
+     (printed once), and store it in grant as `QODO_BRIDGE_SERVICE_TOKEN`.
+   - Issue an associate token with the **admin** role (`POST /runs` needs it),
+     `associate tokens issue --name <name> --role admin`, and store it as
+     `ASSOCIATE_BRIDGE_SERVICE_TOKEN`.
    - Inject both into the engine node's unit:
      `--inject CULTURE_RULES_SECRET_<NAME>=<NAME>`.
 6. **The GitHub App actor** (`github-app`). It must have:
@@ -330,9 +332,10 @@ For the fix flow, also:
    checkout is a dedicated clone of the repo (never a fork), exactly
    `<root>/<owner>/<name>`, on the machine of `qodo-checkout` and of the two
    bridges, with `origin` fetchable as for `fetch`.
-2. **On the qodo-cli bridge:** each repo in `QODO_PROPOSE_REPOS` (for
-   `findings fix`) **and** in `QODO_FIX_REPOS` (for `fix propose`), and the
-   fix root in `QODO_FIX_CHECKOUT_ROOTS`. The bridge's `events` extra
+2. **On the qodo-cli bridge:** each repo in `QODO_FIX_REPOS` (read by both
+   `findings fix` and `fix propose`; `QODO_PROPOSE_REPOS` is the improvement
+   flow's and is not needed here), and the fix root in
+   `QODO_FIX_CHECKOUT_ROOTS`. The bridge's `events` extra
    (`qodo-cli[events]`) and a broker it reaches (`events up`, or
    `EVENTS_BROKER_HOST` / `EVENTS_BROKER_PORT`), so `findings fix` can
    publish. See the fix requests section of `docs/operations/bridge.md`.

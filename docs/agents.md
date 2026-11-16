@@ -63,7 +63,8 @@ qodo-cli findings list --pr-url https://github.com/example-owner/example-repo/pu
 `findings fix` takes a `github.com` pull request URL (no query, fragment, user or
 port), 1 to 20 finding ids (letters, digits, `.` `_` `:` `-`, at most 128
 characters each) and an optional note of at most 500 characters. It refuses
-(exit 1) a repo the operator has not allowlisted and the same PR and set of ids
+(exit 1) a repo the operator has not allowlisted for fixes (the same allowlist
+`fix propose` checks, `QODO_FIX_REPOS`) and the same PR and set of ids
 asked for again within the operator's window (5 minutes by default). Without
 the `events` extra or a reachable event broker it exits 2. On success it returns
 `{event_id, type, pr_url, repo, number, finding_ids}`. culture-rules picks the
@@ -76,7 +77,7 @@ finding of a `github.com` pull request has **Send an agent to fix**, and several
 selected findings (up to 20) go in one request. The UI sends `findings fix` over
 HTTP with an editor credential, so the event's `requested_by` and the change-log
 line read `api:<person>` or `api:token:<name>`. It needs the `events` extra and a
-broker where `serve` runs, the repo in the allowlist, and the culture-rules rule
+broker where `serve` runs, the repo in the fix allowlist, and the culture-rules rule
 that reacts to `qodo.fix.requested`, which ships disabled.
 
 ### `rules` — Qodo's coding rules

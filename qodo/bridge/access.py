@@ -2,6 +2,7 @@
 # (cite-don't-import: this repo owns its copy and may change it.)
 # Adapted: the CULTURE_RULES_ env prefix is now a `prefix` parameter (access_env, from_env);
 #          the ACCESS_ENV constant became access_env(); import of principal is relative.
+# Adapted: the listen port must be ASCII digits (a superscript digit passed isdigit()).
 """Cloudflare Access JWT verification (``Cf-Access-Jwt-Assertion``), standard-library only.
 
 The token must be a three-part RS256 JWT whose ``kid`` names a key in the team JWKS
@@ -121,7 +122,8 @@ class AccessListenerConfig:
                 "or unset all three"
             )
         host, sep, port = values[env_listen].rpartition(":")
-        if not sep or not port.isdigit() or not 0 < int(port) < 65536:
+        # isascii: str.isdigit() also accepts a superscript digit, which int() rejects
+        if not sep or not (port.isascii() and port.isdigit()) or not 0 < int(port) < 65536:
             raise AccessConfigError(f"{env_listen} must be host:port or :port")
         return cls(host or _ALL_INTERFACES, int(port), values[env_team], values[env_aud])
 

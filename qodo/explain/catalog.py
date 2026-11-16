@@ -252,8 +252,9 @@ merges or opens a pull request, and never calls Qodo.** A write (editor role ove
 1. `pr_url` is `http(s)://github.com/<owner>/<name>/pull/<n>` (no user, port, query or
    fragment); 1 to 20 finding ids, each a plain id (letters, digits, `.` `_` `:` `-`, at most
    128 characters); `note` at most 500 characters. Exit 1, HTTP 400.
-2. The repo is in the bridge's repo allowlist, `config propose`'s (`QODO_PROPOSE_REPOS` or the
-   settings file's `repos`); an empty allowlist refuses everything. Exit 1, HTTP 400.
+2. The repo is in `fix propose`'s repo allowlist (`QODO_FIX_REPOS` or the settings file's
+   `fix.repos`), the same list that gates the fix the request leads to; an empty allowlist
+   refuses everything. Exit 1, HTTP 400.
 3. Rate guard: the same PR and the same set of ids requested within
    `QODO_FIX_REQUEST_WINDOW` seconds (default 300; `0` turns it off) is refused, read from the
    change log. Exit 1, HTTP 400.

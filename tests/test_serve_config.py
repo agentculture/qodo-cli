@@ -82,7 +82,9 @@ def test_the_two_listeners_cannot_share_an_address():
         srv.plan_listeners({}, lan_host="127.0.0.1", lan_port=srv.DEFAULT_PORT)
 
 
-@pytest.mark.parametrize("port", ["0", "70000", "x", "-1", ""])
+# "\u00b2" (superscript two) and "\u0663" (Arabic-Indic three) pass str.isdigit(); the first
+# then crashes int(), the second is not a port anyone writes: both are refused, never a traceback
+@pytest.mark.parametrize("port", ["0", "70000", "x", "-1", "", "\u00b2", "8\u00b2", "\u0663"])
 def test_a_bad_port_is_refused(port):
     with pytest.raises(srv.ListenerConfigError, match="port"):
         srv.plan_listeners({"QODO_PORT": port or "x"})

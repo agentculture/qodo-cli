@@ -15,6 +15,8 @@ valid); this module is the only caller of them. Failures raise
 
 from __future__ import annotations
 
+import json
+import time
 import tomllib
 import urllib.parse
 from collections.abc import Callable
@@ -24,6 +26,7 @@ from typing import Any
 from qodo import changelog as _changelog
 from qodo import gateway as _gateway_mod
 from qodo import health as _health
+from qodo import upstream_share as _share
 from qodo.cli import _providers, _qodo_api
 from qodo.cli._errors import EXIT_USER_ERROR, CliError
 
@@ -66,9 +69,77 @@ DISMISS_REASONS = ("false_positive", "intentional", "deferred", "rejected")
 MAX_FINDING_IDS = 100
 
 
-def _gateway() -> _gateway_mod.Gateway:
-    """The gateway these functions call through (one patch point for tests and integrators)."""
+#: The upstream calls that change findings: a call of one clears the findings cache.
+FINDINGS_WRITE_TOOLS = frozenset({"pr-review-mark-implemented", "pr-review-dismiss"})
+FINDINGS_TOOL = "get-pr-review-findings"
+#: Set by :func:`share_upstream` in a long-lived server; None in the CLI (one call per process).
+_POOL: _share.GatewayPool | None = None
+
+
+def share_upstream(
+    enabled: bool = True,
+    *,
+    factory: _share.Factory | None = None,
+    clock: Callable[[], float] = time.monotonic,
+) -> None:
+    """Turn on (``qodo-cli serve`` does) or off sharing between upstream calls in this process:
+    one handshaken gateway per API key and exposure policy (see :mod:`qodo.upstream_share`) and
+    a short-lived cache of each PR's findings for the paged form of ``findings list``.
+
+    ``factory(policy, api_key)`` builds a gateway (tests pass one with a fake opener); turning
+    it on again starts from an empty pool and cache.
+    """
+    global _POOL
+    if not enabled:
+        _POOL = None
+        return
+    build = factory or (lambda policy, key: _gateway_mod.Gateway(policy, api_key=key))
+    _POOL = _share.GatewayPool(build, _share.ReplyCache(clock=clock))
+
+
+def _gateway() -> Any:
+    """The gateway these functions call through (one patch point for tests and integrators):
+    a new one per call, or the shared one once :func:`share_upstream` is on."""
+    pool = _POOL
+    if pool is not None:
+        return pool.gateway()
     return _gateway_mod.Gateway()
+
+
+def _upstream_call(
+    tool: str, arguments: dict[str, Any], *, surface: str | None = None, cached: bool = False
+) -> dict[str, Any]:
+    """Call an upstream tool through :func:`_gateway`.
+
+    ``cached`` (the paged form of ``findings list`` only) reads the shared findings cache first
+    and stores a successful reply in it; without sharing it is a plain call. A call of a tool in
+    :data:`FINDINGS_WRITE_TOOLS` clears the cache whether or not it succeeded (a failed write
+    may still have landed). An error is never cached.
+    """
+    gateway = _gateway()
+    pool = _POOL
+    if tool in FINDINGS_WRITE_TOOLS:
+        try:
+            return _call(gateway, tool, arguments, surface)
+        finally:
+            if pool is not None:
+                pool.cache.clear()
+    if not (cached and tool == FINDINGS_TOOL and pool is not None):
+        return _call(gateway, tool, arguments, surface)
+    key = (getattr(gateway, "identity", None), surface, json.dumps(arguments, sort_keys=True))
+    hit = pool.cache.get(key)
+    if hit is not None:
+        return hit
+    reply = _call(gateway, tool, arguments, surface)
+    pool.cache.put(key, reply)
+    return reply
+
+
+def _call(gateway: Any, tool: str, arguments: dict[str, Any], surface: str | None) -> Any:
+    # surface only when there is one: a gateway an integrator patched in may not take it
+    if surface is None:
+        return gateway.call(tool, arguments)
+    return gateway.call(tool, arguments, surface=surface)
 
 
 def _need(value: Any, what: str) -> str:
@@ -127,7 +198,7 @@ def findings_implement(ids: list[str], *, actor: str | None = None) -> dict[str,
     call one line goes to the change log (``qodo.changelog``); a log failure only warns.
     """
     clean = _finding_ids(ids)
-    reply = _gateway().call("pr-review-mark-implemented", {"finding_ids": clean})
+    reply = _upstream_call("pr-review-mark-implemented", {"finding_ids": clean})
     _changelog.record_finding_status(clean, "implemented", actor=actor)
     return reply
 
@@ -166,7 +237,7 @@ def findings_dismiss(ids: list[str], reason: str, *, actor: str | None = None) -
             remediation="pass --reason with one of the allowed values",
         )
     clean = _finding_ids(ids)
-    reply = _gateway().call("pr-review-dismiss", {"finding_ids": clean, "reason": reason})
+    reply = _upstream_call("pr-review-dismiss", {"finding_ids": clean, "reason": reason})
     _changelog.record_finding_status(clean, "dismissed", reason=reason, actor=actor)
     return reply
 
@@ -662,8 +733,9 @@ def findings_fix(
 
     Returns ``{"event_id", "type", "pr_url", "repo", "number", "finding_ids"}``. Refused (a
     user error, nothing published or logged) for a URL that is not a github.com pull request,
-    1-20 plain finding ids, a note over 500 characters, a repo outside ``config propose``'s repo
-    allowlist (``settings`` defaults to :func:`qodo.propose.load_settings`) and a repeat of the
+    1-20 plain finding ids, a note over 500 characters, a repo outside ``fix propose``'s repo
+    allowlist (``settings`` defaults to ``qodo.propose.load_settings(profile=FIX_PROFILE)``, so
+    the request gate is the proposal gate) and a repeat of the
     same request within ``QODO_FIX_REQUEST_WINDOW`` seconds. Without the ``events`` extra or a
     reachable broker: an environment error. Never calls Qodo; after a publish one
     ``fix.requested`` line (the PR URL, the ids, the event id and ``actor``) goes to the change

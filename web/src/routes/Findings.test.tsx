@@ -598,9 +598,9 @@ describe("sending an agent to fix findings", () => {
       envelope(
         "user_error",
         "example-org/example-repo is not in the bridge's repo allowlist; no agent was asked",
-        "an operator lists the repo in QODO_PROPOSE_REPOS (or the settings file's repos)",
+        "an operator lists the repo in QODO_FIX_REPOS (or the settings file's fix.repos)",
       ),
-      ["is not in the bridge's repo allowlist; no agent was asked", "QODO_PROPOSE_REPOS"],
+      ["is not in the bridge's repo allowlist; no agent was asked", "QODO_FIX_REPOS"],
     ],
     [
       "an unreachable broker",

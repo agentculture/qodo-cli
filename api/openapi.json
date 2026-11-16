@@ -717,7 +717,7 @@
                     "type": "string"
                   },
                   "pr_url": {
-                    "description": "The pull request's github.com URL; its repo must be in the bridge's repo allowlist.",
+                    "description": "The pull request's github.com URL; its repo must be in the bridge's fix repo allowlist.",
                     "maxLength": 400,
                     "type": "string"
                   }

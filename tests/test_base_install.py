@@ -102,7 +102,7 @@ sys.exit(main(['findings', 'fix', '--pr-url', 'https://github.com/acme/widgets/p
                '--finding-ids', 'abc', '--json']))
 """
     log = tmp_path / "changes.jsonl"
-    env = {**os.environ, "QODO_PROPOSE_REPOS": "acme/widgets", "QODO_CHANGE_LOG": str(log),
+    env = {**os.environ, "QODO_FIX_REPOS": "acme/widgets", "QODO_CHANGE_LOG": str(log),
            "QODO_PROPOSE_CONFIG": str(tmp_path / "absent.json")}  # fmt: skip
     done = subprocess.run(
         [sys.executable, "-c", code], capture_output=True, text=True, cwd=ROOT, env=env, check=False

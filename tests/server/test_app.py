@@ -237,6 +237,25 @@ def test_changes_returns_the_newest_entries(client, auth, gateway):
         assert client.get(f"/changes?limit={bad}", headers=auth["viewer"]).status_code == 400, bad
 
 
+@pytest.mark.parametrize("limit", ["%C2%B2", "5%C2%B2", "%D9%A3"])
+def test_a_unicode_digit_limit_is_400_not_500(client, auth, limit):
+    # "\u00b2" / "\u0663": str.isdigit() accepts them, int() rejects the first
+    r = client.get(f"/changes?limit={limit}", headers=auth["viewer"])
+    assert r.status_code == 400, r.text
+    assert r.json()["error"]["code"] == "user_error"
+
+
+@pytest.mark.parametrize("length", ["\u00b2", "1\u00b2"])
+def test_a_unicode_digit_content_length_is_refused_not_a_crash(auth, tokens, gateway, length):
+    from tests.rawasgi import raw_request
+
+    app = create_app(tokens=tokens, web_dist=None)
+    headers = {**auth["viewer"], "Content-Type": "application/json", "Content-Length": length}
+    r = raw_request(app, "POST", "/verbs/findings/list", headers, b"{}")
+    assert r.status_code == 413, r.text
+    assert gateway.calls == []
+
+
 def test_changes_are_empty_before_any_change(client, auth):
     assert client.get("/changes", headers=auth["viewer"]).json() == {"entries": []}
 

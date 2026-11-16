@@ -471,7 +471,8 @@ def _upstream_handler(tool: str, schema: dict[str, Any]) -> Handler:
             local_check(local)
         if preflight is not None:
             preflight(given)
-        reply = api._gateway().call(tool, given, surface=surface)
+        paged = "offset" in local or "limit" in local
+        reply = api._upstream_call(tool, given, surface=surface, cached=paged)
         if after is not None:
             after(given, surface)
         return reduce(reply, local) if reduce is not None else reply
@@ -733,7 +734,7 @@ _LOCAL_SCHEMAS: dict[tuple[str, str], dict[str, Any]] = {
                 "type": "string",
                 "maxLength": 400,
                 "description": "The pull request's github.com URL; its repo must be in the "
-                "bridge's repo allowlist.",
+                "bridge's fix repo allowlist.",
             },
             "finding_ids": {
                 "type": "array",

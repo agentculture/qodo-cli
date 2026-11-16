@@ -1190,7 +1190,6 @@ def test_the_readme_names_every_value_the_fix_flow_needs():
         "must differ from the improvement flow's root",
         "QODO_FIX_REPOS",
         "QODO_FIX_CHECKOUT_ROOTS",
-        "QODO_PROPOSE_REPOS",
         "ASSOCIATE_RUNS_ROOTS",
         "culture-rules[events]",
         "qodo-cli[events]",
