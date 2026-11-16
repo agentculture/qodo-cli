@@ -22,7 +22,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Who asked, over HTTP:** the change log's `actor` and the fix-request event's `requested_by` name the caller as well as the surface (`api:person@example.org`, `api:token:<name>`; the CLI and MCP still record `cli` and `mcp`). The caller label is cleaned of control characters and cut to 120 characters (`qodo/bridge/caller.py`).
 - **A public Python API**, `qodo.api`, over the same logic as the CLI.
 - **Key health and a change log:** `doctor` and `/health` report a missing or soon-to-expire Qodo API key (the expiry is configured in `QODO_API_KEY_EXPIRES`); each finding change and each accepted configuration proposal appends a line to a change log.
-- **A culture-rules bundle** in `docs/rules/qodo/` (collect findings after Qodo reviews a pull request; propose a configuration change after a merge). It ships disabled and needs culture-rules 0.47.0.
+- **A culture-rules bundle** in `docs/rules/qodo/` (collect findings after Qodo reviews a pull request; propose a configuration change after a merge; on a fix request, run an agent on the pull request's head and open a pull request against that branch). It ships disabled and needs culture-rules 0.47.0.
 - **A reusable bridge framework** in `qodo/bridge/`, cited from culture-rules: auth, service tokens, route roles, static serving and a generic MCP server.
 
 ### Changed

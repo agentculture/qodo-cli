@@ -130,8 +130,8 @@ One verb registry feeds every surface; nothing is written by hand per surface.
   and `history` from the registry.
 - **`api/openapi.json`** is the pinned HTTP contract. After a verb, params schema,
   role or route changes: `uv run python scripts/export_openapi.py --write`.
-- **`docs/rules/qodo/`**: the culture-rules bundle (configuration only, all four
-  rules disabled). `tests/test_culture_rules_bundle.py` pins it.
+- **`docs/rules/qodo/`**: the culture-rules bundle (configuration only: three flows,
+  five rules, all disabled). `tests/test_culture_rules_bundle.py` pins it.
 
 ### Stable contracts (don't break these — tests and the rubric pin them)
 

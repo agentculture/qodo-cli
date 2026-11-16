@@ -162,7 +162,10 @@ def _note(note: Any) -> str | None:
             f"note is longer than {MAX_NOTE_CHARS} characters",
             "shorten the note; the agent reads the findings themselves",
         )
-    return note if note.strip() else None
+    # one line, always: the workflow hands the note to an agent between marker lines, and a
+    # note that could start a line of its own could forge the closing marker
+    one_line = " ".join("".join(c if c.isprintable() else " " for c in note).split())
+    return one_line or None
 
 
 # --- the rate guard -----------------------------------------------------------------------------

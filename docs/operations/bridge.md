@@ -414,7 +414,7 @@ Its `data` holds identifiers only, never the API key and never finding text:
 | `repo` | `owner/name`, from the URL |
 | `number` | The pull request number |
 | `finding_ids` | The ids, duplicates removed, in the order given |
-| `note` | The note for the agent, or `null` |
+| `note` | The note for the agent as one line (line breaks and control characters become spaces), or `null` |
 | `requested_by` | Who asked: `cli` or `mcp`, or over HTTP `api:` and the caller (`api:person@example.org` for a person through Access, `api:token:<name>` for a service token) |
 
 The type has three segments, inside culture-rules' default event subscription
