@@ -23,7 +23,7 @@ Pick the page for what you are doing. Each one stands on its own.
 | An agent | Call the CLI verbs or the MCP tools: findings, rules, history | [`docs/agents.md`](docs/agents.md) |
 | An integrator | Import `qodo.api` or call the HTTP API | [`docs/integrators.md`](docs/integrators.md) |
 
-The culture-rules bundle (two flows, shipped disabled) is in
+The culture-rules bundle (three flows, shipped disabled) is in
 [`docs/rules/qodo/`](docs/rules/qodo/README.md). What the bridge cannot do yet,
 and what was never verified, is in
 [Known limits](docs/operations/bridge.md#known-limits).

@@ -351,9 +351,10 @@ culture-rules.
 
 1. `findings fix` publishes **one event** on the mesh's event bus (the MQTT
    fabric events-cli owns) and logs one `fix.requested` line.
-2. culture-rules ingests the event. A rule (configuration you write in
-   culture-rules; none ships in this repo yet, *planned*) starts a workflow that
-   runs an agent in a dedicated checkout of the pull request's branch.
+2. culture-rules ingests the event. A rule (configuration: the culture-rules
+   bundle's `qodo-fix-on-request` and `qodo-fix`, shipped disabled; see
+   `docs/rules/qodo/README.md`) starts a workflow that runs an agent in a
+   dedicated checkout of the pull request's head.
 3. When the agent has committed its fix, the workflow calls `fix propose`,
    which returns the changed files only if the change is safe.
 4. culture-rules' GitHub App opens the fix as a **new pull request against the
@@ -527,7 +528,8 @@ A name that only resembles one of these (`docs/.github-notes.md`,
 3. Set `QODO_FIX_CHECKOUT_ROOTS` to where culture-rules' fix checkouts live.
 4. Issue an `editor` token for whatever calls `findings fix` and `fix propose`
    over HTTP.
-5. Write the culture-rules rule and workflow (*planned*; not in this repo yet).
+5. Set up and enable the culture-rules bundle's fix flow (`qodo-fix-on-request`;
+   `docs/rules/qodo/README.md`).
 
 ## The change log
 
@@ -570,7 +572,7 @@ The bundle in [`docs/rules/qodo/`](../rules/qodo/README.md) wires the bridge
 into culture-rules. Read its README before enabling anything; this section only
 summarises it. It needs culture-rules 0.47.0 or later.
 
-Two flows, both configuration only:
+Three flows, all configuration only:
 
 - **Findings.** After Qodo reviews a pull request, culture-rules calls
   `POST /verbs/findings/list` (with `summary: true`) once per head commit and
@@ -579,12 +581,17 @@ Two flows, both configuration only:
   Qodo configuration in a dedicated checkout, `config propose` checks the change,
   and culture-rules opens it as one pull request through its own GitHub App from
   the fixed branch `qodo-config/update`.
+- **Fix.** On a `qodo.fix.requested` event from `findings fix`, associate fixes
+  the named findings in a dedicated checkout of the pull request's head,
+  `fix propose` checks the change, and culture-rules opens it as one pull
+  request from `qodo-fix/pr-<number>` against the reviewed pull request's branch.
 
-**The bundle ships with all four rules disabled.** Before you enable it, set at
-least these (the README has the full list of eleven):
+**The bundle ships with all five rules disabled.** Before you enable it, set at
+least these (the README has the full list):
 
-- the repos, replacing `example-owner/example-repo` in all four rules;
-- a qodo-cli service token with the `editor` role (`config propose` needs it;
+- the repos, replacing `example-owner/example-repo` in all five rules;
+- a qodo-cli service token with the `editor` role (`config propose` and
+  `fix propose` need it;
   `findings list` needs `viewer`), stored as the culture-rules grant
   `QODO_BRIDGE_SERVICE_TOKEN`;
 - the checkout root (`/srv/qodo-checkouts` as shipped), which must match
@@ -592,7 +599,11 @@ least these (the README has the full list of eleven):
 - the bridge URL, `http://127.0.0.1:8792` as shipped, reachable from the machine
   the culture-rules actor runs on;
 - associate's bridge port (the bundle writes `8794` as a placeholder), a token
-  for it, and the GitHub App actor settings.
+  for it, and the GitHub App actor settings;
+- for the fix flow, its own checkout root (`/srv/qodo-fix-checkouts` as shipped,
+  different from the improvement root), in `QODO_FIX_CHECKOUT_ROOTS` here and in
+  associate's `ASSOCIATE_RUNS_ROOTS`, each repo in `QODO_FIX_REPOS`, and the
+  `events` extra with a broker on both the bridge and the culture-rules node.
 
 Then enable each rule with `culture-rules rules enable <id> --apply`.
 

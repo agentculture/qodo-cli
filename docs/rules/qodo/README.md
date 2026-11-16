@@ -1,6 +1,7 @@
 # qodo bundle for culture-rules
 
-Two culture-rules flows that use the qodo-cli bridge. Both ship **disabled**.
+Three culture-rules flows that use the qodo-cli bridge. All three ship
+**disabled**.
 
 - **Findings.** After Qodo reviews a pull request, culture-rules asks the
   qodo-cli bridge for the PR's findings, once per head commit. The counts
@@ -10,11 +11,18 @@ Two culture-rules flows that use the qodo-cli bridge. Both ship **disabled**.
   Qodo configuration in a dedicated checkout. The qodo-cli bridge then checks
   the change. If the change passes, culture-rules opens it as one pull request
   through its own GitHub App, from a fixed branch.
+- **Fix.** A person asks for an agent to fix some Qodo findings on a pull
+  request (`qodo-cli findings fix`, which publishes one `qodo.fix.requested`
+  event on the event bus). associate fixes them in a dedicated checkout of the
+  pull request's head. The qodo-cli bridge checks the change (`fix propose`).
+  If it passes, culture-rules opens it as one pull request **against the
+  reviewed pull request's branch**.
 
 The bundle is configuration only. culture-rules has no Qodo-specific code; the
 bundle uses only its generic parts: `http.call`, `machine.command`,
-`github.pr_open`, `keyset.filter` and `keyset.add`, `json.parse`, `text.join`
-and `retry_until`.
+`github.pr`, `github.pr_open`, `keyset.filter` and `keyset.add`, `json.parse`,
+`text.join`, `list.filter` and `retry_until`, and an `event` trigger on a bus
+event type.
 
 **It needs culture-rules 0.47.0 or later.** That is the first release with the
 `github.pr_open` action. The bundle has no `release.json`, because a
@@ -26,18 +34,20 @@ and `retry_until`.
 |---|---|
 | `actors/qodo-bridge.json` | `service` actor for `http.call` to qodo-cli serve on `127.0.0.1:8792`. It sends `Authorization: Bearer grant:QODO_BRIDGE_SERVICE_TOKEN` |
 | `actors/associate-bridge.json` | `service` actor for `http.call` to associate's runs API. It sends `Authorization: Bearer grant:ASSOCIATE_BRIDGE_SERVICE_TOKEN` |
-| `actors/qodo-checkout.json` | `runner` actor with three registered commands: `fetch`, `reset` and `pause` (`sleep 30`) |
+| `actors/qodo-checkout.json` | `runner` actor with five registered commands: `fetch`, `reset`, `fetch-pr`, `reset-pr` and `pause` (`sleep 30`) |
 | `rules/qodo-findings-on-review.json` | fires on `github.review.submitted`; disabled |
 | `rules/qodo-findings-on-comment.json` | fires on `github.comment.created`; disabled |
 | `rules/qodo-findings-on-review-comment.json` | fires on `github.review_comment.created`; disabled |
 | `rules/qodo-improve-on-merge.json` | fires on `github.pr.closed`; disabled |
+| `rules/qodo-fix-on-request.json` | fires on `qodo.fix.requested`; disabled |
 | `workflows/qodo-findings.json` | the findings flow |
 | `workflows/qodo-improve.json` | the improvement flow |
+| `workflows/qodo-fix.json` | the fix flow |
 
 A rule has one trigger type. The findings flow starts from three event types,
 so it has three rules, one per type. All three run the same workflow.
 
-The bundle ships no GitHub actor. Both flows use your existing GitHub App
+The bundle ships no GitHub actor. The flows use your existing GitHub App
 actor, `github-app`; see `docs/actors/github.md` in culture-rules.
 
 ## The rules
@@ -66,18 +76,54 @@ The improvement rule fires on `github.pr.closed` when all of these hold:
 - `data.self_authored == false`;
 - `data.head_repo == data.base_repo`;
 - the repository is in the allowed list;
-- `data.head_branch` exists and does **not** contain `qodo-config/`.
+- `data.head_branch` exists;
+- `data.base_branch == "main"`: the PR was merged into the default branch,
+  the branch the `fetch` and `reset` commands name. A merge into another
+  PR's branch (a stacked PR, or a fix PR merged into the PR it fixes) starts
+  nothing;
+- `data.head_branch` does **not** contain `qodo-fix/` or `qodo-config/`.
 
-The last condition is the loop guard. The bundle opens its PR from the fixed
-branch `qodo-config/update`, so merging that PR starts nothing. The guard does
-not depend on Qodo's `ignore_bot_pr`. GitHub event data carries no labels, so
-the guard is the branch name.
+The last two conditions are the loop guards. The improvement flow opens its PR
+from the fixed branch `qodo-config/update`, and the fix flow opens its PRs from
+`qodo-fix/pr-<number>`, so merging either starts nothing. A fix PR whose base
+GitHub retargets to `main` (after the reviewed branch is merged and deleted)
+still carries the `qodo-fix/` head branch. The guards do not depend on Qodo's
+`ignore_bot_pr`. GitHub event data carries no labels, so the guards are the
+branch names. The `github.pr.closed` event carries the PR's base branch but not
+the repo's default branch, so `main` is written as a literal: change it with
+the `fetch` and `reset` commands if your default branch has another name.
 
 The improvement rule's concurrency key is
 `qodo-improve:{trigger.data.repository}`, so only one improvement run per repo
 runs at a time. A merge that arrives during a run is held. The newest held
 merge runs once the current run ends. associate's own `409 busy` on a checkout
 that is in use is a second fence.
+
+The fix rule fires on `qodo.fix.requested` when all of these hold:
+
+- `source == "app://qodo-cli"`, the bridge's own source. culture-rules stores
+  the bus envelope whole, so a condition reads its `source` like its `data`.
+  Another producer that publishes the same type under its own source starts
+  nothing. The bus does not authenticate producers, so this keeps out a
+  mistaken producer, not a hostile one with access to the broker;
+- `data.repo` is in the allowed repos (the same placeholder list as the other
+  rules);
+- `data.number > 0`, so the number is a number;
+- `data.finding_ids` holds at least one id, and every id is a plain id
+  (letters, digits, `.`, `_`, `:`, `-`, at most 128 characters), the shape the
+  bridge checks before it publishes. The ids go into the agent's instruction.
+
+The rule maps the PR URL from the allowed repo and the number
+(`https://github.com/<repo>/pull/<number>`), not from the event's `pr_url`. It
+maps `requested_by` as it comes; the workflow keeps it in the run and does not
+put it in the PR, because it can be a person's address.
+
+Its concurrency key is `qodo-fix:{trigger.data.repo}`: one fix run per repo at
+a time, in a namespace of its own, so it never shares a key with the
+improvement flow. A request that arrives during a run is held and runs when
+the run ends. **Of several requests held at once, only the newest runs**: a
+culture-rules concurrency key keeps one pending firing and replaces it with a
+newer one. The person whose request was replaced asks again.
 
 ## The workflows
 
@@ -134,22 +180,91 @@ Outputs: `new_head` (1 or 0) and `findings`, the counts object.
 
 Outputs: `run` (the last run reply), `pr_number`, `pr_url` and `pr_skipped`.
 
+`qodo-fix`:
+
+1. **`github.pr`** on `github-app` reads the pull request: its state, head and
+   base repos, head branch and head sha. It writes nothing.
+2. **`same_repo` check.** A one-pass `retry_until` that fails the run when an
+   open pull request comes from a fork, or has no head branch. culture-rules'
+   App cannot open a PR against a fork's branch, and the fix checkout tracks
+   only the repo itself. The message names the head repo and branch.
+3. **`go` gate** (`list.filter`). The run goes on only when the pull request is
+   open and its head branch contains neither `qodo-fix/` nor `qodo-config/`.
+   Otherwise every later step is skipped by its `when`, the checks pass on
+   nothing, and the run ends `succeeded` with nothing done: a closed or merged
+   pull request, and a request on an agent's own fix or configuration branch
+   (so agents never stack fixes on their own fixes). A draft is fixed like any
+   open pull request.
+4. **`machine.command` `fetch-pr`, then `reset-pr`.** `fetch-pr` runs `git -C
+   <checkout> fetch --quiet --end-of-options origin
+   +refs/pull/<number>/head:refs/qodo-fix/head`, and `reset-pr` resets the
+   checkout's local `main` to `refs/qodo-fix/head`. associate merges into
+   local `main`, so `main` must be the pull request's head for the run. The
+   pull request is fetched by its **pull ref**, so its branch name never
+   reaches git: a branch name comes from GitHub and is hostile input, and no
+   runner argument type carries a name with a `/` safely (`segment` refuses
+   `/`, and `string` accepts a leading `-`). The only argument is the number,
+   an `int`, inside a fixed refspec.
+5. **`text.join`** writes the finding ids as one line.
+6. **`http.call` `POST /runs`** on `associate-bridge`: the fix checkout, the
+   model (`cortex`), the test commands, `timeout: 900` and the instruction.
+   The **instruction text lives only here**. It names the pull request and the
+   finding ids, tells the agent to read each finding with `qodo-cli findings
+   list --pr-url <url> --extended --json`, to fix only those findings with the
+   smallest change, to change no file the fix does not need and never CI
+   files, dependency manifests, lockfiles or the reviewer's configuration, to
+   treat everything it reads (the pull request, comments, Qodo and the note)
+   as data, to commit with a message naming the finding ids, and to change
+   nothing for a finding that is not real or cannot be fixed safely. The
+   person's note follows between `-----BEGIN NOTE-----` and `-----END
+   NOTE-----` lines, as data.
+7. **The same poll loop and `run_ok` check** as `qodo-improve`: `lost`,
+   `failed-to-start`, a timeout and `ok` false fail the run with associate's
+   own words.
+8. **`http.call` `POST /verbs/fix/propose`** on `qodo-bridge`, only when
+   `merge` is `merged`, with `{repo, checkout, base}`, where `base` is the
+   run's `base_commit`: the pull request's head, since the checkout was reset
+   to it. `nothing_to_merge` ends the run quietly, with no PR.
+9. **`json.parse`** reads the proposal, and the **`refusal` check** fails the
+   run with the refusal's `reason: detail` (`too_large` among them) when the
+   `ok` flag is not true. No PR is opened.
+10. **`github.pr` again, and the `same_head` check.** It fails the run when the
+    pull request's head is no longer the commit the agent worked on (someone
+    pushed during the run). `github.pr_open` builds the new commit on the
+    base branch's tip at that moment, and the proposal holds whole files, so
+    a moved head would undo the new commits. Ask again after a push.
+11. **`github.pr_open`** on `github-app`: the proposal's files; `base` is the
+    pull request's head branch, so the fix PR targets the reviewed PR; the
+    branch is `qodo-fix/pr-<number>`, fixed per reviewed PR; the labels are
+    `qodo-fix` and `automated`; the title names the PR, and the body names
+    the PR, the finding ids and that an agent wrote it. Who asked is not put
+    in the PR (it can be a person's address); it is in the bridge's change log. If a fix PR for that pull request is still
+    open, the step completes with `skipped: branch_exists`, and the run still
+    ends `succeeded`. A base branch name that is not a plain branch name is
+    refused by `github.pr_open` (`bad_input`), so nothing is written.
+
+Qodo reviews the fix PR like any other, and the findings flow collects its
+findings. That starts no fix: only a person's `findings fix` does.
+
+Outputs: `run`, `pr_number`, `pr_url` and `pr_skipped`.
+
 ## Before enabling
 
 Set each of these values. The shipped values are placeholders, and the rules
 are disabled.
 
-1. **The repos.** Replace `example-owner/example-repo` in all four rules'
-   `data.repository` lists. No real event comes from the placeholder, so
-   nothing fires until you replace it.
+1. **The repos.** Replace `example-owner/example-repo` in all five rules
+   (`data.repository` in four, `data.repo` in `qodo-fix-on-request`). No real
+   event comes from the placeholder, so nothing fires until you replace it.
 2. **Qodo's bot login.** Check `qodo-code-review[bot]` in the three findings
    rules against the login Qodo posts under on your repos.
 3. **The bridge base URLs.**
    - qodo-cli serve listens on `http://127.0.0.1:8792` by default. That URL is
-     in `qodo-findings` (`list`) and `qodo-improve` (`propose`).
+     in `qodo-findings` (`list`), `qodo-improve` (`propose`) and `qodo-fix`
+     (`propose`).
    - associate's runs API is written as `http://127.0.0.1:8794`. **8794 is a
      placeholder**: set the port associate's bridge listens on, in `start`
-     and `poll`.
+     and `poll` of both `qodo-improve` and `qodo-fix`.
    - The actors run where `machine` says, `core` as shipped. `http.call` runs
      where its actor lives, so loopback works only on that machine.
 4. **The `http.call` destination allowlist.** Each service actor allows
@@ -157,7 +272,8 @@ are disabled.
    `params.http.allow`.
 5. **The grants that hold the two service tokens.**
    - Mint a qodo-cli service token with the **editor** role (`config propose`
-     needs it; `findings list` needs viewer) and store it in grant as
+     and `fix propose` need it; `findings list` needs viewer) and store it in
+     grant as
      `QODO_BRIDGE_SERVICE_TOKEN`.
    - Mint an associate token with the **admin** role (`POST /runs` needs it)
      and store it as `ASSOCIATE_BRIDGE_SERVICE_TOKEN`.
@@ -174,7 +290,8 @@ are disabled.
      `github.pr.synchronize` in `params.events`. The last one lets a push reset
      the findings budget.
    - The repos in `connection.repos`, and Contents write and Pull requests
-     write on them.
+     write on them (Pull requests read covers `github.pr`, which needs no
+     entry in `params.actions`).
 7. **The checkout path.** The improvement rule maps
    `checkout = /srv/qodo-checkouts/{{ trigger.data.repository }}`.
    - Replace the root `/srv/qodo-checkouts`. The path must be exactly
@@ -190,12 +307,47 @@ are disabled.
    the `fetch` argv with `env`, `HOME=<the node user's home>`.
 9. **The model.** `cortex` is in the `start` step. associate needs a route to
    it and to the decider; without the decider, associate makes no writes.
-10. **The test commands.** `["qodo-cli config validate --json"]` is in the
-    `start` step. associate runs each command in the checkout.
+10. **The test commands.** `["qodo-cli config validate --json"]` is in
+    `qodo-improve`'s `start` step. associate runs each command in the
+    checkout.
 11. **Branch deletion.** In each repo, turn on GitHub's "Automatically delete
-    head branches", or delete `qodo-config/update` by hand after its PR is
-    merged or closed. While that branch exists, every improvement run ends
+    head branches", or delete `qodo-config/update` and `qodo-fix/pr-<number>`
+    by hand after their PRs are merged or closed. While such a branch exists,
+    every improvement run, or every fix run for that pull request, ends
     `skipped: branch_exists`.
+12. **The default branch.** The improvement rule's `data.base_branch ==
+    "main"` and the `fetch` and `reset` commands name `main`. Change all
+    three if a repo's default branch has another name.
+
+For the fix flow, also:
+
+1. **The fix checkout root.** The fix rule maps `checkout =
+   /srv/qodo-fix-checkouts/{{ trigger.data.repo }}`. Replace the root. **It
+   must differ from the improvement flow's root** (`/srv/qodo-checkouts`):
+   both flows reset their checkout's `main` and run associate in it, each one
+   run at a time under its own concurrency key, so on a shared checkout a fix
+   run and an improvement run could overwrite each other's work. Each fix
+   checkout is a dedicated clone of the repo (never a fork), exactly
+   `<root>/<owner>/<name>`, on the machine of `qodo-checkout` and of the two
+   bridges, with `origin` fetchable as for `fetch`.
+2. **On the qodo-cli bridge:** each repo in `QODO_PROPOSE_REPOS` (for
+   `findings fix`) **and** in `QODO_FIX_REPOS` (for `fix propose`), and the
+   fix root in `QODO_FIX_CHECKOUT_ROOTS`. The bridge's `events` extra
+   (`qodo-cli[events]`) and a broker it reaches (`events up`, or
+   `EVENTS_BROKER_HOST` / `EVENTS_BROKER_PORT`), so `findings fix` can
+   publish. See the fix requests section of `docs/operations/bridge.md`.
+3. **On associate's bridge:** `ASSOCIATE_RUNS_ROOTS` covers the fix root as
+   well as the improvement root.
+4. **On the engine node:** culture-rules' `events` extra
+   (`culture-rules[events]`) and the same broker, so the node ingests bus
+   events. Without it the node runs without ingest and the rule never sees a
+   request. `qodo.fix.requested` has three segments, inside the node's
+   default subscription depth (4).
+5. **The test commands.** `qodo-fix`'s `start` step ships
+   `["false replace-with-this-repo-quick-checks"]`, which always fails, so
+   no fix can pass until you set the repo's own quick checks (its linter and
+   fast tests).
+6. **The model.** `cortex` is in `qodo-fix`'s `start` step too.
 
 Then import the bundle, dry run first:
 
@@ -211,18 +363,22 @@ docs/rules/qodo --apply` imports the workflows and rules in one `POST
 `seed` step is recorded.
 
 To enable, run `culture-rules rules enable <id> --apply` for each rule you
-want. The four ids are `qodo-findings-on-review`, `qodo-findings-on-comment`,
-`qodo-findings-on-review-comment` and `qodo-improve-on-merge`.
+want. The five ids are `qodo-findings-on-review`, `qodo-findings-on-comment`,
+`qodo-findings-on-review-comment`, `qodo-improve-on-merge` and
+`qodo-fix-on-request`.
 
 ## Rollback
 
-Disable the four rules: `culture-rules rules disable <id> --apply`. Nothing
-else needs undoing.
+Disable the rules: `culture-rules rules disable <id> --apply`. To stop only
+the fix flow, disable `qodo-fix-on-request`. Nothing else needs undoing.
 
 - No new runs start once the rules are disabled. With the rules disabled, a PR
   open, a Qodo review and a merge start no run.
 - The bridges hold no state that culture-rules depends on.
-- A configuration PR that is already open stays open, for a person to close.
+- A configuration PR or fix PR that is already open stays open, for a person
+  to close.
+- A fix request published while the rule is disabled is stored and starts
+  nothing, then or later.
 - The keyset `qodo-findings-heads` expires by itself. To forget it at once:
   `culture-rules keysets clear qodo-findings-heads --apply`.
 
@@ -241,6 +397,23 @@ else needs undoing.
   budget allows one admitted run per head. A run that fails, for example while
   the bridge is down, is retried by the next human push or green checks, not by
   further comments on the same head.
-- **The two checks fail by message.** `run_ok` and `refusal` are one-pass
-  `retry_until` loops whose `explain` field carries the reason. culture-rules
-  has no step that fails a run with a configured message.
+- **The checks fail by message.** `run_ok`, `refusal`, `same_repo` and
+  `same_head` are one-pass `retry_until` loops whose `explain` field carries
+  the reason. culture-rules has no step that fails a run with a configured
+  message, and no condition compares two step outputs, so `same_repo`,
+  `go` and `same_head` compare them in a `list.filter` over one dummy item.
+- **The fix flow ends quietly by skipping.** culture-rules has no step that
+  ends a run early, and a loop takes no `when`. So when the `go` gate says no,
+  each later step carries a `when` that skips it, and each check passes when
+  nothing ran.
+- **Small fixes only.** `fix propose` returns each changed file whole, and the
+  reply must fit `http.call`'s 64 KiB reply cap (the bridge refuses a reply
+  over 61440 bytes with `too_large`). A larger fix fails the run with
+  `too_large`.
+- **Held fix requests coalesce.** Of several requests for one repo held during
+  a run, only the newest runs (above).
+- **The head may move after the last check.** `same_head` reads the pull
+  request seconds before `github.pr_open` builds on the branch's tip. A push
+  in those seconds is not caught.
+- **`requested_by` is not checked by the rule.** It is kept in the run's inputs
+  and never written to the pull request. Who asked is in the bridge's change log.
