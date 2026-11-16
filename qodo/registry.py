@@ -67,6 +67,7 @@ CLOSED_STATUSES = frozenset(
     {"full_implementation", "dismissed", "detected_after_merge", "outdated"}
 )
 _MAX_TEXT = 300
+_MAX_URL = 400
 
 
 @dataclass
@@ -249,10 +250,11 @@ def summarise_findings(reply: dict[str, Any]) -> dict[str, Any]:
     for finding in findings:
         status = str(finding.get("attribution_status") or finding.get("status") or "unknown")
         by_status[status] = by_status.get(status, 0) + 1
-        row: dict[str, Any] = {"id": _clip(finding.get("id")), "status": _clip(status)}
+        # an id or a URL is whole or absent, never cut: a cut one points somewhere else
+        row: dict[str, Any] = {"id": finding.get("id"), "status": _clip(status)}
         url = finding.get("url") or finding.get("html_url")
-        if isinstance(url, str) and url:
-            row["url"] = _clip(url)
+        if isinstance(url, str) and 0 < len(url) <= _MAX_URL:
+            row["url"] = url
         rows.append(row)
     n_open = sum(n for s, n in by_status.items() if s in OPEN_STATUSES)
     n_closed = sum(n for s, n in by_status.items() if s in CLOSED_STATUSES)

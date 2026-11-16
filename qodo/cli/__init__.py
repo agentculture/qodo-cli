@@ -103,6 +103,11 @@ def _build_parser() -> argparse.ArgumentParser:
     _overview_cmd.register(sub)
     _doctor_cmd.register(sub)
     _cli_group.register(sub)
+    # Nouns an operator's exposure policy adds beyond the ones above (a name a command above
+    # already holds is never replaced):
+    from qodo.cli import _build
+
+    _build.register_other_nouns(sub, set(sub.choices))
     # Register further noun groups here, following the rules/review pattern:
     #   from qodo.cli._commands import my_noun as _my_noun_group
     #   _my_noun_group.register(sub)

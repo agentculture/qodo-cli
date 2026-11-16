@@ -8,9 +8,9 @@ older ``rules get``, ``review``, ``config show|validate|init``) is only listed. 
 policy entry leaves out the ``cli`` surface has no command.
 
 Flags: one ``--kebab-name`` per property; ``string`` takes a value (``choices`` from an ``enum``),
-``integer`` and ``number`` are typed, ``boolean`` is a switch, an ``array`` repeats the flag, and a
-shape the flags cannot say (an object, a union) takes inline JSON. A ``required`` property is a
-required flag; a property marked ``deprecated`` upstream gets no flag.
+``integer`` and ``number`` are typed, ``boolean`` is ``--name`` or ``--no-name``, an ``array``
+repeats the flag, and a shape the flags cannot say (an object, a union) takes inline JSON. A
+``required`` property is a required flag; a property marked ``deprecated`` upstream gets no flag.
 """
 
 from __future__ import annotations
@@ -60,7 +60,8 @@ def _add_param(parser: argparse.ArgumentParser, name: str, prop: dict[str, Any],
     kind = prop.get("type")
     kw: dict[str, Any] = {"dest": name, "help": _help(prop) or None}
     if kind == "boolean":
-        parser.add_argument(_flag(name), action="store_true", **kw)
+        # --name / --no-name, so false can be said; left off, the param is not sent
+        parser.add_argument(_flag(name), action=argparse.BooleanOptionalAction, default=None, **kw)
         return
     kw["required"] = required
     if kind == "array":
@@ -89,11 +90,11 @@ def add_params(parser: argparse.ArgumentParser, schema: dict[str, Any]) -> None:
 
 
 def params_from_args(args: argparse.Namespace, schema: dict[str, Any]) -> dict[str, Any]:
-    """The params the user gave: a flag left off (``None``, or a switch that is off) is absent."""
+    """The params the user gave: a flag left off (``None``) is absent."""
     out: dict[str, Any] = {}
     for name, prop in schema.get("properties", {}).items():
         value = getattr(args, name, None)
-        if value is None or value is False:
+        if value is None:
             continue
         out[name] = value
     return out
@@ -182,6 +183,13 @@ def register_noun(sub: argparse._SubParsersAction, noun: str) -> None:
     ov.add_argument("target", nargs="?", help=f"Ignored: overview describes the {noun} noun.")
     add_json_flag(ov)
     ov.set_defaults(func=overview)
+
+
+def register_other_nouns(sub: argparse._SubParsersAction, taken: set[str]) -> None:
+    """A group for every noun the policy adds beyond the ones ``taken`` already registered, so
+    a verb the operator's policy names always has a command."""
+    for noun in sorted({v.noun for v in cli_verbs(generated_only=True)} - taken):
+        register_noun(sub, noun)
 
 
 # --- self-description (learn, overview) -----------------------------------------------------------

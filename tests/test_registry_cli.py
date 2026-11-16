@@ -337,3 +337,52 @@ def test_a_verb_the_policy_does_not_put_on_the_cli_has_no_command(monkeypatch, c
     with pytest.raises(SystemExit):
         main(["rules", "show", "--rule-id", "1", "--json"])
     assert "invalid choice" in capsys.readouterr().err
+
+
+def test_a_policy_verb_under_a_new_noun_gets_a_command(monkeypatch, capsys):
+    from qodo import exposure
+
+    policy = exposure.parse_policy(
+        {
+            "version": 1,
+            "tools": [{"tool": "rules-metadata", "verb": "catalogue facts", "surfaces": ["cli"]}],
+        }
+    )
+    monkeypatch.setattr(reg, "default_registry", lambda: reg.build_registry(policy))
+    monkeypatch.setattr(
+        api, "_gateway", lambda: gw.Gateway(policy, api_key="k", opener=FakeUpstream())
+    )
+    assert main(["catalogue", "facts", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)
+
+
+def test_a_boolean_param_can_be_sent_as_false_and_is_absent_when_left_off():
+    import argparse
+
+    from qodo.cli import _build
+
+    schema = {"type": "object", "properties": {"extended": {"type": "boolean"}}}
+    parser = argparse.ArgumentParser()
+    _build.add_params(parser, schema)
+    assert _build.params_from_args(parser.parse_args([]), schema) == {}
+    assert _build.params_from_args(parser.parse_args(["--extended"]), schema) == {"extended": True}
+    assert _build.params_from_args(parser.parse_args(["--no-extended"]), schema) == {
+        "extended": False
+    }
+
+
+def test_a_summary_never_cuts_an_id_or_a_url():
+    long_id = "f" * 500
+    ok_url = "https://example.com/" + "a" * 350
+    too_long = "https://example.com/" + "a" * 5000
+    summary = reg.summarise_findings(
+        {
+            "findings": [
+                {"id": long_id, "attribution_status": "open", "url": ok_url},
+                {"id": "b", "attribution_status": "open", "url": too_long},
+            ]
+        }
+    )
+    first, second = summary["findings"]
+    assert first["id"] == long_id and first["url"] == ok_url
+    assert "url" not in second
