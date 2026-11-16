@@ -114,17 +114,19 @@ def test_implement_appends_after_success(log, monkeypatch):
     up = _Up()
     monkeypatch.setattr(api, "_gateway", lambda: up)
     api.findings_implement(["a", "b"], actor="me")
-    (e,) = changelog.read()
-    assert e["kind"] == "finding.status_changed"
-    assert e["status"] == "implemented" and e["ids"] == ["a", "b"] and e["actor"] == "me"
-    assert "reason" not in e
+    first, second = changelog.read()  # one line per finding change
+    assert [first["id"], second["id"]] == ["a", "b"]
+    for e in (first, second):
+        assert e["kind"] == "finding.status_changed"
+        assert e["status"] == "implemented" and e["actor"] == "me"
+        assert "reason" not in e and "ids" not in e
 
 
 def test_dismiss_appends_status_and_reason(log, monkeypatch):
     monkeypatch.setattr(api, "_gateway", lambda: _Up())
     api.findings_dismiss(["a"], "deferred")
     (e,) = changelog.read()
-    assert e["status"] == "dismissed" and e["reason"] == "deferred" and e["ids"] == ["a"]
+    assert e["status"] == "dismissed" and e["reason"] == "deferred" and e["id"] == "a"
 
 
 def test_failed_call_appends_nothing(log, monkeypatch):

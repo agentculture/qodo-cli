@@ -104,6 +104,21 @@ def test_datetime_expiry_accepted(home):
     assert health.key_status(now=NOW, home=home)["days_left"] == 45
 
 
+def test_a_datetime_expiry_counts_the_time_really_left(home):
+    from datetime import timedelta
+
+    almost = (NOW + timedelta(days=13, hours=12)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    _config(home, API_KEY="k", API_KEY_EXPIRES=almost)
+    status = health.key_status(now=NOW, home=home)
+    assert status["days_left"] == 13 and status["state"] == "expiring"
+    enough = (NOW + timedelta(days=14, minutes=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    _config(home, API_KEY="k", API_KEY_EXPIRES=enough)
+    assert health.key_status(now=NOW, home=home)["state"] == "ok"
+    past = (NOW - timedelta(minutes=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    _config(home, API_KEY="k", API_KEY_EXPIRES=past)
+    assert health.key_status(now=NOW, home=home)["state"] == "expired"
+
+
 def test_key_status_never_raises_on_bad_config(home):
     (home / ".qodo" / "config.json").write_text("{nope", encoding="utf-8")
     s = health.key_status(now=NOW, home=home)

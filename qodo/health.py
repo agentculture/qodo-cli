@@ -11,6 +11,7 @@ header ("Qodo key: N days left"). It never raises and never returns the key.
 from __future__ import annotations
 
 import json
+import math
 import os
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -32,6 +33,18 @@ def parse_expiry(value: str) -> date:
     if when.tzinfo is not None:
         when = when.astimezone(UTC)
     return when.date()
+
+
+def _instant(value: str) -> datetime | None:
+    """The exact UTC instant when ``value`` carries a time; ``None`` for a plain date."""
+    text = value.strip()
+    try:
+        date.fromisoformat(text)
+        return None
+    except ValueError:
+        pass
+    when = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    return when.replace(tzinfo=UTC) if when.tzinfo is None else when.astimezone(UTC)
 
 
 def _read_config(home: Path) -> dict[str, Any]:
@@ -71,6 +84,9 @@ def key_status(*, now: datetime | None = None, home: Path | None = None) -> dict
         status.update(state="invalid", detail=f"cannot parse key expiry {str(raw)[:40]!r}")
         return status
     days = (expires - when.astimezone(UTC).date()).days
+    instant = _instant(str(raw))
+    if instant is not None:  # a time was given: count whole days of what is really left
+        days = math.floor((instant - when.astimezone(UTC)).total_seconds() / 86400)
     state = "expired" if days < 0 else "expiring" if days < WARN_DAYS else "ok"
     status.update(state=state, expires=expires.isoformat(), days_left=days, detail="")
     return status

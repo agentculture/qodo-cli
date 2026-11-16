@@ -20,6 +20,8 @@ the file *paths*). Never the API key, never finding text, never file contents.
 
 from __future__ import annotations
 
+import errno
+import fcntl
 import json
 import os
 import sys
@@ -56,19 +58,26 @@ def append(kind: str, *, actor: str | None = None, **fields: Any) -> dict[str, A
 
     path = log_path()
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    lock = os.open(path.with_name(path.name + ".lock"), os.O_RDWR | os.O_CREAT, 0o600)
     try:
-        if path.stat().st_size >= MAX_BYTES:
-            os.replace(path, path.with_name(path.name + ".1"))
-    except FileNotFoundError:
-        pass
-    fd = os.open(path, os.O_RDWR | os.O_APPEND | os.O_CREAT, 0o600)
-    try:
-        size = os.fstat(fd).st_size
-        if size and os.pread(fd, 1, size - 1) != b"\n":
-            data = b"\n" + data
-        os.write(fd, data)
+        fcntl.flock(lock, fcntl.LOCK_EX)  # one appender rotates or writes at a time
+        try:
+            if path.stat().st_size >= MAX_BYTES:
+                os.replace(path, path.with_name(path.name + ".1"))
+        except FileNotFoundError:
+            pass
+        fd = os.open(path, os.O_RDWR | os.O_APPEND | os.O_CREAT, 0o600)
+        try:
+            size = os.fstat(fd).st_size
+            if size and os.pread(fd, 1, size - 1) != b"\n":
+                data = b"\n" + data
+            written = os.write(fd, data)
+            if written != len(data):
+                raise OSError(errno.EIO, "short write to the change log")
+        finally:
+            os.close(fd)
     finally:
-        os.close(fd)
+        os.close(lock)  # closing releases the lock
     return entry
 
 
@@ -114,8 +123,14 @@ def read(limit: int | None = None) -> list[dict[str, Any]]:
 def record_finding_status(
     ids: list[str], status: str, *, reason: str | None = None, actor: str | None = None
 ) -> bool:
-    """Log a finding status change (ids, new status, dismiss reason). Never raises."""
-    return try_append(KIND_FINDING_STATUS, actor=actor, ids=list(ids), status=status, reason=reason)
+    """Log finding status changes, one line per finding (id, new status, dismiss reason).
+
+    Never raises; ``False`` when any line could not be written."""
+    results = [
+        try_append(KIND_FINDING_STATUS, actor=actor, id=one, status=status, reason=reason)
+        for one in ids
+    ]
+    return all(results)
 
 
 def record_config_proposal(repo: str, files: list[str], *, actor: str | None = None) -> bool:
