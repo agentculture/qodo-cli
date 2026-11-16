@@ -22,6 +22,7 @@ subprocess. Standard library only.
 
 from __future__ import annotations
 
+import errno
 import json
 import os
 import stat
@@ -78,33 +79,64 @@ def _problem(code: str, detail: str) -> dict[str, str]:
     return {"code": code, "detail": detail}
 
 
+def _open_parent(checkout: str, segments: list[str]) -> int:
+    """A descriptor for the directory holding the file, reached from the checkout one segment
+    at a time with no symlink followed, so swapping a directory for a link after the earlier
+    checks cannot redirect the read."""
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    fd = os.open(checkout, flags)
+    try:
+        for segment in segments:
+            nxt = os.open(segment, flags, dir_fd=fd)
+            os.close(fd)
+            fd = nxt
+    except OSError:
+        os.close(fd)
+        raise
+    return fd
+
+
 def _read(checkout: str, path: str, cap: int) -> tuple[dict[str, Any], str | None]:
     """``(the file's entry, its text or None)``; the text never leaves this module."""
-    full = os.path.join(checkout, *path.split("/"))
+    *parents, name = path.split("/")
+    not_regular = {
+        "present": True,
+        "problem": _problem("not_regular_file", "a symlink or other non-regular entry"),
+    }
     try:
-        info = os.lstat(full)
+        parent = _open_parent(checkout, parents)
     except FileNotFoundError:
         return {"present": False}, None
     except OSError as err:
+        if err.errno in (errno.ELOOP, errno.ENOTDIR):
+            return not_regular, None
         return {"present": True, "problem": _problem("unreadable", err.strerror or "")}, None
-    if os.path.realpath(full) != full or not stat.S_ISREG(info.st_mode):
-        return {
-            "present": True,
-            "problem": _problem("not_regular_file", "a symlink or other non-regular entry"),
-        }, None
-    entry: dict[str, Any] = {"present": True, "bytes": info.st_size}
-    if info.st_size > cap:
-        return {**entry, "problem": _problem("file_too_large", f"over {cap} bytes")}, None
     try:
-        fd = os.open(full, os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_NONBLOCK", 0))
         try:
-            if not stat.S_ISREG(os.fstat(fd).st_mode):
-                raise OSError("not a regular file")
-            data = os.read(fd, cap + 1)
-        finally:
-            os.close(fd)
-    except OSError as err:
-        return {**entry, "problem": _problem("unreadable", err.strerror or str(err))}, None
+            info = os.stat(name, dir_fd=parent, follow_symlinks=False)
+        except FileNotFoundError:
+            return {"present": False}, None
+        except OSError as err:
+            return {"present": True, "problem": _problem("unreadable", err.strerror or "")}, None
+        if not stat.S_ISREG(info.st_mode):
+            return not_regular, None
+        entry: dict[str, Any] = {"present": True, "bytes": info.st_size}
+        if info.st_size > cap:
+            return {**entry, "problem": _problem("file_too_large", f"over {cap} bytes")}, None
+        try:
+            fd = os.open(
+                name, os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_NONBLOCK", 0), dir_fd=parent
+            )
+            try:
+                if not stat.S_ISREG(os.fstat(fd).st_mode):
+                    raise OSError("not a regular file")
+                data = os.read(fd, cap + 1)
+            finally:
+                os.close(fd)
+        except OSError as err:
+            return {**entry, "problem": _problem("unreadable", err.strerror or str(err))}, None
+    finally:
+        os.close(parent)
     if len(data) > cap:
         return {**entry, "problem": _problem("file_too_large", f"over {cap} bytes")}, None
     if b"\x00" in data:

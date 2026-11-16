@@ -274,3 +274,23 @@ def test_the_cli_command(tmp_path, monkeypatch, capsys):
     assert out["repos"][0]["files"][0]["valid_toml"] is True
     assert main(["config", "status", "--repo", OTHER, "--json"]) == 1
     assert "allowlist" in json.loads(capsys.readouterr().err)["message"]
+
+
+def test_a_checkout_swapped_for_a_link_after_the_checks_is_not_read(tmp_path):
+    """The earlier checks passed on a real directory; by the time the file is opened the
+    directory is a link to somewhere else. Nothing behind the link is read."""
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    (elsewhere / ".pr_agent.toml").write_text(f'x = "{SECRET}"\n', encoding="utf-8")
+    swapped = tmp_path / "swapped"
+    swapped.symlink_to(elsewhere, target_is_directory=True)
+    entry, text = cs._read(str(swapped), ".pr_agent.toml", 10_000)
+    assert text is None and entry["problem"]["code"] == "not_regular_file"
+
+    real = tmp_path / "real"
+    (real / "sub").mkdir(parents=True)
+    (real / "sub").rmdir()
+    (real / "sub").symlink_to(elsewhere, target_is_directory=True)  # a parent directory swapped
+    entry, text = cs._read(str(real), "sub/.pr_agent.toml", 10_000)
+    assert text is None and entry["problem"]["code"] == "not_regular_file"
+    assert SECRET not in json.dumps(entry)
