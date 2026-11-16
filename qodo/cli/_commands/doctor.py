@@ -23,8 +23,10 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from datetime import UTC, datetime
 from pathlib import Path
 
+from qodo import health
 from qodo.cli._commands.whoami import find_culture_yaml, read_agent_fields
 from qodo.cli._output import add_json_flag, emit_result
 
@@ -196,6 +198,52 @@ def _client_credential_status(home: Path) -> tuple[bool, str, str]:
     return True, "Qodo API key present in ~/.qodo/config.json (for 'qodo-cli rules')", ""
 
 
+_EXPIRY_HOW = (
+    "Qodo does not expose a key's expiry and it cannot be read from the key, so it comes from "
+    "configuration set when the key is created: export QODO_API_KEY_EXPIRES=YYYY-MM-DD or add "
+    '"API_KEY_EXPIRES": "YYYY-MM-DD" next to "API_KEY" in ~/.qodo/config.json'
+)
+
+
+def _key_expiry_check(home: Path, now: datetime) -> dict[str, object]:
+    """Fails when the key is missing, its expiry is unparseable, or it expires in under 14 days.
+
+    Severity ``warning``: the check fails but ``healthy`` and the exit code do not change,
+    like the other advisory Qodo checks (only some verbs need the key). A key with no
+    configured expiry passes and says the expiry is unknown.
+    """
+    st = health.key_status(now=now, home=home)
+    state, days = st["state"], st["days_left"]
+    remediation = ""
+    passed = True
+    if state == "missing":
+        passed, message = False, "no Qodo API key, so no expiry to check"
+        remediation = 'export QODO_API_KEY or add an "API_KEY" to ~/.qodo/config.json. '
+        remediation += _EXPIRY_HOW
+    elif state == "unknown":
+        message = "Qodo key expiry unknown (not configured); not checked. " + _EXPIRY_HOW
+    elif state == "invalid":
+        passed, message = False, f"Qodo key expiry is not a valid ISO date ({st['detail']})"
+        remediation = "use an ISO date such as 2026-12-31. " + _EXPIRY_HOW
+    elif state == "expired":
+        passed = False
+        message = f"Qodo API key expired on {st['expires']} ({-days} days ago)"
+        remediation = "create a new key, then set its new expiry. " + _EXPIRY_HOW
+    elif state == "expiring":
+        passed = False
+        message = f"Qodo API key expires on {st['expires']} ({days} days left, under 14)"
+        remediation = "rotate the key soon, then update its expiry. " + _EXPIRY_HOW
+    else:
+        message = f"Qodo API key expires on {st['expires']} ({days} days left)"
+    return {
+        "id": "qodo_key_expiry",
+        "passed": passed,
+        "severity": "warning",
+        "message": message,
+        "remediation": remediation,
+    }
+
+
 def _repo_root(start: Path) -> Path:
     """The git repo root at/above ``start`` (where Qodo reads its config), or ``start``."""
     for candidate in [start, *start.parents]:
@@ -227,6 +275,7 @@ def _diagnose() -> dict[str, object]:
         )
 
     checks.extend(_qodo_setup_checks(_repo_root(Path.cwd()), Path.home()))
+    checks.append(_key_expiry_check(Path.home(), datetime.now(UTC)))
 
     return {"healthy": _is_healthy(checks), "checks": checks}
 

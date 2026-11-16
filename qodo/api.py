@@ -21,7 +21,9 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from qodo import changelog as _changelog
 from qodo import gateway as _gateway_mod
+from qodo import health as _health
 from qodo.cli import _providers, _qodo_api
 from qodo.cli._errors import EXIT_USER_ERROR, CliError
 
@@ -118,18 +120,31 @@ def findings_list(pr_url: str, *, extended: bool = False) -> dict[str, Any]:
     return _gateway().call("get-pr-review-findings", args)
 
 
-def findings_implement(ids: list[str]) -> dict[str, Any]:
+def findings_implement(ids: list[str], *, actor: str | None = None) -> dict[str, Any]:
     """Mark findings implemented, 1-100 ids in one call (``pr-review-mark-implemented``).
 
-    A write. Returns the upstream reply (its shape was never recorded).
+    A write. Returns the upstream reply (its shape was never recorded). After a successful
+    call one line goes to the change log (``qodo.changelog``); a log failure only warns.
     """
-    return _gateway().call("pr-review-mark-implemented", {"finding_ids": _finding_ids(ids)})
+    clean = _finding_ids(ids)
+    reply = _gateway().call("pr-review-mark-implemented", {"finding_ids": clean})
+    _changelog.record_finding_status(clean, "implemented", actor=actor)
+    return reply
 
 
-def findings_dismiss(ids: list[str], reason: str) -> dict[str, Any]:
+def key_status() -> dict[str, Any]:
+    """The Qodo API key's health: ``{present, state, expires, days_left, detail}``.
+
+    Never includes the key. The expiry comes from configuration (see ``qodo.health``).
+    """
+    return _health.key_status()
+
+
+def findings_dismiss(ids: list[str], reason: str, *, actor: str | None = None) -> dict[str, Any]:
     """Dismiss findings with a reason (``pr-review-dismiss``): one of ``DISMISS_REASONS``.
 
-    A write. Returns the upstream reply (its shape was never recorded).
+    A write. Returns the upstream reply (its shape was never recorded). After a successful
+    call one line goes to the change log; a log failure only warns.
     """
     if reason not in DISMISS_REASONS:
         raise CliError(
@@ -137,9 +152,10 @@ def findings_dismiss(ids: list[str], reason: str) -> dict[str, Any]:
             message=f"dismiss reason must be one of {', '.join(DISMISS_REASONS)}",
             remediation="pass --reason with one of the allowed values",
         )
-    return _gateway().call(
-        "pr-review-dismiss", {"finding_ids": _finding_ids(ids), "reason": reason}
-    )
+    clean = _finding_ids(ids)
+    reply = _gateway().call("pr-review-dismiss", {"finding_ids": clean, "reason": reason})
+    _changelog.record_finding_status(clean, "dismissed", reason=reason, actor=actor)
+    return reply
 
 
 def rules_search(
