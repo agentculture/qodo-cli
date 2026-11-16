@@ -10,7 +10,8 @@ names, contents, symlinks, ``.git/config``).
 Order of checks:
 
 1. **repo allowlist** -- before the filesystem or git is touched at all;
-2. **checkout roots** -- the checkout's real path must sit under a configured root;
+2. **checkout roots** -- the checkout's real path must be ``<root>/<owner>/<name>`` for a
+   configured root, which is what binds the repo name to its checkout;
 3. **base ref** -- a strict pattern, resolved with ``--end-of-options``, and an ancestor of HEAD;
 4. **the change set** -- ``git diff-tree -r -z --raw -M`` between the base and HEAD commits,
    so renames, deletions, mode and type changes are explicit; every path must be in the
@@ -298,6 +299,14 @@ def _under_root(real: str, roots: tuple[str, ...]) -> bool:
         if real != top and os.path.commonpath([real, top]) == top:
             return True
     return False
+
+
+def _is_checkout_of(real: str, repo: str, roots: tuple[str, ...]) -> bool:
+    """Whether ``real`` is exactly ``<root>/<repo>`` for one of the roots."""
+    segments = repo.split("/")
+    if not all(seg and seg not in (".", "..") and os.sep not in seg for seg in segments):
+        return False
+    return any(real == os.path.join(os.path.realpath(root), *segments) for root in roots)
 
 
 # --- results -------------------------------------------------------------------------------------
@@ -598,6 +607,13 @@ def propose(repo: Any, checkout: Any, base: Any, settings: ProposeSettings) -> d
     real = os.path.realpath(checkout)
     if not _under_root(real, s.checkout_roots):
         return _refuse("checkout_not_allowed", "the checkout is not under an allowed root")
+    if not _is_checkout_of(real, repo, s.checkout_roots):
+        # the repo name is bound to its checkout by where the operator put it, never by what
+        # the checkout says about itself (its remotes are the checkout's own, editable, data)
+        return _refuse(
+            "checkout_not_allowed",
+            "the checkout of a repo is <root>/<owner>/<name>; this path is another repo's place",
+        )
     _require_repository(real)
     if not _base_ok(base):
         return _refuse("invalid_base", "the base must be a plain branch, tag or commit name")

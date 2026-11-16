@@ -185,7 +185,8 @@ the `cli` and `api` surfaces.
 ## Checks, in order
 
 1. `repo` is in the repo allowlist (before the checkout is touched at all).
-2. The checkout's real path is under an allowed checkout root, and is a plain git
+2. The checkout's real path is exactly `<root>/<owner>/<name>` for an allowed checkout
+   root (the place binds the repo name to its checkout), and is a plain git
    repository (a `.git` directory).
 3. `base` is a plain branch, tag or commit name (never `-...`, `..`, `@{`, `^`, `:`),
    names a commit, and is an ancestor of `HEAD`.

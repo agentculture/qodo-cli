@@ -87,7 +87,7 @@ def root(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def co(root: Path) -> Checkout:
-    return Checkout(root / "widgets")
+    return Checkout(root / "acme" / "widgets")
 
 
 def settings(root: Path, **over) -> pr.ProposeSettings:
@@ -239,21 +239,21 @@ def test_no_roots_configured_refuses_everything(co, root):
 
 def test_a_relative_checkout_path_is_refused(co, root, monkeypatch):
     monkeypatch.chdir(root)
-    out = api.config_propose(REPO, "widgets", "main", settings=settings(root))
+    out = api.config_propose(REPO, "acme/widgets", "main", settings=settings(root))
     refused(out, "checkout_not_allowed")
 
 
 def test_a_checkout_that_is_not_a_repository_is_an_environment_error(root):
-    (root / "plain").mkdir()
+    (root / "acme" / "widgets").mkdir(parents=True)
     with pytest.raises(CliError) as err:
-        api.config_propose(REPO, str(root / "plain"), "main", settings=settings(root))
+        api.config_propose(REPO, str(root / "acme" / "widgets"), "main", settings=settings(root))
     assert err.value.code == EXIT_ENV_ERROR
 
 
 def test_a_gitfile_checkout_is_an_environment_error(root, tmp_path):
     other = Checkout(tmp_path / "other")
-    d = root / "gitfile"
-    d.mkdir()
+    d = root / "acme" / "widgets"
+    d.mkdir(parents=True)
     (d / ".git").write_text(f"gitdir: {other.path / '.git'}\n")
     with pytest.raises(CliError) as err:
         api.config_propose(REPO, str(d), "main", settings=settings(root))
@@ -688,8 +688,8 @@ def test_the_cli_returns_the_files(co, root, monkeypatch, capsys):
 
 def test_the_cli_reports_an_environment_error(root, monkeypatch, capsys):
     _env_for(monkeypatch, root)
-    (root / "plain").mkdir()
-    rc = main(["config", "propose", "--repo", REPO, "--checkout", str(root / "plain"), "--base",
+    (root / "acme" / "widgets").mkdir(parents=True)
+    rc = main(["config", "propose", "--repo", REPO, "--checkout", str(root / "acme/widgets"), "--base",
                "main", "--json"])  # fmt: skip
     assert rc == 2 and json.loads(capsys.readouterr().err)["remediation"]
 
@@ -713,3 +713,14 @@ def test_explain_learn_and_overview_describe_config_propose(capsys):
     for argv in (["learn"], ["overview"], ["config", "overview"]):
         assert main(argv) == 0
         assert "config propose" in capsys.readouterr().out
+
+
+def test_an_allowed_repo_name_does_not_open_another_repos_checkout(root):
+    other = Checkout(root / "acme" / "secrets")
+    out = api.config_propose(REPO, str(other.path), "main", settings=settings(root))
+    refused(out, "checkout_not_allowed")
+    flat = Checkout(root / "widgets")  # right name, wrong place
+    refused(
+        api.config_propose(REPO, str(flat.path), "main", settings=settings(root)),
+        "checkout_not_allowed",
+    )
