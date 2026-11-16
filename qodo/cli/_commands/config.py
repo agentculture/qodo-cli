@@ -17,6 +17,7 @@ import argparse
 from pathlib import Path
 
 from qodo import api
+from qodo.cli import _build
 from qodo.cli._commands.overview import emit_overview
 from qodo.cli._errors import EXIT_SUCCESS, EXIT_USER_ERROR
 from qodo.cli._output import add_json_flag, emit_result
@@ -122,6 +123,7 @@ def _config_sections() -> list[dict[str, object]]:
                 "config show — show the repo reviewer config (.pr_agent.toml + best_practices.md)",
                 "config validate — validate the reviewer config (exit 1 if invalid)",
                 "config init [--force] — scaffold a minimal reviewer config when absent",
+                *_build.noun_items("config", ["config show", "config validate", "config init"]),
                 "config overview — describe the config noun (this command)",
             ],
         },
@@ -183,6 +185,8 @@ def register(sub: argparse._SubParsersAction) -> None:
     )
     add_json_flag(initp)
     initp.set_defaults(func=cmd_config_init)
+
+    _build.attach(verb, "config")  # propose: from the verb registry
 
     ov = verb.add_parser("overview", help="Describe the qodo-cli config noun.")
     ov.add_argument("target", nargs="?", help="Ignored — overview describes the config noun.")

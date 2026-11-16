@@ -9,7 +9,7 @@
     {"tool": "rules-list", "verb": "rules list", "surfaces": ["cli", "api", "mcp"], "allow_write": false},
     {"tool": "rules-get", "verb": "rules show", "surfaces": ["cli", "api", "mcp"], "allow_write": false},
     {"tool": "rules-metadata", "verb": "rules metadata", "surfaces": ["cli", "api", "mcp"], "allow_write": false},
-    {"tool": "pull-request-review-history", "verb": "history file", "surfaces": ["cli", "api", "mcp"], "allow_write": false},
+    {"tool": "pull-request-review-history", "verb": "history show", "surfaces": ["cli", "api", "mcp"], "allow_write": false},
     {"tool": "pull-request-similar-suggestions", "verb": "history similar", "surfaces": ["cli", "api", "mcp"], "allow_write": false},
     {"tool": "pull-request-stats", "verb": "history stats", "surfaces": ["cli", "api", "mcp"], "allow_write": false}
   ]

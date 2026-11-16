@@ -1,0 +1,406 @@
+{
+  "tools": {
+    "get-pr-review-findings": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Get the current review state of ONE pull/merge request from Qodo's review DB: the latest review run (status + reviewed commit) and every current finding with its id, status, category, action level, and the run + commit that raised it. Structured and git-provider-agnostic — use this instead of reading the PR's review comments to check where a review stands or which findings are still open. Call with the full HTTP(S) PR URL, not a repo slug or PR number. Returns review_session=null when the PR has no recorded review yet.\nSet extended=true for programmatic audit or investigation: includes finding locations, code snippets, dismissal details, evidence with citations, and review-run history. Default false returns the compact review state. This reads stored results, not a new review or an immutable history of every finding revision. Evidence may be null. If qar_operation_result_truncated=true is returned, the result exceeded the size limit and is not a complete review read.\nattribution_status is one of: pending, partial_implementation, not_implemented, focus_areas_edited, full_implementation, dismissed, detected_after_merge, outdated. OPEN (still needs attention) = pending, partial_implementation, not_implemented, focus_areas_edited. CLOSED = full_implementation, dismissed, detected_after_merge, outdated. action_level is severity, NOT open-vs-closed.\nUse the returned finding ids with pr-review-dismiss or pr-review-mark-implemented to close findings out.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "extended": {
+            "default": false,
+            "description": "Return extended review details: finding locations and code snippets, dismissal details, stored evidence (explanation and citations), and review-run history. Default false keeps the compact response. Reads stored results; does not rerun or deepen the review. Evidence is null when unavailable.",
+            "type": "boolean"
+          },
+          "git_provider": {
+            "deprecated": true,
+            "description": "Deprecated compatibility-only input. It is ignored; identify the pull/merge request with pr_url and omit this argument in new callers.",
+            "type": "string"
+          },
+          "pr_url": {
+            "description": "Full http:// or https:// URL of the pull/merge request, including its hostname; for example, https://github.com/org/repo/pull/123. A repo slug or PR number is not a URL.",
+            "examples": [
+              "https://github.com/org/repo/pull/123"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "pr_url"
+        ],
+        "type": "object"
+      }
+    },
+    "pr-review-dismiss": {
+      "annotations": {
+        "destructiveHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Dismiss one or more local or PR review findings with a reason — closing them WITHOUT a code change, because they are wrong, intentional, out of scope, or declined. Updates the findings in Qodo's review DB, strikes through their PR comments, re-renders the review summary. A local dismissal preserves configured merge-policy blocks. Use pr-review-mark-implemented instead when you actually fixed the code. Only OPEN findings can be dismissed; ids that are already closed come back with their own per-finding outcome rather than failing the call. Get the ids from get-pr-review-findings. For authorized writes, supply a stable idempotency_key argument and reuse it with unchanged arguments when retrying an uncertain outcome. The key is not user approval; follow the host's approval policy. Legacy request _meta is also accepted.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "explanation": {
+            "description": "Short justification recorded alongside the dismissal and shown to reviewers. Strongly recommended. Max 2000 characters.",
+            "maxLength": 2000,
+            "type": "string"
+          },
+          "finding_ids": {
+            "description": "Finding UUIDs to update, as returned in each finding's `id` by get-pr-review-findings. 1-100 per call. Batch every finding on the same PR into ONE call: the PR-side reconciliation runs once per call, not once per finding.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "type": "array"
+          },
+          "idempotency_key": {
+            "description": "Stable key for this write, not user approval. Reuse it with identical arguments after an uncertain transport outcome; use a new key for a different authorized write. Legacy request _meta is also accepted.",
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "local_review_id": {
+            "description": "For local findings, the local_review_id returned by that review. Required to prevent acting on a stale result. Batch only findings from that local review.",
+            "type": "string"
+          },
+          "reason": {
+            "description": "Why the findings are being closed without a code change. false_positive: the finding is wrong. intentional: the code is deliberate and correct as written. deferred: real, but out of scope for this PR. rejected: understood and declined.",
+            "enum": [
+              "false_positive",
+              "intentional",
+              "deferred",
+              "rejected"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "finding_ids",
+          "reason"
+        ],
+        "type": "object"
+      }
+    },
+    "pr-review-mark-implemented": {
+      "annotations": {
+        "destructiveHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Mark one or more PR review findings as implemented — the fix HAS landed in the code. Updates the findings in Qodo's review DB, marks their PR comments resolved, re-renders the review summary, and clears the merge-policy block they were holding. Only claim this for findings you actually fixed: it clears the merge gate without a review having verified the fix. Use pr-review-dismiss when closing a finding without a code change. Only OPEN findings can be marked; ids that are already closed come back with their own per-finding outcome rather than failing the call. Get the ids from get-pr-review-findings. For authorized writes, supply a stable idempotency_key argument and reuse it with unchanged arguments when retrying an uncertain outcome. The key is not user approval; follow the host's approval policy. Legacy request _meta is also accepted.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "explanation": {
+            "description": "Short note on what was changed to fix the findings. Strongly recommended. Max 2000 characters.",
+            "maxLength": 2000,
+            "type": "string"
+          },
+          "finding_ids": {
+            "description": "Finding UUIDs to update, as returned in each finding's `id` by get-pr-review-findings. 1-100 per call. Batch every finding on the same PR into ONE call: the PR-side reconciliation runs once per call, not once per finding.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "type": "array"
+          },
+          "idempotency_key": {
+            "description": "Stable key for this write, not user approval. Reuse it with identical arguments after an uncertain transport outcome; use a new key for a different authorized write. Legacy request _meta is also accepted.",
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "local_review_id": {
+            "description": "For local findings, the local_review_id returned by that review. Required to prevent acting on a stale result. Batch only findings from that local review.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "finding_ids"
+        ],
+        "type": "object"
+      }
+    },
+    "pull-request-review-history": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Get the recent code-review fix suggestions for a file or directory in ONE repository — what reviewers flagged there in past PRs and whether each suggestion was accepted. Call with 'owner/repo' and a relative path; the search graduates up the directory tree until enough suggestions are found. Use this to learn what kinds of issues recur in an area of the code and what feedback the team accepts.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "acceptance_status": {
+            "description": "Optional. Filter suggestions by review outcome; all outcomes are included when omitted.",
+            "enum": [
+              "definitely_accepted",
+              "definitely_rejected",
+              "partially_accepted",
+              "dismissed"
+            ],
+            "type": "string"
+          },
+          "category": {
+            "description": "Optional. Filter by finding category: 'bug' for bug findings, 'rule' for convention/style.",
+            "enum": [
+              "bug",
+              "rule"
+            ],
+            "type": "string"
+          },
+          "file_path": {
+            "description": "Relative path to a file or directory. The search starts here and graduates up the directory tree until enough suggestions are found.",
+            "type": "string"
+          },
+          "include_code_hunks": {
+            "description": "Optional. Include the diff hunk for each suggestion location, for pattern matching against the current code (default false).",
+            "type": "boolean"
+          },
+          "limit": {
+            "description": "Optional max number of suggestions to return (1-100, default 20).",
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "provider": {
+            "description": "Optional. Git provider override; resolved automatically from the repo when omitted (github / gitlab / bitbucket / ado).",
+            "type": "string"
+          },
+          "repo": {
+            "description": "Provider-native repository full name, including nested group/project segments.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo",
+          "file_path"
+        ],
+        "type": "object"
+      }
+    },
+    "pull-request-similar-suggestions": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Semantically search the code-review fix suggestions of ONE repository — find past findings similar to a description (embed_type 'description') or given on similar code (embed_type 'diff_hunk'). Call with 'owner/repo' and a query; optionally filter by folder, category (bug / rule), or acceptance status. Use this to check whether a finding was raised before and how the team responded.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "acceptance_status": {
+            "description": "Optional. Filter suggestions by review outcome; all outcomes are included when omitted.",
+            "enum": [
+              "definitely_accepted",
+              "definitely_rejected",
+              "partially_accepted",
+              "dismissed"
+            ],
+            "type": "string"
+          },
+          "category": {
+            "description": "Optional. Filter by finding category: 'bug' for bug findings, 'rule' for convention/style.",
+            "enum": [
+              "bug",
+              "rule"
+            ],
+            "type": "string"
+          },
+          "embed_type": {
+            "description": "Optional. What to match against: 'description' compares to suggestion description text, 'diff_hunk' compares to the code diff hunks at suggestion locations (default 'description').",
+            "enum": [
+              "description",
+              "diff_hunk"
+            ],
+            "type": "string"
+          },
+          "folder_path": {
+            "description": "Optional folder prefix; only suggestions whose affected file path starts with it are returned.",
+            "type": "string"
+          },
+          "include_code_hunks": {
+            "description": "Optional. Include the diff hunk for each suggestion location, for pattern matching against the current code (default false).",
+            "type": "boolean"
+          },
+          "provider": {
+            "description": "Optional. Git provider override; resolved automatically from the repo when omitted (github / gitlab / bitbucket / ado).",
+            "type": "string"
+          },
+          "query": {
+            "description": "Text to embed and search against — a finding description or a code snippet.",
+            "type": "string"
+          },
+          "repo": {
+            "description": "Provider-native repository full name, including nested group/project segments.",
+            "type": "string"
+          },
+          "top_k": {
+            "description": "Optional max number of unique suggestions to return (1-100, default 50).",
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "repo",
+          "query"
+        ],
+        "type": "object"
+      }
+    },
+    "pull-request-stats": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Summarize the indexed PR-knowledge corpus for ONE repository: counts of merged PRs, file changes, patches, comments, fix suggestions, and the merge-date range. Call with 'owner/repo' and the git provider. Use this to gauge how much PR history is available before deeper queries.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "provider": {
+            "description": "Optional. Git provider override; resolved automatically from the repo when omitted (github / gitlab / bitbucket / ado).",
+            "type": "string"
+          },
+          "repo": {
+            "description": "Provider-native repository full name, including nested group/project segments.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo"
+        ],
+        "type": "object"
+      }
+    },
+    "rules-get": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Fetch one rule by id, including content, examples, scopes, state, and severity. Use before editing a rule to show the user its current form.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "rule_id": {
+            "description": "Id of the rule to fetch (ruleId from search/list).",
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rule_id"
+        ],
+        "type": "object"
+      }
+    },
+    "rules-list": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "List the workspace's coding rules with filters and pagination (page/totalCount/rules). Use state='pending' to list suggestions awaiting triage, scopes to narrow to a repository, categories/severity/name_contains to filter further. Prefer rules-search for 'which rules apply to this task'; use rules-list for browsing, triage, and finding rule ids to manage. Rules auto-derived from skills never appear here — they are managed through their skill, not the rules tools. An empty page is a valid result.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "categories": {
+            "description": "Filter to rules whose category is any of these (see rules-metadata for values).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "name_contains": {
+            "description": "Case-insensitive name substring filter.",
+            "maxLength": 128,
+            "type": "string"
+          },
+          "page": {
+            "description": "1-based page number (default 1).",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "page_size": {
+            "description": "Rules per page (default 50, max 100).",
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "scopes": {
+            "description": "Filter to rules applicable at these scope paths, e.g. '/owner/repo/'.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "severity": {
+            "description": "Filter by severity.",
+            "enum": [
+              "error",
+              "warning",
+              "recommendation"
+            ],
+            "type": "string"
+          },
+          "state": {
+            "description": "Filter by lifecycle state: 'pending' (suggestions awaiting triage), 'active', 'inactive', or a comma-separated combination. Omit for all states.",
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      }
+    },
+    "rules-metadata": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "The workspace's rule metadata: available categories, severities, and source types. Call before creating a rule so the category matches an existing one.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
+      }
+    },
+    "rules-search": {
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "description": "Search the workspace's coding rules for those most relevant to a coding task, ranked by semantic relevance. Call BEFORE writing, editing, refactoring, or reviewing code so the returned rules can be applied to the change. Pass a structured Name/Category/Content query describing the rule the task would trigger (see the query parameter for the exact format); optionally narrow to a repository scope. For best coverage call twice — once with a topic query for the task's primary concern and once with a cross-cutting quality/standards query — and merge the results by rule id, topic results first. An empty rules list is a valid result (no relevant rules), not an error.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "query": {
+            "description": "Structured three-line query mirroring the rule embedding format:\nName: <concise 5-10 word title of the rule this task would trigger>\nCategory: <one of: Security, Correctness, Quality, Reliability, Performance, Testability, Compliance, Accessibility, Observability, Architecture>\nContent: <1-2 sentences describing what should be checked or enforced; mention the tech stack when known>\nDo NOT pass keyword lists or flat sentences — they retrieve poorly.",
+            "type": "string"
+          },
+          "scopes": {
+            "description": "Optional repository scope paths to narrow results, e.g. '/owner/repo/' or '/owner/repo/modules/<name>/'. Omit entirely for org-wide search.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "type": "array"
+          },
+          "top_k": {
+            "description": "Optional max number of rules to return (1-50, default 10).",
+            "maximum": 50,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "version": 1
+}
