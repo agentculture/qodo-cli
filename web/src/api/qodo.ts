@@ -189,10 +189,11 @@ export function samePr(a: string, b: string): boolean {
 /**
  * The fix requests the bridge logged for one pull request, newest first: the newest
  * `CHANGES_READ` change-log entries (`GET /changes` has no filter), kept when they are
- * `fix.requested` lines for this PR. Bounded: an older request is not shown.
+ * `fix.requested` lines for this PR. Bounded: the bridge returns the newest `CHANGES_READ` fix
+ * requests of all PRs, so only a request older than those is not shown.
  */
 export async function fixRequests(prUrl: string, signal?: AbortSignal): Promise<FixRequest[]> {
-  const reply = await getJson<unknown>(`${ROUTES.changes.path}${query({ limit: CHANGES_READ })}`, signal);
+  const reply = await getJson<unknown>(`${ROUTES.changes.path}${query({ limit: CHANGES_READ, kind: "fix.requested" })}`, signal);
   if (!isObject(reply) || !Array.isArray(reply.entries)) throw badReply("changes");
   const out: FixRequest[] = [];
   for (const e of reply.entries) {

@@ -136,3 +136,19 @@ def test_the_caller_does_not_leak_into_a_later_call_outside_http(client, auth, p
     verb = reg.default_registry().get("findings", "fix")
     verb.handler({"pr_url": PR, "finding_ids": ["other-1"]}, surface="cli")
     assert pub.calls[-1][1]["requested_by"] == "cli"
+
+
+def test_changes_can_be_read_by_kind_so_other_writes_do_not_push_fix_requests_out(
+    tmp_path, monkeypatch
+):
+    from qodo import api, changelog
+
+    monkeypatch.setenv("QODO_CHANGE_LOG", str(tmp_path / "changes.jsonl"))
+    changelog.append("fix.requested", actor="api", pr_url="https://github.com/o/r/pull/1")
+    for n in range(30):
+        changelog.append("finding.status_changed", actor="cli", id=f"f{n}", status="implemented")
+    newest = api.changes(5)
+    assert all(e["kind"] == "finding.status_changed" for e in newest)
+    (only,) = api.changes(5, "fix.requested")
+    assert only["pr_url"].endswith("/pull/1")
+    assert api.changes(5, "config.proposed") == []

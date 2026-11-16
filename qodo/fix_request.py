@@ -311,6 +311,8 @@ def request_fix(
     with _Lock():
         earlier = _recent_request(url, ids, window, _now())
         if earlier is not None:
+            # the web UI tells this refusal from an error by the words "already requested"
+            # (web/src/api/qodo.ts isAlreadyRequested); tests on both sides pin them
             raise _user(
                 f"a fix for these findings was already requested at {earlier.get('time')} "
                 f"(event {earlier.get('event_id')})",

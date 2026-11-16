@@ -562,7 +562,7 @@ describe("sending an agent to fix findings", () => {
     renderAt(SELECTED);
     await screen.findByRole("article", { name: OPEN_FINDING.title as string });
     await waitFor(() => expect(urls.some((u) => u.startsWith("/api/changes"))).toBe(true));
-    expect(urls.find((u) => u.startsWith("/api/changes"))).toBe("/api/changes?limit=500");
+    expect(urls.find((u) => u.startsWith("/api/changes"))).toBe("/api/changes?limit=500&kind=fix.requested");
   });
 
   it("says a repeat request was already made, without an error, and shows the marker", async () => {

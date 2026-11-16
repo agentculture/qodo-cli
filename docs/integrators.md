@@ -169,7 +169,7 @@ route.
 | `POST /verbs/fix/propose` | editor | `fix propose` |
 | `GET /health` | public | Service name, version and the Qodo key status, never the key |
 | `GET /verbs` | viewer | Every served verb: noun, name, summary, kind, `writes`, `role`, `method`, `path` and the `params` schema |
-| `GET /changes?limit=N` | viewer | `{"entries": [...]}`, the newest change-log entries (`N` from 1 to 500, default 50) |
+| `GET /changes?limit=N&kind=K` | viewer | `{"entries": [...]}`, the newest change-log entries (`N` from 1 to 500, default 50); with `kind` (for example `fix.requested`), only entries of that kind, and `N` counts those |
 | `GET /openapi.json` | viewer | The schema the server renders |
 
 Anything else needs `admin`, so an unlisted route is closed, not open. When the

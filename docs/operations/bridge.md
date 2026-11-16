@@ -622,9 +622,9 @@ One confirmation sends all the selected ids in one `findings fix` request.
 
 - **After a success** the screen announces "Fix requested" and each requested
   finding shows a marker, "Fix requested just now by token editor." The marker
-  is read from the bridge's change log (`GET /changes?limit=500`, the
+  is read from the bridge's change log (`GET /changes?limit=500&kind=fix.requested`, the
   `fix.requested` lines for this pull request), so it survives a reload and
-  names who asked; an older request than the newest 500 log lines is not
+  names who asked; a request older than the newest 500 fix requests is not
   marked. The finding's status does not change: it stays open in Qodo.
 - **A repeat** of the same request inside the rate-guard window is not an
   error: the screen says the fix was already requested, with the bridge's
