@@ -176,6 +176,10 @@ includes the ones before it.
 - An identity listed in `QODO_ADMINS` is an `admin`, whatever its credential.
 - A request with no credential gets 401. A role that is too low gets 403.
   `/health` needs no credential.
+- A POST that a browser sent for another site is refused 403 before the
+  credential is looked at: `cross_site_request` when `Sec-Fetch-Site` is
+  `cross-site`, `cross_origin_request` when `Origin` is not the request's own
+  scheme and `Host`. A caller that sends neither header is unaffected.
 
 ### Tokens
 

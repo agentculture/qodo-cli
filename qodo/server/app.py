@@ -41,7 +41,7 @@ from pathlib import Path
 from typing import Any
 
 from qodo import api
-from qodo.bridge import caller
+from qodo.bridge import caller, origin
 from qodo.bridge.policy import RoutePolicy
 from qodo.bridge.principal import AuthError
 from qodo.bridge.resolve import AuthSettings, Resolver, TokenAuthenticator
@@ -106,7 +106,10 @@ def _whole(raw: str, high: int, *, low: int = 1) -> bool:
 
     ``str.isdigit()`` alone also accepts digits such as superscript two, which ``int()`` rejects.
     """
-    return raw.isascii() and raw.isdigit() and low <= int(raw) <= high
+    if not (raw.isascii() and raw.isdigit()):
+        return False
+    digits = raw.lstrip("0") or "0"  # the digit count first: int() refuses a very long run
+    return len(digits) <= len(str(high)) and low <= int(digits) <= high
 
 
 def route_path(verb: Verb) -> str:
@@ -221,7 +224,12 @@ def create_app(
 
     @app.middleware("http")
     async def authorize(request: Request, call_next: Any) -> Any:
-        """The credential and the role, before any handler (and so before any body is read).
+        """The origin, the credential and the role, before any handler (and any body read).
+
+        A POST whose ``Sec-Fetch-Site`` is ``cross-site``, or whose ``Origin`` is not this
+        server's own, is refused 403 first (:func:`qodo.bridge.origin.check_origin`): behind
+        Cloudflare Access the browser's cookie is the credential, and the JSON media type rule
+        in ``read_params`` does not cover a verb called with an empty body.
 
         The role is looked up on ``scope["path"]``, the decoded path the router matches (after the
         ``/api`` prefix shim, which runs outside this middleware), never on ``request.url.path``:
@@ -229,9 +237,15 @@ def create_app(
         the path could cut it short (``/health%3F/../x`` read as ``/health``, the public rule).
         """
         method, path = request.method, request.scope["path"]
+        headers = dict(request.headers.items())
+        # before authentication: a write a browser sent for another site gets one answer,
+        # credential or not (every verb is a POST, so this covers reads through the UI too)
+        forged = origin.check_origin(method, headers, request.scope.get("scheme", "http"))
+        if forged is not None:
+            return fail(forged.status, forged.code, forged.message, forged.remediation)
         try:
             if policy.required_role(method, path) is not None:
-                principal = resolver.resolve(dict(request.headers.items()))
+                principal = resolver.resolve(headers)
                 policy.check(principal, method, path)
                 request.state.principal = principal
         except AuthError as err:
