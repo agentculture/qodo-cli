@@ -121,6 +121,7 @@ Every setting is a flag or an environment variable; a flag wins.
 |  | `QODO_EDITORS` | empty | Comma-separated identities raised to `editor` |
 |  | `QODO_ADMINS` | empty | Comma-separated identities raised to `admin` |
 |  | `QODO_CHANGE_LOG` | `$XDG_STATE_HOME/qodo-cli/changes.jsonl` | Change-log path |
+|  | `QODO_EXPOSURE_POLICY` | the packaged policy | Path of your own exposure policy file |
 |  | `QODO_PROPOSE_CONFIG` | `~/.qodo/propose.json` | `config propose` settings file |
 |  | `QODO_PROPOSE_REPOS` | empty | `config propose` repo allowlist |
 |  | `QODO_PROPOSE_CHECKOUT_ROOTS` | empty | `config propose` checkout roots |
@@ -215,20 +216,38 @@ CLI can run them.
 
 ### Changing the policy
 
-No flag or variable selects another policy file. The CLI, the HTTP routes and
-the MCP tools are all generated from the packaged file, so to change what is
-exposed you edit `qodo/exposure_default.json` in a source checkout (or in the
-installed package) and then:
+Set `QODO_EXPOSURE_POLICY` to the path of your own policy file. It replaces the
+shipped policy whole: a tool your file does not name is not exposed. The CLI, the
+HTTP routes and the MCP tools are all generated from it when the process starts,
+so restart `qodo-cli serve` and any MCP client after a change.
 
-1. Make sure `qodo/tool_schemas.json` has the input schema of every named tool.
-   It is a snapshot of the recorded `tools/list` reply in
-   `tests/fixtures/qodo_mcp/tool_schemas.json` (all 71 tools), rewritten with
-   `python3 scripts/export_tool_schemas.py --write`. A named tool with no
-   recorded schema stops the registry from building (exit 2).
-2. Regenerate the pinned HTTP contract (see
-   [`docs/integrators.md`](../integrators.md#the-pinned-contract)).
-3. Run `uv run pytest -n auto -q`. The surface-parity and contract tests fail
-   when the policy and the pinned files disagree.
+```json
+{
+  "version": 1,
+  "tools": [
+    {"tool": "rules-search", "verb": "rules search", "surfaces": ["cli", "mcp"]},
+    {"tool": "pr-review-dismiss", "verb": "findings dismiss", "surfaces": ["api"], "allow_write": true}
+  ]
+}
+```
+
+- `tool` is Qodo's own tool name, `verb` is `<noun> <name>` as it appears on
+  every surface, and `surfaces` is any of `cli`, `api` and `mcp`.
+- The file may name any tool whose input schema is packaged in
+  `qodo/tool_schemas.json`: every tool Qodo offered when the schemas were
+  recorded (71). A tool with no recorded schema stops the bridge from starting
+  (exit 2), and so does a file that is missing or not valid.
+- A tool Qodo does not mark read-only is refused unless its entry says
+  `"allow_write": true`.
+- The pinned HTTP contract (`api/openapi.json`) describes the shipped policy.
+  With your own policy the served `/openapi.json` is the truth.
+
+To change the shipped default itself (a change to this repo), edit
+`qodo/exposure_default.json`, regenerate the pinned contract (see
+[`docs/integrators.md`](../integrators.md#the-pinned-contract)) and run
+`uv run pytest -n auto -q`. To pick up tools Qodo added later, re-record
+`tests/fixtures/qodo_mcp/tool_schemas.json` and run
+`python3 scripts/export_tool_schemas.py --write`.
 
 A program that embeds the bridge can build a registry from its own policy file
 with `qodo.exposure.load_policy(path)` and `qodo.registry.build_registry(policy)`.

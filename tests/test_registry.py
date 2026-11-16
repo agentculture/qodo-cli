@@ -136,8 +136,8 @@ def test_the_snapshot_matches_the_recorded_schemas_for_the_policys_tools():
     snap = reg.load_schema_snapshot()
     recorded = schemas()
     tools = {e.tool for e in exposure_mod.load_policy().entries}
-    assert set(snap) == tools
-    for name in tools:
+    assert tools <= set(snap) == set(recorded)  # every recorded tool, for an operator's policy
+    for name in recorded:
         assert snap[name]["inputSchema"] == recorded[name]["inputSchema"]
         assert snap[name]["annotations"] == recorded[name]["annotations"]
         assert snap[name]["description"] == recorded[name]["description"]
@@ -403,3 +403,64 @@ def test_the_review_resolve_handler_passes_the_reply_and_signs_only_when_asked(m
     assert seen == ["done", "done\n\n- tester (Claude)", None]
     with pytest.raises(CliError):
         handler({"ids": ["1"], "sign": True})  # signing needs a reply
+
+
+def test_an_operators_policy_file_replaces_the_shipped_policy(tmp_path, monkeypatch):
+    path = tmp_path / "policy.json"
+    path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "tools": [
+                    {"tool": "rules-metadata", "verb": "catalogue facts", "surfaces": ["cli"]},
+                    {"tool": "litegit-ls", "verb": "files list", "surfaces": ["mcp"]},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv(exposure_mod.ENV_POLICY, str(path))
+    policy = exposure_mod.load_policy()
+    assert [e.tool for e in policy.entries] == ["rules-metadata", "litegit-ls"]
+    registry = reg.build_registry()
+    upstream = {v.verb: v for v in registry.verbs() if v.kind == "upstream"}
+    assert set(upstream) == {"catalogue facts", "files list"}  # nothing else is exposed
+    assert upstream["files list"].surfaces == ("mcp",) and not upstream["files list"].writes
+
+
+def test_a_missing_or_broken_policy_file_is_an_environment_error(tmp_path, monkeypatch):
+    monkeypatch.setenv(exposure_mod.ENV_POLICY, str(tmp_path / "absent.json"))
+    with pytest.raises(CliError) as err:
+        exposure_mod.load_policy()
+    assert err.value.code == EXIT_ENV_ERROR
+    bad = tmp_path / "bad.json"
+    bad.write_text("{nope", encoding="utf-8")
+    monkeypatch.setenv(exposure_mod.ENV_POLICY, str(bad))
+    with pytest.raises(CliError) as err:
+        exposure_mod.load_policy()
+    assert err.value.code == EXIT_ENV_ERROR
+
+
+def test_an_operators_policy_cannot_expose_a_write_without_saying_so(tmp_path, monkeypatch):
+    path = tmp_path / "policy.json"
+    path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "tools": [
+                    {"tool": "litegit-post-comment", "verb": "pr comment", "surfaces": ["cli"]}
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv(exposure_mod.ENV_POLICY, str(path))
+    from qodo import gateway as gw
+    from tests.fake_qodo_mcp import FakeUpstream
+
+    fake = FakeUpstream()
+    gateway = gw.Gateway(api_key="k", opener=fake)
+    with pytest.raises(CliError) as err:
+        gateway.call("litegit-post-comment", {})
+    assert "not read-only" in err.value.message
+    assert not fake.calls

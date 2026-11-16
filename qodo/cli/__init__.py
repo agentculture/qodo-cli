@@ -82,7 +82,10 @@ def _build_parser() -> argparse.ArgumentParser:
         # --version, and error-remediation lines point users at a command that
         # actually exists. The import package stays `qodo`.
         prog="qodo-cli",
-        description="qodo-cli — an unofficial community CLI to manage Qodo (rules + PR review).",
+        description=(
+            "qodo-cli — an unofficial community bridge to Qodo: a CLI, an HTTP API, an MCP "
+            "server and a web UI over the same verbs (rules, findings, PR review, config)."
+        ),
     )
     parser.add_argument(
         "--version",

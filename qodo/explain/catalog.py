@@ -24,6 +24,11 @@ we do not fork or vendor them). It also carries an agent-first introspection
 surface (`whoami`/`learn`/`explain`/`overview`/`doctor`) and a mesh identity
 (`culture.yaml` + `AGENTS.colleague.md`). Not affiliated with Qodo Ltd.
 
+It is a **bridge**: one app with this CLI, an HTTP API (`qodo-cli serve`), an MCP
+server (`qodo-cli mcp`) and a web UI over the same verbs. Which of Qodo's own
+tools are exposed, and on which surface, is the exposure policy
+(`QODO_EXPOSURE_POLICY`, else the packaged default).
+
 The distribution and the installed command are both named `qodo-cli`.
 
 ## Verbs
