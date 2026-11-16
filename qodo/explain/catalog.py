@@ -262,6 +262,32 @@ Exit 1 on a refused configuration (a non-loopback loopback address, a bad port),
 `server` extra is missing.
 """
 
+_MCP = """\
+# qodo-cli mcp
+
+Serve the registry's verbs as MCP tools over stdio (needs the `mcp` extra:
+`pip install 'qodo-cli[mcp]'`). Point an MCP client at the command `qodo-cli mcp`.
+
+One tool per verb on the registry's `mcp` surface, named `<noun>_<name>` (`findings_list`,
+`findings_implement`, `rules_search`, ...). The tool's input schema is the verb's params schema,
+and its handler is the verb's own, called for the `mcp` surface: the gateway refuses an upstream
+tool the exposure policy does not list for `mcp`, and a change made through a tool is logged with
+actor `mcp` (`GET /changes`). A verb the policy leaves off `mcp`, or a tool it does not name, has
+no tool. Verbs that are local or `cli`-only (`config`, `review`) are not tools.
+
+Arguments are checked before the call (unknown names, missing required ones, JSON types); a
+refusal, a `CliError` and an upstream failure each come back as a tool error with the message and
+the hint, never a traceback. The API key is never part of a result or an error. Stdout carries
+the protocol only.
+
+## Usage
+
+    qodo-cli mcp [--json]
+
+Needs `QODO_API_KEY` (or `~/.qodo/config.json`) like every verb that calls Qodo. Exit 2 when the
+`mcp` extra is missing (the message names it).
+"""
+
 _TOKENS = """\
 # qodo-cli tokens
 
@@ -390,6 +416,7 @@ ENTRIES: dict[tuple[str, ...], str] = {
     ("config", "propose"): _CONFIG_PROPOSE,
     ("config", "overview"): _CONFIG,
     ("serve",): _SERVE,
+    ("mcp",): _MCP,
     ("tokens",): _TOKENS,
     ("tokens", "issue"): _TOKENS,
     ("tokens", "list"): _TOKENS,

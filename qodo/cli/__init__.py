@@ -69,6 +69,7 @@ def _build_parser() -> argparse.ArgumentParser:
     from qodo.cli._commands import findings as _findings_group
     from qodo.cli._commands import history as _history_group
     from qodo.cli._commands import learn as _learn_cmd
+    from qodo.cli._commands import mcp as _mcp_cmd
     from qodo.cli._commands import overview as _overview_cmd
     from qodo.cli._commands import review as _review_group
     from qodo.cli._commands import rules as _rules_group
@@ -98,8 +99,9 @@ def _build_parser() -> argparse.ArgumentParser:
     _config_group.register(sub)
     _findings_group.register(sub)
     _history_group.register(sub)
-    # The HTTP API and its service tokens:
+    # The HTTP API, the MCP server and the API's service tokens:
     _serve_cmd.register(sub)
+    _mcp_cmd.register(sub)
     _tokens_group.register(sub)
     # Agent-first introspection verbs:
     _whoami_cmd.register(sub)

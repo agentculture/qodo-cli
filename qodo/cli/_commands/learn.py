@@ -37,6 +37,8 @@ Commands
   qodo-cli serve                Run the HTTP API (the 'server' extra): every verb on the api
                                 surface is POST /verbs/<noun>/<name>; loopback, and a LAN
                                 listener when configured.
+  qodo-cli mcp                  Serve the mcp-surface verbs as MCP tools over stdio (the 'mcp'
+                                extra): one tool per verb, e.g. findings_list.
   qodo-cli tokens issue         Issue an API service token (printed once; --name, --role).
   qodo-cli tokens list          List tokens (never a token or its hash).
   qodo-cli tokens revoke <id>   Revoke a token.
@@ -65,6 +67,7 @@ More detail
   qodo-cli explain review
   qodo-cli explain config propose
   qodo-cli explain serve
+  qodo-cli explain mcp
   qodo-cli explain tokens
 """
 
@@ -88,6 +91,11 @@ def _as_json_payload() -> dict[str, object]:
                 "path": ["serve"],
                 "summary": "Run the HTTP API: POST /verbs/<noun>/<name> per api verb (needs the "
                 "'server' extra).",
+            },
+            {
+                "path": ["mcp"],
+                "summary": "Serve the mcp-surface verbs as MCP tools over stdio (needs the "
+                "'mcp' extra).",
             },
             {"path": ["tokens", "issue"], "summary": "Issue an API service token (shown once)."},
             {"path": ["tokens", "list"], "summary": "List API service tokens."},

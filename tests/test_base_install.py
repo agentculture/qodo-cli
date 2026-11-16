@@ -37,6 +37,8 @@ VERBS = [
     ["tokens", "--help"],
     ["tokens", "list"],
     ["explain", "serve"],
+    ["mcp", "--help"],
+    ["explain", "mcp"],
 ]
 
 
@@ -76,7 +78,7 @@ print(json.dumps({{'results': results, 'loaded': loaded}}))
     for verb in ("whoami", "learn", "overview", "cli overview", "explain whoami"):
         assert results[verb] == 0, (verb, results)
     for verb in ("rules --help", "review --help", "config --help", "serve --help",
-                 "tokens --help", "explain serve"):  # fmt: skip
+                 "tokens --help", "explain serve", "mcp --help", "explain mcp"):  # fmt: skip
         assert results[verb] == 0, (verb, results)
     assert results["doctor"] in (0, 1), results  # a health verdict, not a crash
 
