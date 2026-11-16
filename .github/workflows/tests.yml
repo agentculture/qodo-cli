@@ -74,6 +74,39 @@ jobs:
       - name: afi rubric gate
         run: uv run teken cli doctor . --strict
 
+  web:
+    # The web UI (web/): install from the lockfile, typecheck, unit tests, the design-token
+    # check and the build. Playwright and the webglass agent-state gate (culture-rules'
+    # web job) are not run here: this shell has no browser tests yet.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - run: npm ci
+
+      - name: typecheck
+        run: npm run typecheck
+
+      - name: vitest
+        run: npm test
+
+      - name: design tokens
+        run: npm run check
+
+      - name: build
+        run: npm run build
+
   version-check:
     # Only run on PR events. On push to main after a merged PR, the comparison
     # would always fail (PR_VERSION == MAIN_VERSION because HEAD and origin/main

@@ -1,0 +1,47 @@
+/// <reference types="vitest/config" />
+// Cited from culture-rules web/vite.config.ts @ b7f861f690b57c4355f81371cc02ad1dd2ae9cac (cite-don't-import: this repo owns its copy).
+// Adapted: the dev proxy targets the qodo-cli API (QODO_API_URL, default the loopback listener
+// 127.0.0.1:8792); there is no dev-identity header (the browser carries the Access cookie, or a
+// Bearer token is added by whatever fronts it); no Playwright; coverage as there.
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+
+// The browser always talks to the same-origin prefix `/api` (src/api/client.ts); in dev that
+// prefix is proxied to the API with the prefix stripped, so the browser never needs CORS. In
+// production `qodo-cli serve` strips the same prefix itself (qodo/bridge/static.py).
+const API_TARGET = process.env.QODO_API_URL ?? "http://127.0.0.1:8792";
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    proxy: {
+      "/api": {
+        target: API_TARGET,
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ""),
+      },
+    },
+  },
+  preview: {
+    host: "127.0.0.1",
+    port: 4174,
+    strictPort: true,
+  },
+  build: {
+    outDir: "dist",
+    sourcemap: true,
+  },
+  test: {
+    globals: true,
+    environment: "jsdom",
+    setupFiles: ["./vitest.setup.ts"],
+    css: false,
+    include: ["src/**/*.test.{ts,tsx}"],
+    coverage: {
+      provider: "v8",
+      reporter: ["lcov", "text-summary"],
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: ["src/**/*.test.{ts,tsx}", "src/test/**", "src/main.tsx"],
+    },
+  },
+});

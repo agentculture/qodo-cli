@@ -231,3 +231,9 @@ skills.local.yaml
 
 # devague working state (not committed by default)
 .devague/questions/
+
+# Web UI (web/): the build is copied into the wheel as qodo/web_dist at build time
+# (hatch_build.py) - build output, never committed.
+node_modules/
+web/dist/
+qodo/web_dist/
