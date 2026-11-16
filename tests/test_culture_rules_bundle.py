@@ -879,6 +879,8 @@ def test_a_merge_runs_associate_then_opens_one_pr_with_the_literal_branch_and_la
     assert start[2]["checkout"] == checkout
     assert start[2]["instruction"].startswith("You are improving this repository's Qodo")
     assert f"https://github.com/{REPO}/pull/7" in start[2]["instruction"]
+    assert f"--repo {REPO} " in start[2]["instruction"]
+    assert "{{" not in start[2]["instruction"]
     assert start[3] == "Bearer value-of-ASSOCIATE_BRIDGE_SERVICE_TOKEN"
     propose = next(c for c in world.bridges.calls if c[1].endswith("/verbs/config/propose"))
     assert propose[2] == {"repo": REPO, "checkout": checkout, "base": BASE_SHA}
