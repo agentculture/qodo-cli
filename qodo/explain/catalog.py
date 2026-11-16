@@ -226,6 +226,64 @@ separated) override the two allowlists.
 - `qodo-cli explain config`
 """
 
+_SERVE = """\
+# qodo-cli serve
+
+Run the HTTP API (needs the `server` extra: `pip install 'qodo-cli[server]'`). No Node is
+needed; a built web UI inside the package is served too when it exists.
+
+Routes come from the verb registry: every verb on the `api` surface is
+`POST /verbs/<noun>/<name>` with the verb's params as a JSON object body, and answers JSON. A
+verb the exposure policy does not put on the api surface has no route. Also: `GET /health`
+(public; service, version and the key's `present`/`state`/`days_left`, never the key),
+`GET /verbs`, `GET /changes?limit=` and `GET /openapi.json` (viewer). The contract is pinned in
+`api/openapi.json`.
+
+Roles: a read verb needs `viewer`, a write verb and `config propose` need `editor`, anything
+else `admin`. No credential is 401, too low a role is 403. Errors are
+`{"error": {"code", "message", "remediation", "errors"}}`: a bad request is 400, a body over
+64 KiB is 413, Qodo or the configuration failing is 503.
+
+## Usage
+
+    qodo-cli serve [--host H] [--port P] [--lan-host H] [--lan-port P] [--tokens FILE] [--json]
+
+- Loopback listener (always): `--host`/`--port` or `QODO_HOST`/`QODO_PORT`, default
+  127.0.0.1:8792. It must be a loopback address (it trusts Cloudflare Access headers). Access is
+  on when `QODO_ACCESS_LISTEN` (loopback `host:port`), `QODO_ACCESS_TEAM_DOMAIN` and
+  `QODO_ACCESS_AUD` are all set.
+- LAN listener (off unless a host is given): `--lan-host`/`--lan-port` or
+  `QODO_LAN_HOST`/`QODO_LAN_PORT` (port default 8793). Service tokens only.
+- `QODO_ADMINS` / `QODO_EDITORS`: comma-separated Access identities raised above viewer.
+- Tokens: `--tokens` or `QODO_SERVER_TOKENS`, default under `$XDG_STATE_HOME/qodo-cli/`; see
+  `qodo-cli explain tokens`.
+
+Exit 1 on a refused configuration (a non-loopback loopback address, a bad port), 2 when the
+`server` extra is missing.
+"""
+
+_TOKENS = """\
+# qodo-cli tokens
+
+Issue, list and revoke the HTTP API's service tokens (`qcl_<id>.<secret>`). They act on the token
+file: `--tokens FILE`, else `QODO_SERVER_TOKENS`, else
+`$XDG_STATE_HOME/qodo-cli/service_tokens.json` (mode 0600; only hashes are stored). The server
+and these verbs must read the same file.
+
+## Usage
+
+    qodo-cli tokens issue --name NAME --role viewer|editor|admin [--tokens FILE] [--json]
+    qodo-cli tokens list [--tokens FILE] [--json]
+    qodo-cli tokens revoke ID [--tokens FILE] [--json]
+    qodo-cli tokens overview [--json]
+
+`issue` prints the plain token once: it is never stored or logged, so keep it. `list` shows ids,
+identities, roles and whether each is revoked, never a token or a hash. Send a token as
+`Authorization: Bearer <token>`.
+
+Exit 1 for an unknown role or id, or a token already revoked; 2 for an unusable token file.
+"""
+
 _WHOAMI = """\
 # qodo-cli whoami
 
@@ -331,6 +389,12 @@ ENTRIES: dict[tuple[str, ...], str] = {
     ("config", "init"): _CONFIG,
     ("config", "propose"): _CONFIG_PROPOSE,
     ("config", "overview"): _CONFIG,
+    ("serve",): _SERVE,
+    ("tokens",): _TOKENS,
+    ("tokens", "issue"): _TOKENS,
+    ("tokens", "list"): _TOKENS,
+    ("tokens", "revoke"): _TOKENS,
+    ("tokens", "overview"): _TOKENS,
     ("whoami",): _WHOAMI,
     ("learn",): _LEARN,
     ("explain",): _EXPLAIN,
