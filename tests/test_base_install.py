@@ -21,7 +21,8 @@ ROOT = Path(__file__).resolve().parent.parent
 PYPROJECT = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 
 # every distribution the extras may pull in, plus what they bring along
-THIRD_PARTY = ("fastapi", "starlette", "pydantic", "uvicorn", "mcp", "httpx", "anyio", "h11")
+THIRD_PARTY = ("fastapi", "starlette", "pydantic", "uvicorn", "mcp", "httpx", "anyio", "h11",
+               "events_cli", "paho")  # fmt: skip
 
 VERBS = [
     ["whoami"],
@@ -39,6 +40,10 @@ VERBS = [
     ["explain", "serve"],
     ["mcp", "--help"],
     ["explain", "mcp"],
+    ["findings", "fix", "--help"],
+    ["explain", "findings", "fix"],
+    ["fix", "propose", "--help"],
+    ["explain", "fix", "propose"],
 ]
 
 
@@ -78,15 +83,41 @@ print(json.dumps({{'results': results, 'loaded': loaded}}))
     for verb in ("whoami", "learn", "overview", "cli overview", "explain whoami"):
         assert results[verb] == 0, (verb, results)
     for verb in ("rules --help", "review --help", "config --help", "serve --help",
-                 "tokens --help", "explain serve", "mcp --help", "explain mcp"):  # fmt: skip
+                 "tokens --help", "explain serve", "mcp --help", "explain mcp",
+                 "findings fix --help", "explain findings fix", "fix propose --help",
+                 "explain fix propose"):  # fmt: skip
         assert results[verb] == 0, (verb, results)
     assert results["doctor"] in (0, 1), results  # a health verdict, not a crash
+
+
+def test_findings_fix_without_the_events_extra_is_exit_2_naming_it(tmp_path):
+    """With every extra's packages blocked, an allowlisted fix request fails as an environment
+    error that names the extra, and nothing is logged."""
+    code = f"""
+import sys
+for m in {THIRD_PARTY!r}:
+    sys.modules[m] = None
+from qodo.cli import main
+sys.exit(main(['findings', 'fix', '--pr-url', 'https://github.com/acme/widgets/pull/1',
+               '--finding-ids', 'abc', '--json']))
+"""
+    log = tmp_path / "changes.jsonl"
+    env = {**os.environ, "QODO_PROPOSE_REPOS": "acme/widgets", "QODO_CHANGE_LOG": str(log),
+           "QODO_PROPOSE_CONFIG": str(tmp_path / "absent.json")}  # fmt: skip
+    done = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, cwd=ROOT, env=env, check=False
+    )
+    assert done.returncode == 2, done.stderr
+    assert "Traceback" not in done.stderr
+    assert "qodo-cli[events]" in json.loads(done.stderr)["remediation"]
+    assert not log.exists() or "fix.requested" not in log.read_text()
 
 
 def test_no_third_party_import_in_the_base_package():
     """Nothing under qodo/ imports a third-party package at module level."""
     pattern = re.compile(
-        r"^(?:from|import)\s+(fastapi|starlette|pydantic|uvicorn|mcp|httpx)\b", re.M
+        r"^(?:from|import)\s+(fastapi|starlette|pydantic|uvicorn|mcp|httpx|events_cli|paho)\b",
+        re.M,
     )
     for path in (ROOT / "qodo").rglob("*.py"):
         text = path.read_text(encoding="utf-8")

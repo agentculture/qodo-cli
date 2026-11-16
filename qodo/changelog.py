@@ -2,8 +2,9 @@
 
 One JSON object per line (JSON Lines), standard library only. Each line holds the UTC
 ``time``, the event ``kind``, the ``actor`` when known, and the identifying fields of the
-event (finding ids, new status, dismiss reason; for a configuration proposal the repo and
-the file *paths*). Never the API key, never finding text, never file contents.
+event (finding ids, new status, dismiss reason; for a configuration or fix proposal the repo
+and the file *paths*; for a fix request the PR URL, the finding ids and the bus event id). Never
+the API key, never finding text, never file contents, never a fix request's note.
 
 * **Where:** ``$QODO_CHANGE_LOG`` if set, else ``$XDG_STATE_HOME/qodo-cli/changes.jsonl``,
   else ``~/.local/state/qodo-cli/changes.jsonl``: outside any git checkout. The directory is
@@ -34,6 +35,8 @@ ENV_PATH = "QODO_CHANGE_LOG"
 
 KIND_FINDING_STATUS = "finding.status_changed"
 KIND_CONFIG_PROPOSED = "config.proposed"
+KIND_FIX_REQUESTED = "fix.requested"
+KIND_FIX_PROPOSED = "fix.proposed"
 
 
 def log_path() -> Path:
@@ -139,3 +142,23 @@ def record_config_proposal(repo: str, files: list[str], *, actor: str | None = N
     For the ``config propose`` verb to call after it has proposed. Never raises.
     """
     return try_append(KIND_CONFIG_PROPOSED, actor=actor, repo=repo, files=list(files))
+
+
+def record_fix_request(
+    pr_url: str, finding_ids: list[str], event_id: str, *, actor: str | None = None
+) -> bool:
+    """Log a published fix request: the PR URL, the finding ids and the bus event's id (never
+    the note). ``findings fix`` also reads these lines back as its rate guard. Never raises."""
+    return try_append(
+        KIND_FIX_REQUESTED,
+        actor=actor,
+        pr_url=pr_url,
+        finding_ids=list(finding_ids),
+        event_id=event_id,
+    )
+
+
+def record_fix_proposal(repo: str, files: list[str], *, actor: str | None = None) -> bool:
+    """Log a code fix ``fix propose`` accepted: the repo and the file paths (not contents).
+    Never raises."""
+    return try_append(KIND_FIX_PROPOSED, actor=actor, repo=repo, files=list(files))

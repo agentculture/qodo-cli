@@ -22,7 +22,7 @@ of it.
 
 | Audience | Page |
 |----------|------|
-| Operator: run `serve`, tokens, key expiry, exposure policy, `config propose`, change log, the culture-rules bundle, release order, Known limits | `docs/operations/bridge.md` |
+| Operator: run `serve`, tokens, key expiry, exposure policy, `config propose`, fix requests (`findings fix`, `fix propose`), change log, the culture-rules bundle, release order, Known limits | `docs/operations/bridge.md` |
 | Agents: the verbs by noun, the contract, which verbs write, the MCP tools | `docs/agents.md` |
 | Integrators: `qodo.api`, the HTTP routes, the error envelope, the pinned contract | `docs/integrators.md` |
 
@@ -33,7 +33,8 @@ command, flag, variable, route or default against the code before you write it,
 and mark anything ahead of reality *planned*.
 
 The runtime has **zero third-party dependencies** (`dependencies = []` in
-`pyproject.toml`); `teken` is a dev-only dependency used by the rubric gate.
+`pyproject.toml`); `teken` is a dev-only dependency used by the rubric gate. The extras
+are `server`, `mcp` and `events` (events-cli, for `findings fix`); each is imported lazily.
 Requires Python ≥ 3.12.
 
 ## Commands
@@ -90,7 +91,7 @@ One verb registry feeds every surface; nothing is written by hand per surface.
   `surfaces`, handler) for each verb. Two kinds: `upstream` (one per Qodo tool the
   exposure policy names; params come from the packaged `qodo/tool_schemas.json`,
   rewritten by `scripts/export_tool_schemas.py`) and `local` (`rules get`,
-  `review`, `config`, which do not go through the gateway). A handler takes a
+  `review`, `config`, `findings fix`, `fix propose`, which do not go through the gateway). A handler takes a
   params dict and `surface=` and raises `CliError`.
 - **`qodo/exposure.py` + `exposure_default.json`**: which Qodo tools are exposed, as
   which verb, on which of `cli`, `api`, `mcp`. Default deny: an unnamed tool is
@@ -104,10 +105,18 @@ One verb registry feeds every surface; nothing is written by hand per surface.
 - **`qodo/propose.py` + `propose_default.json`**: `config propose`, a read-only gate;
   repo, checkout-root (`<root>/<owner>/<name>`) and path allowlists; settings layer
   as packaged defaults, `$QODO_PROPOSE_CONFIG` or `~/.qodo/propose.json`, then
-  `QODO_PROPOSE_REPOS` and `QODO_PROPOSE_CHECKOUT_ROOTS`.
+  `QODO_PROPOSE_REPOS` and `QODO_PROPOSE_CHECKOUT_ROOTS`. The same module runs
+  `fix propose` under a second profile (`FIX_PROFILE`, `fix_default.json`): any path
+  except a refused set, its own allowlists (`QODO_FIX_REPOS`, `QODO_FIX_CHECKOUT_ROOTS`,
+  the settings file's `fix` section), caps for small code fixes.
+- **`qodo/fix_request.py`**: `findings fix`; checks the PR URL, the repo allowlist
+  (`config propose`'s) and a rate guard read from the change log, then publishes one
+  `qodo.fix.requested` event through events-cli (imported lazily; `api._publisher()` is
+  the seam tests replace). Publishing an event is not a push, merge or PR.
 - **`qodo/health.py`, `qodo/changelog.py`**: the key's expiry (from
   `QODO_API_KEY_EXPIRES` or `API_KEY_EXPIRES`, never from the key) and the append-only
-  change log (`$QODO_CHANGE_LOG`, JSON Lines, no key and no finding text).
+  change log (`$QODO_CHANGE_LOG`, JSON Lines, no key and no finding text; kinds
+  `finding.status_changed`, `config.proposed`, `fix.requested`, `fix.proposed`).
 - **`qodo/server/`**: `serve.py` plans and runs the two listeners (loopback, always,
   loopback addresses only, Cloudflare Access when `QODO_ACCESS_*` are all set; LAN,
   service tokens only, only when a LAN host is set), `app.py` builds the FastAPI app

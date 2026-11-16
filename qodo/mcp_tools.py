@@ -54,7 +54,9 @@ def _handler(verb: Verb) -> Callable[[dict[str, Any]], Any]:
 
 
 def _description(verb: Verb) -> str:
-    return f"{verb.summary} ({'writes to Qodo' if verb.writes else 'read-only'})"
+    if not verb.writes:
+        return f"{verb.summary} (read-only)"
+    return f"{verb.summary} ({'writes to Qodo' if verb.kind == 'upstream' else 'a write'})"
 
 
 def tools(registry: Registry | None = None) -> list[Tool]:

@@ -19,6 +19,8 @@ dependencies = []
 [project.optional-dependencies]
 server = ["fastapi>=0.115", "uvicorn>=0.30"]
 mcp = ["mcp>=1.2,<2"]
+# `findings fix` publishes its event on the mesh's bus through events-cli (it brings paho-mqtt).
+events = ["events-cli>=0.10"]
 
 [project.urls]
 Homepage = "https://github.com/agentculture/qodo-cli"
@@ -55,6 +57,7 @@ dev = [
     "mcp>=1.2,<2",
     "cryptography>=42",  # test-only: signs the fake Access JWTs
     "pyyaml>=6.0",  # test-only: parses the workflow files
+    "events-cli>=0.10",  # test-only: the real envelope validates the fix-request event
 ]
 
 [tool.coverage.run]

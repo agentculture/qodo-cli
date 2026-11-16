@@ -231,6 +231,107 @@ separated) override the two allowlists.
 - `qodo-cli explain config`
 """
 
+_FINDINGS_FIX = """\
+# qodo-cli findings fix
+
+Ask for an agent to fix Qodo findings on a pull request. The bridge publishes **one event** on
+the mesh's event bus (events-cli's MQTT fabric) and logs one `fix.requested` line; culture-rules
+ingests the event, and a rule (configuration) runs an agent in a dedicated checkout of the
+pull request's branch. The fix comes back as a new pull request against the reviewed branch,
+opened by culture-rules' GitHub App after `fix propose` checks it. **This verb never pushes,
+merges or opens a pull request, and never calls Qodo.** A write (editor role over HTTP), on the
+`cli`, `api` and `mcp` surfaces.
+
+## Usage
+
+    qodo-cli findings fix --pr-url https://github.com/OWNER/NAME/pull/N \
+      --finding-ids ID [--finding-ids ID ...] [--note TEXT] [--json]
+
+## Checks, in order (each refuses before anything is published or logged)
+
+1. `pr_url` is `http(s)://github.com/<owner>/<name>/pull/<n>` (no user, port, query or
+   fragment); 1 to 20 finding ids, each a plain id (letters, digits, `.` `_` `:` `-`, at most
+   128 characters); `note` at most 500 characters. Exit 1, HTTP 400.
+2. The repo is in the bridge's repo allowlist, `config propose`'s (`QODO_PROPOSE_REPOS` or the
+   settings file's `repos`); an empty allowlist refuses everything. Exit 1, HTTP 400.
+3. Rate guard: the same PR and the same set of ids requested within
+   `QODO_FIX_REQUEST_WINDOW` seconds (default 300; `0` turns it off) is refused, read from the
+   change log. Exit 1, HTTP 400.
+4. Publish through events-cli (QoS 1, a bounded wait). Without the `events` extra
+   (`pip install 'qodo-cli[events]'`), with a malformed broker setting or no broker taking the
+   event: exit 2, HTTP 503, and nothing is logged.
+
+The findings are not looked up first: the agent reads them itself.
+
+## The event
+
+Type `qodo.fix.requested`, source `app://qodo-cli`, topic `events/qodo/fix/requested`, id
+events-cli's `evt_` + ULID (unique per request; consumers dedupe on it). `data`:
+`{pr_url, repo, number, finding_ids, note, requested_by}`, identifiers only (`requested_by` is
+the calling surface; `note` is null when none was given). Never the API key, never finding
+text. The broker is events-cli's own setting: `EVENTS_BROKER_HOST` / `EVENTS_BROKER_PORT`
+(default `127.0.0.1:1883`).
+
+## Result
+
+`{event_id, type, pr_url, repo, number, finding_ids}`.
+
+## See also
+
+- `qodo-cli explain fix propose`
+- `docs/operations/bridge.md` — what an operator sets before using it
+"""
+
+_FIX_PROPOSE = """\
+# qodo-cli fix propose
+
+The gate between an agent's committed code fix and the pull request culture-rules opens: the
+same checks as `config propose` (`qodo-cli explain config propose`) under the **fix profile**.
+**Read-only**: it reads the checkout's git objects and writes nothing; no code path in qodo-cli
+pushes, merges or opens a PR. On the `cli` and `api` surfaces (editor role over HTTP).
+
+## Usage
+
+    qodo-cli fix propose --repo OWNER/NAME --checkout /abs/path --base BRANCH [--json]
+
+## How it differs from config propose
+
+- **Paths:** any normal repo-relative path **except** the refused set, shipped as data in
+  `qodo/fix_default.json` and matched without regard to case: CI and repo automation
+  (`.github/`, other CI files, `CODEOWNERS`, pre-commit and git hooks), git internals
+  (`.git`, `.gitattributes`, `.gitmodules`), the reviewer's own configuration
+  (`.pr_agent.toml`, `REVIEW.md`, `best_practices.md`), agent instructions (`CLAUDE.md`,
+  `AGENTS*.md`, `.claude/`, ...), editor auto-run settings, dependency manifests and
+  lockfiles, registry credentials and secret-bearing names (`.env*`, `*.pem`, `*.key`, SSH
+  keys). A refused path is `path_not_allowed`, its detail naming the rule.
+- **Contents:** plain UTF-8 text (no TOML check).
+- **Caps:** at most 20 files, 49152 bytes a file, the whole reply under 61440 bytes (an HTTP
+  step's 64 KiB limit): a larger change is refused with `too_large`. This first version
+  proposes **small fixes only**.
+- **Allowlists:** its own. `QODO_FIX_REPOS` and `QODO_FIX_CHECKOUT_ROOTS`, or the `fix`
+  section of the settings file (`$QODO_PROPOSE_CONFIG`, else `~/.qodo/propose.json`), where
+  `extra_refused_paths` adds rules and `refused_paths` replaces the shipped list. Unset, every
+  request is refused.
+
+## Result
+
+- success: `{ok: true, repo, base, base_sha, head, files: [{path, content}], warnings: []}`;
+  `base_sha` and `head` are what the PR compares. One `fix.proposed` line (repo, paths,
+  actor) goes to the change log.
+- refusal (exit 0): `{ok: false, reason, detail, paths}`, never with file contents. Reasons:
+  `repo_not_allowed`, `checkout_not_allowed`, `invalid_base`, `unknown_base`,
+  `base_not_ancestor`, `no_changes`, `too_many_files`, `rename`, `path_not_allowed`,
+  `deletion`, `type_change`, `not_regular_file`, `executable`, `file_too_large`, `binary`,
+  `not_utf8`, `too_large`.
+- exit 2: git missing or timed out, the checkout is not a readable git repository, or the
+  settings are invalid.
+
+## See also
+
+- `qodo-cli explain findings fix`
+- `qodo-cli explain config propose`
+"""
+
 _CONFIG_STATUS = """\
 # qodo-cli config status
 
@@ -282,8 +383,8 @@ verb the exposure policy does not put on the api surface has no route. Also: `GE
 `GET /verbs`, `GET /changes?limit=` and `GET /openapi.json` (viewer). The contract is pinned in
 `api/openapi.json`.
 
-Roles: a read verb needs `viewer`, a write verb and `config propose` need `editor`, anything
-else `admin`. No credential is 401, too low a role is 403. Errors are
+Roles: a read verb needs `viewer`, a write verb, `config propose` and `fix propose` need
+`editor`, anything else `admin`. No credential is 401, too low a role is 403. Errors are
 `{"error": {"code", "message", "remediation", "errors"}}`: a bad request is 400, a body over
 64 KiB is 413, Qodo or the configuration failing is 503.
 
@@ -459,6 +560,8 @@ ENTRIES: dict[tuple[str, ...], str] = {
     ("config", "propose"): _CONFIG_PROPOSE,
     ("config", "status"): _CONFIG_STATUS,
     ("config", "overview"): _CONFIG,
+    ("findings", "fix"): _FINDINGS_FIX,
+    ("fix", "propose"): _FIX_PROPOSE,
     ("serve",): _SERVE,
     ("mcp",): _MCP,
     ("tokens",): _TOKENS,
@@ -524,9 +627,13 @@ def _noun_entry(noun: str, verbs) -> str:
     lines = [f"# qodo-cli {noun}", ""]
     lines += [f"- `qodo-cli {v.verb}` — {v.summary}" for v in verbs]
     lines += [f"- `qodo-cli {noun} overview` — describe this noun", ""]
-    lines += ["Built from the exposure policy: a tool it does not name has no verb here.", ""]
+    if any(v.kind == "upstream" for v in verbs):
+        lines += ["Built from the exposure policy: a tool it does not name has no verb here.", ""]
+    local = [f"`{v.verb}`" for v in verbs if v.kind == "local"]
+    if local:
+        lines += [f"Local verbs (no exposure policy, no Qodo call): {', '.join(local)}.", ""]
     lines += ["Every verb supports `--json`; exit 1 on bad input or a refused call, 2 when"]
-    lines += ["Qodo cannot be reached.", ""]
+    lines += ["the environment (Qodo, git, the event bus) cannot complete it.", ""]
     return "\n".join(lines)
 
 

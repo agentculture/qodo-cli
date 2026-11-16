@@ -3,7 +3,8 @@
 This page is for the person who installs and runs the bridge on a host. After
 reading it you can start `qodo-cli serve`, issue and revoke tokens, set the
 Qodo API key and its expiry, change what the bridge exposes, allow
-`config propose` for your repos and, if you use culture-rules, enable the
+`config propose` for your repos, let people ask for an agent to fix a finding
+(`findings fix` and `fix propose`) and, if you use culture-rules, enable the
 bundle.
 
 Other readers: agents that call the CLI or MCP tools start at
@@ -29,6 +30,9 @@ it does write is small and named:
   `glab` login);
 - the repo's own `.pr_agent.toml` and `best_practices.md`, through `config init`
   (CLI only; it never overwrites without `--force`);
+- one event on the mesh's event bus, through `findings fix` (see
+  [Fix requests](#fix-requests-findings-fix-and-fix-propose)): an event is not a
+  push, a merge or a pull request;
 - the service-token file and its own change log.
 
 ## Install
@@ -42,7 +46,13 @@ qodo-cli --version
 ```
 
 Without `server`, `qodo-cli serve` exits 2 and names the extra. Without `mcp`,
-`qodo-cli mcp` does the same. The web UI is inside the wheel when the release
+`qodo-cli mcp` does the same. `findings fix` needs a third extra, `events`
+(events-cli, which brings the MQTT client `paho-mqtt`); without it the verb exits
+2 (HTTP 503) and names the extra:
+
+```bash
+uv tool install 'qodo-cli[server,mcp,events]'
+``` The web UI is inside the wheel when the release
 was built with it (see [Web UI](#web-ui-and-the-release-order)); it needs no
 Node at run time.
 
@@ -125,6 +135,11 @@ Every setting is a flag or an environment variable; a flag wins.
 |  | `QODO_PROPOSE_CONFIG` | `~/.qodo/propose.json` | `config propose` settings file |
 |  | `QODO_PROPOSE_REPOS` | empty | `config propose` repo allowlist |
 |  | `QODO_PROPOSE_CHECKOUT_ROOTS` | empty | `config propose` checkout roots |
+|  | `QODO_FIX_REPOS` | empty | `fix propose` repo allowlist |
+|  | `QODO_FIX_CHECKOUT_ROOTS` | empty | `fix propose` checkout roots |
+|  | `QODO_FIX_REQUEST_WINDOW` | `300` | `findings fix` rate guard, in seconds (`0` turns it off) |
+|  | `EVENTS_BROKER_HOST` | `127.0.0.1` | events-cli's broker host, for `findings fix` |
+|  | `EVENTS_BROKER_PORT` | `1883` | events-cli's broker port, for `findings fix` |
 
 The three `QODO_ACCESS_*` variables are all-or-nothing. Set all three and
 Access is on; set none and it is off; a partial set is refused (exit 1). When
@@ -139,7 +154,7 @@ includes the ones before it.
 | Role | Can call |
 |------|----------|
 | `viewer` | every read verb, `GET /verbs`, `GET /changes`, `GET /openapi.json`, and the web UI |
-| `editor` | the above, plus the write verbs (`findings implement`, `findings dismiss`) and `config propose` |
+| `editor` | the above, plus the write verbs (`findings implement`, `findings dismiss`, `findings fix`), `config propose` and `fix propose` |
 | `admin` | the above. No route needs `admin` today; a route nobody listed falls back to it |
 
 - A **service token** carries the role it was issued with.
@@ -208,10 +223,11 @@ everything that writes to pull requests or changes rules or starts reviews;
 [`docs/qodo-mcp-tools.md`](../qodo-mcp-tools.md) lists them and why.
 
 **Local verbs are not governed by the policy.** `rules get`, `review list`,
-`review resolve`, `config show`, `config validate`, `config init` and
-`config propose` do not go through the gateway. The registry fixes their
-surfaces in code: `rules get` is on cli, api and mcp, `config propose` on cli
-and api, and the rest on the CLI only. A person or process that can run the
+`review resolve`, `config show`, `config validate`, `config init`,
+`config status`, `config propose`, `findings fix` and `fix propose` do not go
+through the gateway. The registry fixes their surfaces in code: `rules get` and
+`findings fix` are on cli, api and mcp, `config status`, `config propose` and
+`fix propose` on cli and api, and the rest on the CLI only. A person or process that can run the
 CLI can run them.
 
 ### Changing the policy
@@ -327,11 +343,198 @@ Two files, `best_practices.md` and the `[pr_reviewer] extra_instructions`
 setting, come back as warnings (`code`, `path`, `detail`) instead of refusals,
 because Qodo's current reference does not mention them.
 
+## Fix requests: findings fix and fix propose
+
+A person looking at a Qodo finding can ask for an agent to fix it. The bridge's
+part is two verbs; the agent, its checkout and the pull request belong to
+culture-rules.
+
+1. `findings fix` publishes **one event** on the mesh's event bus (the MQTT
+   fabric events-cli owns) and logs one `fix.requested` line.
+2. culture-rules ingests the event. A rule (configuration you write in
+   culture-rules; none ships in this repo yet, *planned*) starts a workflow that
+   runs an agent in a dedicated checkout of the pull request's branch.
+3. When the agent has committed its fix, the workflow calls `fix propose`,
+   which returns the changed files only if the change is safe.
+4. culture-rules' GitHub App opens the fix as a **new pull request against the
+   reviewed pull request's branch**, through its own open-PR action.
+
+The bridge never pushes, merges or opens a pull request in any of this, and
+`findings fix` never calls Qodo.
+
+### What findings fix does and does not do
+
+```bash
+qodo-cli findings fix --pr-url https://github.com/example-owner/example-repo/pull/7 \
+  --finding-ids 00000000-0000-0000-0000-000000000001 --note "keep the public API" --json
+```
+
+It checks, in this order, and refuses before anything is published or logged:
+
+1. The params: a `github.com` pull request URL (`http(s)://github.com/<owner>/<name>/pull/<n>`,
+   no user, port, query or fragment), 1 to 20 finding ids (letters, digits,
+   `.` `_` `:` `-`, at most 128 characters each) and an optional note of at most
+   500 characters. Exit 1, HTTP 400.
+2. **The repo allowlist.** The PR's `owner/name` must be in the bridge's repo
+   allowlist, the one `config propose` uses (`QODO_PROPOSE_REPOS`, or `repos` in
+   the settings file). An empty allowlist refuses everything. This is what keeps
+   a token holder from aiming an agent at an arbitrary repository. Exit 1, HTTP
+   400.
+3. **The rate guard.** The same PR and the same set of finding ids (in any
+   order) requested within `QODO_FIX_REQUEST_WINDOW` seconds (default 300) is
+   refused with the time and event id of the first request. The memory is the
+   change log, read under a lock, so two clicks that arrive together publish
+   once. `0` turns the guard off. Exit 1, HTTP 400.
+4. **The publish**, through events-cli's own client at QoS 1, waiting at most
+   5 seconds for the connection and 5 for the broker to take the event. Without
+   the `events` extra, with a malformed `EVENTS_BROKER_PORT`, or with no broker
+   taking the event, the verb exits 2 (HTTP 503) and logs nothing.
+
+It does **not** check that the findings exist: that would call Qodo with your
+key on every click, and the agent reads the findings itself before it changes
+anything. An id that names no finding costs one agent run that finds nothing to
+do.
+
+### The event
+
+| Field | Value |
+|-------|-------|
+| `type` | `qodo.fix.requested` |
+| `source` | `app://qodo-cli` |
+| topic | `events/qodo/fix/requested` (events-cli's mapping of the type) |
+| `id` | events-cli's `evt_` + ULID, new for every request; consumers dedupe on it |
+| content marks | none (a reader on events-cli 0.10 drops an envelope that carries them) |
+
+Its `data` holds identifiers only, never the API key and never finding text:
+
+| Key | Meaning |
+|-----|---------|
+| `pr_url` | The pull request, as `https://github.com/<owner>/<name>/pull/<n>` |
+| `repo` | `owner/name`, from the URL |
+| `number` | The pull request number |
+| `finding_ids` | The ids, duplicates removed, in the order given |
+| `note` | The note for the agent, or `null` |
+| `requested_by` | The surface that asked: `cli`, `api` or `mcp` |
+
+The type has three segments, inside culture-rules' default event subscription
+depth (4). The verb returns `{event_id, type, pr_url, repo, number,
+finding_ids}`.
+
+### The broker
+
+The bridge uses events-cli's own settings: `EVENTS_BROKER_HOST` and
+`EVENTS_BROKER_PORT`, default `127.0.0.1:1883` (what `events up` runs). Set them in
+the environment of the process that runs `serve`, `mcp` or the CLI. A malformed
+port is an error, never a fall-back to 1883. events-cli has no broker credential
+setting today: the broker it runs takes anonymous connections on loopback only.
+
+### fix propose and its allowlists
+
+`fix propose` is `config propose`'s gate with a different path rule, for code:
+
+```bash
+qodo-cli fix propose --repo example-owner/example-repo \
+  --checkout /srv/qodo-fix-checkouts/example-owner/example-repo --base feature-branch --json
+```
+
+Every `config propose` protection holds: the repo allowlist first, before the
+file system; the checkout exactly `<root>/<owner>/<name>`; a strict base ref;
+read-only git with the checkout's configuration neutralised; contents from the
+git objects at `HEAD`; renames, deletions, type changes, symlinks, submodules,
+executables, binary and non-UTF-8 files refused; a refusal is a normal answer
+(exit 0) with a reason and no contents.
+
+It has **its own** allowlists, so fix checkouts can live apart from configuration
+checkouts. Nothing is allowed until you set them:
+
+```bash
+export QODO_FIX_REPOS="example-owner/example-repo"
+export QODO_FIX_CHECKOUT_ROOTS="/srv/qodo-fix-checkouts"
+```
+
+or the `fix` section of the same settings file (`$QODO_PROPOSE_CONFIG`, else
+`~/.qodo/propose.json`), which overrides the packaged `qodo/fix_default.json`
+key by key:
+
+```json
+{
+  "repos": ["example-owner/example-repo"],
+  "fix": {
+    "repos": ["example-owner/example-repo"],
+    "checkout_roots": ["/srv/qodo-fix-checkouts"],
+    "extra_refused_paths": [{"kind": "segment", "pattern": "migrations", "why": "schema changes"}]
+  }
+}
+```
+
+| Setting | Default | Meaning |
+|---------|---------|---------|
+| `repos` | none | Repos (`owner/name`) a fix may name |
+| `checkout_roots` | none | Absolute roots; a checkout must be exactly `<root>/<owner>/<name>` |
+| `refused_paths` | the shipped list | Paths a fix may not change; setting it replaces the list |
+| `extra_refused_paths` | none | Rules added to `refused_paths` |
+| `max_files` | 20 | Most files in one fix |
+| `max_file_bytes` | 49152 | Largest file, in bytes |
+| `max_reply_bytes` | 61440 | Largest whole reply, in bytes (under an HTTP step's 64 KiB limit) |
+| `git_timeout_seconds` | 20 | Time limit on each git call |
+
+**This first version proposes small fixes only.** The reply carries each changed
+file whole, and a change whose reply would pass `max_reply_bytes` is refused
+with `too_large`, never cut short.
+
+A rule is `{"kind", "pattern", "why"}`: `kind` is `path` (the whole path; `*`
+crosses `/`), `name` (the file name) or `segment` (any directory or the file
+name), `pattern` is a glob, and the match ignores case. Any other normal path
+may change. The shipped list refuses, because an agent's change must never slip
+these into a pull request a busy reviewer might merge:
+
+- CI and repo automation: `.github/` (workflows, actions, `CODEOWNERS`), other
+  CI files (`.gitlab-ci.yml`, `.circleci/`, `Jenkinsfile`, ...), `CODEOWNERS`
+  anywhere, `.pre-commit-config.yaml` and `.husky/`. A workflow change runs with
+  the repo's secrets.
+- Git internals and review hiding: `.git`, `.gitattributes` (it can mark a file
+  generated, which collapses its diff), `.gitmodules`.
+- The reviewer's own instructions: `.pr_agent.toml`, `REVIEW.md`,
+  `best_practices.md` (anywhere). `config propose` owns them; a fix must not
+  rewrite how it is reviewed.
+- Agent instructions and memory: `CLAUDE.md`, `AGENTS.md`, `AGENTS.*.md`,
+  `GEMINI.md`, `QWEN.md`, `.cursorrules`, `culture.yaml`, `.claude/`, `.cursor/`,
+  `.pi/`, `.qwen/`, `.colleague/`, `.eidetic/`. A change there would steer every
+  later agent run.
+- Files an editor runs on open: `.vscode/`, `.devcontainer/`, `.idea/`.
+- Dependencies: manifests (`package.json`, `pyproject.toml`, `setup.py`,
+  `setup.cfg`, `requirements*.txt`, `Pipfile`, `Cargo.toml`, `build.rs`,
+  `go.mod`, `Gemfile`, `*.gemspec`, `composer.json`) and lockfiles
+  (`package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `uv.lock`, `poetry.lock`,
+  `Cargo.lock`, `go.sum`, ...). A new dependency or an install hook runs code at
+  install time, and nobody reads a lockfile diff. A review finding's fix rarely
+  needs one; remove the rule in your settings if yours do.
+- Registry settings and secrets: `.npmrc`, `.yarnrc`, `.pypirc`, `pip.conf`,
+  `.netrc`, `.env*`, `*.pem`, `*.key`, key stores, `id_rsa*`-style SSH keys and
+  `.htpasswd`.
+
+A name that only resembles one of these (`docs/.github-notes.md`,
+`environment.py`, `src/keys.py`) is allowed. `Makefile`, `Dockerfile` and
+`.gitignore` are allowed by default: add them if you disagree.
+
+### Before you use it
+
+1. Install the `events` extra where the bridge runs, and run a broker
+   (`events up`) or point `EVENTS_BROKER_HOST` / `EVENTS_BROKER_PORT` at one.
+2. List each repo in `QODO_PROPOSE_REPOS` (for `findings fix`) **and** in
+   `QODO_FIX_REPOS` (for `fix propose`): they are separate on purpose, and a
+   repo in only the first gets a request whose fix is then refused.
+3. Set `QODO_FIX_CHECKOUT_ROOTS` to where culture-rules' fix checkouts live.
+4. Issue an `editor` token for whatever calls `findings fix` and `fix propose`
+   over HTTP.
+5. Write the culture-rules rule and workflow (*planned*; not in this repo yet).
+
 ## The change log
 
-Two kinds of change add a line to an append-only log, so a person or the web UI
+Four kinds of change add a line to an append-only log, so a person or the web UI
 can see what happened: a finding marked implemented or dismissed (one line per
-finding), and a configuration change that `config propose` accepted. Only
+finding), a configuration change that `config propose` accepted, a fix request
+that `findings fix` published, and a code fix that `fix propose` accepted. Only
 successful changes are logged. It is not a complete audit trail: `review resolve`
 and `config init` write nothing to it, and if the log cannot be written the
 change still succeeds with a warning.
@@ -345,8 +548,11 @@ change still succeeds with a warning.
 - **What a line holds:**
   - `finding.status_changed`: `id` (one line per finding), `status`
     (`implemented` or `dismissed`) and, for a dismissal, `reason`;
-  - `config.proposed`: `repo` and `files` (the paths only).
-- **What it never holds:** the API key, finding text or file contents.
+  - `config.proposed`: `repo` and `files` (the paths only);
+  - `fix.requested`: `pr_url`, `finding_ids` and `event_id` (never the note);
+  - `fix.proposed`: `repo` and `files` (the paths only).
+- **What it never holds:** the API key, finding text, file contents or a fix
+  request's note.
 - **Size:** at about 1,000,000 bytes the next write renames the file to
   `changes.jsonl.1`, replacing the previous one, so about twice that is kept.
 - **Reading it:** `GET /changes?limit=N` (viewer; 1 to 500, default 50) or
@@ -412,6 +618,7 @@ the UI out on purpose.
 
 - It never pushes, merges, commits or opens a pull request. It reads a
   checkout, returns files, and leaves the pull request to culture-rules.
+  `findings fix` publishes an event and nothing else.
 - It never calls Qodo as a service account. It calls Qodo with one personal API
   key, so every call is made, and rate-limited, as that person.
 - It never returns the API key, in a route, a tool or an error.
@@ -452,3 +659,15 @@ Read these before you rely on the bridge:
   checks fail by message.
 - **A local verb can be reached by anyone who can run the CLI.** The policy
   governs Qodo's tools only (see [above](#the-exposure-policy)).
+- **Fix requests are for github.com pull requests only**, because the fix lands
+  through culture-rules' GitHub App.
+- **The event names the surface, not the person.** `requested_by` is `cli`,
+  `api` or `mcp`; a verb handler is not given the HTTP caller's identity today,
+  so passing it needs the server to hand the principal to the handler.
+- **The rate guard is per bridge host.** It reads this host's change log, so two
+  bridges sharing a repo do not see each other's requests, and a log that
+  cannot be written leaves no memory of a request.
+- **The event bus has no credentials yet.** events-cli's broker takes anonymous
+  loopback connections; anyone on the bridge's host can publish the same event
+  type, so culture-rules should treat the event as a request, not as proof of
+  who asked.

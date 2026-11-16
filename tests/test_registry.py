@@ -34,6 +34,8 @@ LOCAL_VERBS = {
     "config init",
     "config status",
     "config propose",
+    "findings fix",
+    "fix propose",
 }
 # Upstream tools that write to a pull request or change a rule: the shipped policy names none.
 FORBIDDEN_TOOLS = {

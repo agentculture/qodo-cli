@@ -34,6 +34,10 @@ Commands
   qodo-cli config show          Show/validate/init the repo Qodo reviewer config.
   qodo-cli config propose       Check a committed Qodo config change against a base and
                                 return it only if safe (read-only; never opens a PR).
+  qodo-cli findings fix         Ask for an agent to fix findings: publish one event on the
+                                mesh's bus (the 'events' extra); culture-rules opens the PR.
+  qodo-cli fix propose          Check an agent's committed code fix against a base and return
+                                it only if safe (read-only; never opens a PR).
   qodo-cli serve                Run the HTTP API (the 'server' extra): every verb on the api
                                 surface is POST /verbs/<noun>/<name>; loopback, and a LAN
                                 listener when configured.
@@ -66,6 +70,8 @@ More detail
   qodo-cli explain rules
   qodo-cli explain review
   qodo-cli explain config propose
+  qodo-cli explain findings fix
+  qodo-cli explain fix propose
   qodo-cli explain serve
   qodo-cli explain mcp
   qodo-cli explain tokens
@@ -86,6 +92,16 @@ def _as_json_payload() -> dict[str, object]:
                 "path": ["config", "propose"],
                 "summary": "Check a committed Qodo config change against a base; return it "
                 "only if safe (read-only).",
+            },
+            {
+                "path": ["findings", "fix"],
+                "summary": "Ask for an agent to fix findings: publish one event on the mesh's "
+                "bus (needs the 'events' extra).",
+            },
+            {
+                "path": ["fix", "propose"],
+                "summary": "Check an agent's committed code fix against a base; return it only "
+                "if safe (read-only).",
             },
             {
                 "path": ["serve"],

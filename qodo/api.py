@@ -632,3 +632,70 @@ def config_propose(
     if result["ok"]:
         _changelog.record_config_proposal(repo, [f["path"] for f in result["files"]], actor=actor)
     return result
+
+
+# --- fixes: ask for an agent, and check what it committed ------------------------------------
+
+
+def _publisher() -> Callable[[str, dict[str, Any]], Any]:
+    """How ``findings_fix`` publishes its event (one patch point for tests and integrators):
+    events-cli's own client, imported lazily (the ``events`` extra)."""
+    from qodo import fix_request
+
+    return fix_request.publish
+
+
+def findings_fix(
+    pr_url: str,
+    finding_ids: list[str],
+    *,
+    note: str | None = None,
+    actor: str | None = None,
+    settings: Any = None,
+) -> dict[str, Any]:
+    """Ask for an agent to fix findings on a pull request: publish ONE ``qodo.fix.requested``
+    event on the mesh's event bus (see :mod:`qodo.fix_request`).
+
+    Returns ``{"event_id", "type", "pr_url", "repo", "number", "finding_ids"}``. Refused (a
+    user error, nothing published or logged) for a URL that is not a github.com pull request,
+    1-20 plain finding ids, a note over 500 characters, a repo outside ``config propose``'s repo
+    allowlist (``settings`` defaults to :func:`qodo.propose.load_settings`) and a repeat of the
+    same request within ``QODO_FIX_REQUEST_WINDOW`` seconds. Without the ``events`` extra or a
+    reachable broker: an environment error. Never calls Qodo; after a publish one
+    ``fix.requested`` line (the PR URL, the ids, the event id and ``actor``) goes to the change
+    log.
+    """
+    from qodo import fix_request
+
+    return fix_request.request_fix(
+        pr_url, finding_ids, note, publisher=_publisher(), actor=actor, settings=settings
+    )
+
+
+def fix_propose(
+    repo: str,
+    checkout: str,
+    base: str,
+    *,
+    settings: Any = None,
+    actor: str | None = None,
+) -> dict[str, Any]:
+    """Is the change ``checkout``'s committed HEAD makes against ``base`` a small code fix safe
+    to propose for ``repo``? The same checks as :func:`config_propose`, under the fix profile:
+    any normal path except the refused set (``qodo/fix_default.json``), its own repo allowlist
+    and checkout roots (``QODO_FIX_REPOS``, ``QODO_FIX_CHECKOUT_ROOTS`` or the settings file's
+    ``fix`` section), at most 20 files and a reply under 64 KiB. A read: nothing is written.
+
+    Success: ``{"ok": True, "repo", "base", "base_sha", "head", "files": [{"path", "content"}],
+    "warnings": []}``. Refusal: ``{"ok": False, "reason", "detail", "paths"}``, never with file
+    contents. After a success one ``fix.proposed`` line (the repo and the paths) goes to the
+    change log, with ``actor``.
+    """
+    from qodo import propose as _propose
+
+    if settings is None:
+        settings = _propose.load_settings(profile=_propose.FIX_PROFILE)
+    result = _propose.propose(repo, checkout, base, settings)
+    if result["ok"]:
+        _changelog.record_fix_proposal(repo, [f["path"] for f in result["files"]], actor=actor)
+    return result

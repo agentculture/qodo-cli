@@ -1,5 +1,13 @@
-"""``config propose``: is the change a checkout's HEAD makes against a base ref a safe Qodo
-configuration change? If so, return it; if not, say why, with no file contents.
+"""``config propose`` and ``fix propose``: is the change a checkout's HEAD makes against a base
+ref safe to propose? If so, return it; if not, say why, with no file contents.
+
+The same machinery runs under two settings **profiles** (:data:`CONFIG_PROFILE`,
+:data:`FIX_PROFILE`): ``config propose`` allows only the Qodo configuration files, by exact path,
+and checks ``.pr_agent.toml``'s settings; ``fix propose`` (an agent's code fix for a Qodo
+finding) allows any normal path **except** a refused set shipped as data
+(``fix_default.json``: CI and repo automation, the reviewer's own configuration, agent
+instructions, git internals, dependency manifests and lockfiles, secret-bearing names). Each
+profile has its own repo allowlist and checkout roots; every other protection below is shared.
 
 The verb is the gate between an improvement agent's local commits and a pull request someone
 else opens (culture-rules, through its own GitHub App). It **reads** a checkout and returns
@@ -26,7 +34,9 @@ Configuration (none of it is a constant in the logic): the packaged ``propose_de
 (the path allowlist, the refused and legacy settings, the caps; **no** repos, **no** roots),
 overlaid key by key by a JSON file at ``$QODO_PROPOSE_CONFIG`` or ``~/.qodo/propose.json``, then
 by ``QODO_PROPOSE_REPOS`` (comma or space separated) and ``QODO_PROPOSE_CHECKOUT_ROOTS``
-(``os.pathsep`` separated). An empty repo or root allowlist refuses everything.
+(``os.pathsep`` separated). An empty repo or root allowlist refuses everything. The fix profile
+layers the same way: the packaged ``fix_default.json``, the settings file's ``fix`` section, then
+``QODO_FIX_REPOS`` and ``QODO_FIX_CHECKOUT_ROOTS``.
 
 A refusal is a normal result, ``{ok: false, reason, detail, paths}``; a broken environment (git
 missing, a timeout, a checkout that is not a plain git repository) is a :class:`CliError`.
@@ -36,6 +46,7 @@ Standard library only.
 from __future__ import annotations
 
 import dataclasses
+import fnmatch
 import json
 import os
 import re
@@ -51,20 +62,31 @@ from typing import Any
 from qodo.cli._errors import EXIT_ENV_ERROR, CliError
 
 __all__ = [
+    "CONFIG_PROFILE",
+    "FIX_PROFILE",
+    "PathRule",
+    "Profile",
     "ProposeSettings",
     "RefusedSetting",
     "REASONS",
     "load_settings",
+    "parse_path_rules",
     "parse_refused",
     "path_allowed",
+    "path_refused_by",
     "propose",
 ]
 
 DEFAULTS_PATH = Path(__file__).with_name("propose_default.json")
+FIX_DEFAULTS_PATH = Path(__file__).with_name("fix_default.json")
 ENV_CONFIG = "QODO_PROPOSE_CONFIG"
 ENV_REPOS = "QODO_PROPOSE_REPOS"
 ENV_ROOTS = "QODO_PROPOSE_CHECKOUT_ROOTS"
+ENV_FIX_REPOS = "QODO_FIX_REPOS"
+ENV_FIX_ROOTS = "QODO_FIX_CHECKOUT_ROOTS"
 KINDS = ("toml", "markdown")
+#: How a refused path rule matches (see :class:`PathRule`).
+RULE_KINDS = ("path", "name", "segment")
 LEGACY_DETAIL = "not in Qodo's current configuration reference (whether Qodo still reads it is "
 LEGACY_DETAIL += "unverified)"
 
@@ -103,6 +125,48 @@ _REGULAR, _EXECUTABLE = "100644", "100755"
 
 
 @dataclass(frozen=True)
+class Profile:
+    """Where one verb's settings come from: the packaged defaults, the settings file's section
+    (``None``: its top level) and the two environment variables of its allowlists."""
+
+    name: str
+    verb: str
+    defaults_path: Path
+    section: str | None
+    env_repos: str
+    env_roots: str
+
+
+CONFIG_PROFILE = Profile("config", "config propose", DEFAULTS_PATH, None, ENV_REPOS, ENV_ROOTS)
+FIX_PROFILE = Profile("fix", "fix propose", FIX_DEFAULTS_PATH, "fix", ENV_FIX_REPOS, ENV_FIX_ROOTS)
+
+
+@dataclass(frozen=True)
+class PathRule:
+    """A path a change may not touch. ``kind`` says what the glob ``pattern`` (``fnmatch``:
+    ``*``, ``?``, ``[...]``) is matched against, always without regard to case: ``path`` the
+    whole repo-relative path (``*`` crosses ``/``), ``name`` the last segment, ``segment`` any
+    segment (a directory anywhere, or the file itself). ``why`` is shown in a refusal."""
+
+    kind: str
+    pattern: str
+    why: str = ""
+
+    def matches(self, path: str) -> bool:
+        folded, pattern = path.casefold(), self.pattern.casefold()
+        segments = folded.split("/")
+        if self.kind == "path":
+            return fnmatch.fnmatchcase(folded, pattern)
+        if self.kind == "name":
+            return fnmatch.fnmatchcase(segments[-1], pattern)
+        return any(fnmatch.fnmatchcase(seg, pattern) for seg in segments)
+
+    def describe(self) -> str:
+        text = f"{self.kind} {self.pattern}"
+        return f"{text} ({self.why})" if self.why else text
+
+
+@dataclass(frozen=True)
 class RefusedSetting:
     """A TOML key (``section.key``) or a whole table (``section.*``) a proposal may not change,
     except to one of the ``allow`` values."""
@@ -127,6 +191,10 @@ class ProposeSettings:
     max_file_bytes: int = 32768
     max_reply_bytes: int = 61440
     git_timeout_seconds: int = 20
+    #: ``True`` (the fix profile): any normal path not matched by ``refused_paths`` may change,
+    #: as plain UTF-8 text; ``False`` (the config profile): only the keys of ``paths``.
+    any_path: bool = False
+    refused_paths: tuple[PathRule, ...] = ()
 
     def replace(self, **changes: Any) -> ProposeSettings:
         return dataclasses.replace(self, **changes)
@@ -141,37 +209,76 @@ _KNOWN = {
     "legacy_files",
     "legacy_settings",
     "refused_settings",
+    "fix",  # the fix profile's section of the same settings file (read by FIX_PROFILE only)
+    *_INT_KEYS,
+}
+_KNOWN_FIX = {
+    "version",
+    "repos",
+    "checkout_roots",
+    "refused_paths",
+    "extra_refused_paths",
     *_INT_KEYS,
 }
 
 
-def _config_error(where: Any, message: str) -> CliError:
+def _config_error(where: Any, message: str, profile: Profile = CONFIG_PROFILE) -> CliError:
     return CliError(
         code=EXIT_ENV_ERROR,
-        message=f"invalid config propose settings ({where}): {message}",
-        remediation=f"fix the settings file (see qodo/propose_default.json), {ENV_REPOS} or "
-        f"{ENV_ROOTS}",
+        message=f"invalid {profile.verb} settings ({where}): {message}",
+        remediation=f"fix the settings file (see qodo/{profile.defaults_path.name}), "
+        f"{profile.env_repos} or {profile.env_roots}",
     )
 
 
-def _str_list(where: Any, key: str, value: Any) -> tuple[str, ...]:
+def _str_list(
+    where: Any, key: str, value: Any, profile: Profile = CONFIG_PROFILE
+) -> tuple[str, ...]:
     if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
-        raise _config_error(where, f"{key} must be a list of strings")
+        raise _config_error(where, f"{key} must be a list of strings", profile)
     return tuple(value)
 
 
-def _repos(where: Any, value: tuple[str, ...]) -> tuple[str, ...]:
+def _repos(
+    where: Any, value: tuple[str, ...], profile: Profile = CONFIG_PROFILE
+) -> tuple[str, ...]:
     for repo in value:
-        if not _REPO.match(repo) or ".." in repo:
-            raise _config_error(where, f"repo {repo!r} is not owner/name")
+        if not _REPO.fullmatch(repo) or ".." in repo:
+            raise _config_error(where, f"repo {repo!r} is not owner/name", profile)
     return value
 
 
-def _roots(where: Any, value: tuple[str, ...]) -> tuple[str, ...]:
+def _roots(
+    where: Any, value: tuple[str, ...], profile: Profile = CONFIG_PROFILE
+) -> tuple[str, ...]:
     for root in value:
         if not os.path.isabs(root):
-            raise _config_error(where, f"checkout root {root!r} is not an absolute path")
+            raise _config_error(where, f"checkout root {root!r} is not an absolute path", profile)
     return value
+
+
+def parse_path_rules(raw: Any, where: Any = "refused_paths") -> tuple[PathRule, ...]:
+    """``[{"kind": "path" | "name" | "segment", "pattern": glob, "why"?: text}]`` to rules."""
+    if not isinstance(raw, (list, tuple)):
+        raise _config_error(where, "refused_paths must be a list", FIX_PROFILE)
+    out = []
+    for item in raw:
+        if not isinstance(item, dict) or set(item) - {"kind", "pattern", "why"}:
+            raise _config_error(where, "each refused path is {kind, pattern, why?}", FIX_PROFILE)
+        kind, pattern, why = item.get("kind"), item.get("pattern"), item.get("why", "")
+        if kind not in RULE_KINDS:
+            raise _config_error(
+                where, f"refused path kind must be one of {', '.join(RULE_KINDS)}", FIX_PROFILE
+            )
+        bad = not isinstance(pattern, str) or not pattern.strip() or "\\" in pattern
+        if bad or any(ord(c) < 32 for c in pattern) or (kind != "path" and "/" in pattern):
+            raise _config_error(
+                where, f"refused path pattern {pattern!r} is not a usable glob", FIX_PROFILE
+            )
+        if not isinstance(why, str):
+            raise _config_error(where, f"{pattern}: why must be text", FIX_PROFILE)
+        out.append(PathRule(kind, pattern, why))
+    return tuple(out)
 
 
 def parse_refused(raw: Any, where: Any = "refused_settings") -> tuple[RefusedSetting, ...]:
@@ -183,12 +290,42 @@ def parse_refused(raw: Any, where: Any = "refused_settings") -> tuple[RefusedSet
         if not isinstance(item, dict) or set(item) - {"key", "allow"}:
             raise _config_error(where, "each refused setting is {key, allow?}")
         key, allow = item.get("key"), item.get("allow", [])
-        if not isinstance(key, str) or not _KEY.match(key):
+        if not isinstance(key, str) or not _KEY.fullmatch(key):
             raise _config_error(where, f"refused setting key {key!r} is not section.key")
         if not isinstance(allow, list):
             raise _config_error(where, f"{key}: allow must be a list")
         out.append(RefusedSetting(key, tuple(allow)))
     return tuple(out)
+
+
+def _ints(data: dict[str, Any], where: Any, profile: Profile) -> dict[str, int]:
+    ints = {}
+    for key in _INT_KEYS:
+        value = data.get(key, getattr(ProposeSettings, key))
+        if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+            raise _config_error(where, f"{key} must be a positive integer", profile)
+        ints[key] = value
+    return ints
+
+
+def _parse_fix(data: dict[str, Any], where: Any) -> ProposeSettings:
+    p = FIX_PROFILE
+    unknown = set(data) - _KNOWN_FIX
+    if unknown:
+        raise _config_error(where, f"unknown key(s) {sorted(unknown)}", p)
+    if data.get("version", 1) != 1:
+        raise _config_error(where, "version must be 1", p)
+    rules = parse_path_rules(data.get("refused_paths", []), where)
+    rules += parse_path_rules(data.get("extra_refused_paths", []), where)
+    return ProposeSettings(
+        repos=_repos(where, _str_list(where, "repos", data.get("repos", []), p), p),
+        checkout_roots=_roots(
+            where, _str_list(where, "checkout_roots", data.get("checkout_roots", []), p), p
+        ),
+        any_path=True,
+        refused_paths=rules,
+        **_ints(data, where, p),
+    )
 
 
 def _parse(data: dict[str, Any], where: Any) -> ProposeSettings:
@@ -205,14 +342,9 @@ def _parse(data: dict[str, Any], where: Any) -> ProposeSettings:
             raise _config_error(where, f"path {path!r} is not a normal repo-relative path")
         if kind not in KINDS:
             raise _config_error(where, f"{path}: kind must be one of {', '.join(KINDS)}")
-    ints = {}
-    for key in _INT_KEYS:
-        value = data.get(key, getattr(ProposeSettings, key))
-        if not isinstance(value, int) or isinstance(value, bool) or value < 1:
-            raise _config_error(where, f"{key} must be a positive integer")
-        ints[key] = value
+    ints = _ints(data, where, CONFIG_PROFILE)
     legacy = _str_list(where, "legacy_settings", data.get("legacy_settings", []))
-    if not all(_KEY.match(k) for k in legacy):
+    if not all(_KEY.fullmatch(k) for k in legacy):
         raise _config_error(where, "legacy_settings must be section.key names")
     return ProposeSettings(
         repos=_repos(where, _str_list(where, "repos", data.get("repos", []))),
@@ -227,15 +359,15 @@ def _parse(data: dict[str, Any], where: Any) -> ProposeSettings:
     )
 
 
-def _read_json(path: Path) -> dict[str, Any]:
+def _read_json(path: Path, profile: Profile = CONFIG_PROFILE) -> dict[str, Any]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except OSError as err:
-        raise _config_error(path, err.strerror or str(err)) from err
+        raise _config_error(path, err.strerror or str(err), profile) from err
     except ValueError as err:
-        raise _config_error(path, f"not valid JSON: {err}") from err
+        raise _config_error(path, f"not valid JSON: {err}", profile) from err
     if not isinstance(data, dict):
-        raise _config_error(path, "expected a JSON object")
+        raise _config_error(path, "expected a JSON object", profile)
     return data
 
 
@@ -243,24 +375,35 @@ _UNSET: Any = object()
 
 
 def load_settings(
-    env: Mapping[str, str] | None = None, config_path: Path | str | None = _UNSET
+    env: Mapping[str, str] | None = None,
+    config_path: Path | str | None = _UNSET,
+    profile: Profile = CONFIG_PROFILE,
 ) -> ProposeSettings:
-    """The packaged defaults, overlaid by the settings file, then by the environment.
+    """The profile's packaged defaults, overlaid by the settings file (its section, for the fix
+    profile), then by the environment.
 
     ``config_path`` defaults to ``$QODO_PROPOSE_CONFIG`` or ``~/.qodo/propose.json`` (a missing
     file is skipped; an unreadable or invalid one is an environment error); ``None`` reads none.
     """
     env = os.environ if env is None else env
-    data = _read_json(DEFAULTS_PATH)
+    data = _read_json(profile.defaults_path, profile)
     if config_path is _UNSET:
         config_path = env.get(ENV_CONFIG) or Path.home() / ".qodo" / "propose.json"
     if config_path is not None and Path(config_path).exists():
-        data.update(_read_json(Path(config_path)))
-    if ENV_REPOS in env:
-        data["repos"] = [r for r in re.split(r"[,\s]+", env[ENV_REPOS]) if r]
-    if ENV_ROOTS in env:
-        data["checkout_roots"] = [r for r in env[ENV_ROOTS].split(os.pathsep) if r]
-    return _parse(data, config_path or DEFAULTS_PATH)
+        raw = _read_json(Path(config_path), profile)
+        if profile.section is not None:
+            raw = raw.get(profile.section, {})
+            if not isinstance(raw, dict):
+                raise _config_error(
+                    config_path, f"{profile.section} must be a JSON object", profile
+                )
+        data.update(raw)
+    if profile.env_repos in env:
+        data["repos"] = [r for r in re.split(r"[,\s]+", env[profile.env_repos]) if r]
+    if profile.env_roots in env:
+        data["checkout_roots"] = [r for r in env[profile.env_roots].split(os.pathsep) if r]
+    where = config_path or profile.defaults_path
+    return _parse_fix(data, where) if profile is FIX_PROFILE else _parse(data, where)
 
 
 # --- paths and refs ------------------------------------------------------------------------------
@@ -281,11 +424,33 @@ def path_allowed(path: Any, paths: Mapping[str, str]) -> bool:
     return _normal(path) and path in paths
 
 
+def path_refused_by(path: str, rules: tuple[PathRule, ...]) -> list[PathRule]:
+    """The refused-path rules ``path`` matches (case folded)."""
+    return [rule for rule in rules if rule.matches(path)]
+
+
+def _path_ok(path: Any, s: ProposeSettings) -> bool:
+    if s.any_path:
+        return _normal(path) and not path_refused_by(path, s.refused_paths)
+    return path_allowed(path, s.paths)
+
+
+def _outside_detail(outside: list[str], s: ProposeSettings) -> str:
+    if not s.any_path:
+        return f"only these paths may change: {', '.join(sorted(s.paths)) or '(none)'}"
+    hits = [r for p in outside if _normal(p) for r in path_refused_by(p, s.refused_paths)]
+    named = list(dict.fromkeys(r.describe() for r in hits))
+    parts = [f"refused by: {'; '.join(named[:10])}"] if named else []
+    if any(not _normal(p) for p in outside):
+        parts.append("a path that is not a normal repo-relative path")
+    return "a fix may not change these paths: " + ", ".join(parts)
+
+
 def _base_ok(base: Any) -> bool:
     """A branch, tag or commit name in a strict subset of git's ref format: letters, digits,
     ``. _ / -``, never a leading ``-`` or ``/``, no ``..``, ``//``, ``@{``, no segment starting with
     ``.`` or ending in ``.lock``, no trailing ``/`` or ``.``."""
-    if not isinstance(base, str) or not _REF_CHARS.match(base):
+    if not isinstance(base, str) or not _REF_CHARS.fullmatch(base):
         return False
     if base.startswith(("-", "/")) or base.endswith(("/", ".")) or ".." in base:
         return False
@@ -496,12 +661,15 @@ def _structure(changes: list[_Change], s: ProposeSettings) -> dict[str, Any] | N
     renamed = [p for c in changes if c.status in ("R", "C") for p in c.paths]
     if renamed:
         return _refuse("rename", "a rename or copy is never proposable", renamed)
-    outside = [p for c in changes for p in c.paths if not path_allowed(p, s.paths)]
+    outside = [p for c in changes for p in c.paths if not _path_ok(p, s)]
     if outside:
-        allowed = ", ".join(sorted(s.paths)) or "(none)"
-        return _refuse("path_not_allowed", f"only these paths may change: {allowed}", outside)
+        return _refuse("path_not_allowed", _outside_detail(outside, s), outside)
     rules = (
-        ("deletion", lambda c: c.status == "D", "deleting a configuration file is not proposable"),
+        (
+            "deletion",
+            lambda c: c.status == "D",
+            f"deleting a {'file' if s.any_path else 'configuration file'} is not proposable",
+        ),
         ("type_change", lambda c: c.status not in ("A", "M"), "the file changed type"),
         (
             "not_regular_file",
@@ -554,8 +722,9 @@ def _content(
     path = change.path
     if path in s.legacy_files:
         warnings.append(_warning("legacy_file", path, f"{path} is {LEGACY_DETAIL}"))
-    if s.paths[path] == "markdown":
-        if not text.strip():
+    kind = s.paths.get(path, "text")  # a fix's file (any allowed path) is plain text
+    if kind != "toml":
+        if kind == "markdown" and not text.strip():
             warnings.append(_warning("empty_file", path, f"{path} is empty"))
         return text
     new, error = _toml(text)

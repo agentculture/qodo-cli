@@ -615,6 +615,42 @@ def _config_propose(params: dict[str, Any] | None = None, *, surface: str = "cli
     return api.config_propose(given["repo"], given["checkout"], given["base"], actor=surface)
 
 
+def _findings_fix(params: dict[str, Any] | None = None, *, surface: str = "cli") -> Any:
+    from qodo import api
+
+    given = _given(params)
+    validate_params(_LOCAL_SCHEMAS[("findings", "fix")], given)
+    return api.findings_fix(
+        given["pr_url"], list(given["finding_ids"]), note=given.get("note"), actor=surface
+    )
+
+
+def _fix_propose(params: dict[str, Any] | None = None, *, surface: str = "cli") -> Any:
+    from qodo import api
+
+    given = _given(params)
+    validate_params(_LOCAL_SCHEMAS[("fix", "propose")], given)
+    return api.fix_propose(given["repo"], given["checkout"], given["base"], actor=surface)
+
+
+_PROPOSE_PARAMS = {
+    "repo": {
+        "type": "string",
+        "maxLength": 201,
+        "description": "owner/name; must be in the bridge's repo allowlist.",
+    },
+    "checkout": {
+        "type": "string",
+        "maxLength": 4096,
+        "description": "Absolute path of the clone, under an allowed checkout root.",
+    },
+    "base": {
+        "type": "string",
+        "maxLength": 200,
+        "description": "The branch, tag or commit HEAD is compared with.",
+    },
+}
+
 _LOCAL_SCHEMAS: dict[tuple[str, str], dict[str, Any]] = {
     ("rules", "get"): _obj(
         {
@@ -659,25 +695,46 @@ _LOCAL_SCHEMAS: dict[tuple[str, str], dict[str, Any]] = {
             }
         }
     ),
-    ("config", "propose"): _obj(
+    ("config", "propose"): _obj(dict(_PROPOSE_PARAMS), ("repo", "checkout", "base")),
+    ("fix", "propose"): _obj(
         {
+            **_PROPOSE_PARAMS,
             "repo": {
                 "type": "string",
                 "maxLength": 201,
-                "description": "owner/name; must be in the bridge's repo allowlist.",
+                "description": "owner/name; must be in the bridge's fix repo allowlist.",
             },
             "checkout": {
                 "type": "string",
                 "maxLength": 4096,
-                "description": "Absolute path of the clone, under an allowed checkout root.",
-            },
-            "base": {
-                "type": "string",
-                "maxLength": 200,
-                "description": "The branch, tag or commit HEAD is compared with.",
+                "description": "Absolute path of the agent's clone, under an allowed fix "
+                "checkout root.",
             },
         },
         ("repo", "checkout", "base"),
+    ),
+    ("findings", "fix"): _obj(
+        {
+            "pr_url": {
+                "type": "string",
+                "maxLength": 400,
+                "description": "The pull request's github.com URL; its repo must be in the "
+                "bridge's repo allowlist.",
+            },
+            "finding_ids": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 20,
+                "items": {"type": "string", "maxLength": 128},
+                "description": "The findings to fix (1 to 20 ids, from `findings list`).",
+            },
+            "note": {
+                "type": "string",
+                "maxLength": 500,
+                "description": "An optional note for the agent.",
+            },
+        },
+        ("pr_url", "finding_ids"),
     ),
 }
 
@@ -686,7 +743,11 @@ _LOCAL_SCHEMAS: dict[tuple[str, str], dict[str, Any]] = {
 # read or write the working directory or drive ``gh`` as the caller, which a server or an MCP
 # client must not. config propose reads only a checkout under a configured root, for a repo in a
 # configured allowlist, and writes nothing; it is on the api because culture-rules calls it over
-# HTTP. It is not on mcp: no MCP client needs it, so it is not exposed there. config status is on
+# HTTP. It is not on mcp: no MCP client needs it, so it is not exposed there. fix propose is the
+# same gate for an agent's code fix (its own allowlists and path policy), on the same surfaces for
+# the same reason. findings fix publishes one event on the mesh's event bus (a write, but not to
+# Qodo or a repo: no push, merge or pull request); it is on every surface, because the web UI, an
+# agent over MCP and a person at the CLI may all ask for a fix. config status is on
 # the api for the web UI's Configuration screen: it takes a repo name from the same allowlist (never
 # a path), reads only the allowlisted configuration files of its configured checkout and returns
 # names, sizes, validation results and warnings, never contents (so a viewer may call it).
@@ -704,6 +765,10 @@ _LOCAL_VERBS = (
      _config_status, False, ("cli", "api"), True),
     ("config", "propose", "Check a checkout's Qodo config change against a base; return it if "
      "safe.", _config_propose, False, ("cli", "api"), True),
+    ("findings", "fix", "Ask for an agent to fix findings: publish one event on the mesh's bus "
+     "(no PR is opened here).", _findings_fix, True, ("cli", "api", "mcp"), True),
+    ("fix", "propose", "Check an agent's committed code fix against a base; return it if safe.",
+     _fix_propose, False, ("cli", "api"), True),
 )  # fmt: skip
 
 

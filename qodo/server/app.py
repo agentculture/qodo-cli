@@ -18,7 +18,8 @@ Route scheme (one operation per verb on the ``api`` surface; nothing is written 
 - ``GET /openapi.json``: the schema this module renders into ``api/openapi.json``.
 
 Roles (:func:`build_policy`): a read verb needs ``viewer``; a verb that writes (``writes=True``)
-needs ``editor``; ``config propose`` needs ``editor`` as well (see :data:`ROLE_OVERRIDES`);
+needs ``editor``; ``config propose`` and ``fix propose`` need ``editor`` as well (see
+:data:`ROLE_OVERRIDES`);
 ``/verbs``, ``/changes`` and ``/openapi.json`` need ``viewer``; ``/health`` is public; anything
 unlisted needs ``admin``. The credential and role are checked in a middleware, before any handler
 runs: no credential is 401, a role that is too low is 403. Errors are one JSON envelope,
@@ -73,7 +74,11 @@ DEFAULT_CHANGES = 50
 #: the checkout, but it reads files from the bridge machine's disk (under the allowlisted roots,
 #: for the allowlisted repos) and returns their contents, and a success appends to the change
 #: log: a deliberate grant (editor) rather than the default every read-only token carries.
-ROLE_OVERRIDES: dict[tuple[str, str], str] = {("config", "propose"): "editor"}
+#: ``fix propose`` is the same gate for an agent's code fix, and needs the same grant.
+ROLE_OVERRIDES: dict[tuple[str, str], str] = {
+    ("config", "propose"): "editor",
+    ("fix", "propose"): "editor",
+}
 
 _SEGMENT = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 _LOG = logging.getLogger("qodo.server")
@@ -104,6 +109,12 @@ def role_for(verb: Verb) -> str:
     if verb.path in ROLE_OVERRIDES:
         return ROLE_OVERRIDES[verb.path]
     return "editor" if verb.writes else "viewer"
+
+
+def _write_note(verb: Verb) -> str:
+    if verb.kind == "upstream":
+        return "A write: it changes Qodo's state. "
+    return "A write (the summary says what it changes; never a push, merge or pull request). "
 
 
 def default_web_dist() -> Path:
@@ -343,7 +354,7 @@ def create_app(
             summary=verb.summary,
             description=(
                 f"Needs the {role_for(verb)} role. "
-                + ("A write: it changes Qodo's state. " if verb.writes else "")
+                + (_write_note(verb) if verb.writes else "")
                 + "The body is the verb's params as a JSON object."
             ),
             tags=[verb.noun],

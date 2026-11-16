@@ -45,6 +45,7 @@ Verbs marked **write** change something. Every other verb only reads.
 | `findings list --pr-url URL [--extended] [--summary]` | The findings Qodo raised on the pull request at `URL`. `--extended` adds locations, snippets and dismissal details. `--summary` prints only counts, ids, statuses and URLs (a small reply) |
 | `findings implement --finding-ids ID [--finding-ids ID ...] [--explanation T] [--idempotency-key K] [--local-review-id R]` | **Write.** Mark findings implemented: the fix has landed |
 | `findings dismiss --finding-ids ID [...] --reason REASON [--explanation T] [--idempotency-key K] [--local-review-id R]` | **Write.** Dismiss findings without a code change. `REASON` is `false_positive`, `intentional`, `deferred` or `rejected` |
+| `findings fix --pr-url URL --finding-ids ID [...] [--note TEXT]` | **Write.** Ask for an agent to fix the findings: publishes one `qodo.fix.requested` event on the mesh's event bus. It does not call Qodo and opens no pull request (see below) |
 
 `URL` is the pull request's full web URL, for example
 `https://github.com/example-owner/example-repo/pull/1`. A URL that does not start with `http://` or
@@ -58,6 +59,17 @@ ones are `full_implementation`, `dismissed`, `detected_after_merge` and
 ```bash
 qodo-cli findings list --pr-url https://github.com/example-owner/example-repo/pull/1 --summary --json
 ```
+
+`findings fix` takes a `github.com` pull request URL (no query, fragment, user or
+port), 1 to 20 finding ids (letters, digits, `.` `_` `:` `-`, at most 128
+characters each) and an optional note of at most 500 characters. It refuses
+(exit 1) a repo the operator has not allowlisted and the same PR and set of ids
+asked for again within the operator's window (5 minutes by default). Without
+the `events` extra or a reachable event broker it exits 2. On success it returns
+`{event_id, type, pr_url, repo, number, finding_ids}`. culture-rules picks the
+event up, an agent fixes the findings in its own checkout, and culture-rules
+opens the fix as a new pull request against the reviewed branch after
+`fix propose` has checked it.
 
 ### `rules` — Qodo's coding rules
 
@@ -105,6 +117,20 @@ They are CLI only: they have no HTTP route and no MCP tool.
 code. `config show`, `config validate` and `config init` are CLI only;
 `config propose` is on the CLI and HTTP, not MCP.
 
+### `fix` — an agent's committed code fix
+
+| Verb | What it does |
+|------|--------------|
+| `fix propose --repo OWNER/NAME --checkout PATH --base REF` | Check the fix an agent committed in its checkout against `REF` and return the changed files only when the change is safe to propose. Read-only. Needs the operator to have allowed the repo and checkout root for fixes |
+
+`fix propose` runs the same checks as `config propose`, with a different path
+rule: any file may change except a refused set (CI and repo automation, the
+reviewer's and agents' instructions, git internals, dependency manifests and
+lockfiles, secret-bearing names; `qodo-cli explain fix propose` lists them). At
+most 20 files, and the whole reply must stay under 64 KiB: a larger change is
+refused with `too_large`, so keep a fix small. A refusal is a normal result
+(exit 0, `ok: false`). It is on the CLI and HTTP, not MCP.
+
 ### Identity and server verbs
 
 | Verb | What it does |
@@ -122,6 +148,7 @@ code. `config show`, `config validate` and `config init` are CLI only;
 | `findings dismiss` | Dismisses the named findings with a reason | One change-log line per finding, with the reason |
 | `review resolve` | Posts a reply, adds a reaction and resolves the review thread on the pull request, through `gh` or `glab` | Not in the bridge's change log |
 | `config init` | Writes `.pr_agent.toml` and `best_practices.md` in the repo root | Not in the change log |
+| `findings fix` | Publishes one `qodo.fix.requested` event on the mesh's event bus; nothing on Qodo or in a repo changes | One `fix.requested` change-log line (PR URL, ids, event id) |
 
 Both Qodo writes are changes to a real finding on a real pull request, so call
 them on purpose. `--idempotency-key` is passed to Qodo: reuse the same key with
@@ -131,8 +158,8 @@ all the ids of one PR into one call. The reply shape of the two write tools was
 never recorded.
 
 None of these verbs pushes, merges, commits or opens a pull request. A
-successful `findings` write or `config propose` adds a line to the change log;
-see [the operator guide](operations/bridge.md#the-change-log).
+successful `findings` write, `config propose` or `fix propose` adds a line to the
+change log; see [the operator guide](operations/bridge.md#the-change-log).
 
 ## The MCP server
 
@@ -148,6 +175,7 @@ tool's input schema is the verb's own parameters schema.
 | `findings_list` | no |
 | `findings_implement` | yes |
 | `findings_dismiss` | yes |
+| `findings_fix` | yes (publishes one event; not a Qodo write) |
 | `rules_search` | no |
 | `rules_list` | no |
 | `rules_show` | no |
@@ -157,9 +185,9 @@ tool's input schema is the verb's own parameters schema.
 | `history_similar` | no |
 | `history_stats` | no |
 
-Each tool's description ends with `(read-only)` or `(writes to Qodo)`, so a
-client can tell them apart. `review_*`, `config_*`, `serve` and `tokens` are not
-tools. Failures come back as a tool error with the message and a hint, never a
+Each tool's description ends with `(read-only)`, `(writes to Qodo)` or, for
+`findings_fix`, `(a write)`, so a client can tell them apart. `review_*`,
+`config_*`, `fix_*`, `serve` and `tokens` are not tools. Failures come back as a tool error with the message and a hint, never a
 traceback, and the API key is never part of a result.
 
 ### Register it with an MCP client
