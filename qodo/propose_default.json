@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "repos": [],
+  "checkout_roots": [],
+  "paths": {
+    ".pr_agent.toml": "toml",
+    "REVIEW.md": "markdown",
+    "best_practices.md": "markdown"
+  },
+  "legacy_files": ["best_practices.md"],
+  "legacy_settings": ["pr_reviewer.extra_instructions"],
+  "refused_settings": [
+    {"key": "pr_reviewer.enable_auto_approval", "allow": [false]},
+    {"key": "pr_reviewer.auto_approve_for_low_review_effort"},
+    {"key": "pr_reviewer.auto_approve_for_no_suggestions", "allow": [false]},
+    {"key": "github_app.*"},
+    {"key": "gitlab.*"},
+    {"key": "bitbucket_app.*"},
+    {"key": "azure_devops_server.*"},
+    {"key": "config.*"}
+  ],
+  "max_files": 10,
+  "max_file_bytes": 32768,
+  "max_reply_bytes": 61440,
+  "git_timeout_seconds": 20
+}

@@ -156,11 +156,73 @@ and never overwrites without `--force`. Read from the current git repo root
     qodo-cli config overview
     qodo-cli config show --json
 
+`propose` is read-only too: it checks a change an agent committed in a checkout and
+returns it only when it is a safe Qodo configuration change (`qodo-cli explain config
+propose`). It never pushes, merges or opens a pull request.
+
 ## See also
 
+- `qodo-cli explain config propose`
 - `qodo-cli explain review`
 - `qodo-cli explain doctor` — `doctor` also reports whether these files exist
 - `docs/qodo-skills-sources.md` — the citation ledger
+"""
+
+_CONFIG_PROPOSE = """\
+# qodo-cli config propose
+
+Compare a checkout's committed `HEAD` with a base ref and return the changed files with
+their contents, but only when the change is a safe Qodo configuration change. It is the
+gate between an improvement agent's local commits and a pull request someone else opens
+(culture-rules, through its own GitHub App). **Read-only**: it reads the checkout's git
+objects and writes nothing; no code path in qodo-cli pushes, merges or opens a PR. On
+the `cli` and `api` surfaces.
+
+## Usage
+
+    qodo-cli config propose --repo OWNER/NAME --checkout /abs/path --base main [--json]
+
+## Checks, in order
+
+1. `repo` is in the repo allowlist (before the checkout is touched at all).
+2. The checkout's real path is under an allowed checkout root, and is a plain git
+   repository (a `.git` directory).
+3. `base` is a plain branch, tag or commit name (never `-...`, `..`, `@{`, `^`, `:`),
+   names a commit, and is an ancestor of `HEAD`.
+4. The change (`git diff-tree -r -z --raw -M`): at least one file, at most `max_files`;
+   no rename or copy; every path exactly in the path allowlist; no deletion, type change,
+   symlink, submodule or executable file at `HEAD`.
+5. Contents, read from the objects at `HEAD` (never the working tree; uncommitted work is
+   ignored): UTF-8, no NUL byte, within `max_file_bytes`; `.pr_agent.toml` parses as TOML
+   and changes no refused setting (auto-approval, `[github_app]` triggers and the other
+   platform trigger tables, `[config]`); the whole reply within `max_reply_bytes`.
+
+Legacy settings (`best_practices.md`, `[pr_reviewer] extra_instructions`) are returned as
+**warnings** ("not in Qodo's current configuration reference"), not refusals: whether Qodo
+still reads them is unverified.
+
+## Result
+
+- success: `{ok: true, repo, base, base_sha, head, files: [{path, content}], warnings:
+  [{code, path, detail}]}`
+- refusal (exit 0): `{ok: false, reason, detail, paths}`, never with file contents.
+  Reasons: `repo_not_allowed`, `checkout_not_allowed`, `invalid_base`, `unknown_base`,
+  `base_not_ancestor`, `no_changes`, `too_many_files`, `rename`, `path_not_allowed`,
+  `deletion`, `type_change`, `not_regular_file`, `executable`, `file_too_large`, `binary`,
+  `not_utf8`, `invalid_toml`, `refused_setting`, `too_large`.
+- exit 2: git missing or timed out, or the checkout is not a readable git repository.
+
+## Configuration
+
+Defaults ship in `qodo/propose_default.json` (path allowlist, refused and legacy
+settings, caps; no repos and no roots, so nothing is allowed until configured). A JSON
+file at `$QODO_PROPOSE_CONFIG` (else `~/.qodo/propose.json`) overrides it key by key;
+`QODO_PROPOSE_REPOS` (comma separated) and `QODO_PROPOSE_CHECKOUT_ROOTS` (path-separator
+separated) override the two allowlists.
+
+## See also
+
+- `qodo-cli explain config`
 """
 
 _WHOAMI = """\
@@ -266,6 +328,7 @@ ENTRIES: dict[tuple[str, ...], str] = {
     ("config", "show"): _CONFIG,
     ("config", "validate"): _CONFIG,
     ("config", "init"): _CONFIG,
+    ("config", "propose"): _CONFIG_PROPOSE,
     ("config", "overview"): _CONFIG,
     ("whoami",): _WHOAMI,
     ("learn",): _LEARN,

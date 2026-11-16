@@ -473,12 +473,11 @@ def _config_init(params: dict[str, Any] | None = None, *, surface: str = "cli") 
 
 
 def _config_propose(params: dict[str, Any] | None = None, *, surface: str = "cli") -> Any:
-    """The name is registered; its handler belongs to a later task."""
-    raise CliError(
-        code=EXIT_USER_ERROR,
-        message="config propose is not implemented yet",
-        remediation="use `qodo-cli config show` and `config validate` for now",
-    )
+    from qodo import api
+
+    given = _given(params)
+    validate_params(_LOCAL_SCHEMAS[("config", "propose")], given)
+    return api.config_propose(given["repo"], given["checkout"], given["base"], actor=surface)
 
 
 _LOCAL_SCHEMAS: dict[tuple[str, str], dict[str, Any]] = {
@@ -514,12 +513,34 @@ _LOCAL_SCHEMAS: dict[tuple[str, str], dict[str, Any]] = {
     ("config", "show"): _obj({}),
     ("config", "validate"): _obj({}),
     ("config", "init"): _obj({"force": {"type": "boolean", "description": "Overwrite files."}}),
-    ("config", "propose"): _obj({}),
+    ("config", "propose"): _obj(
+        {
+            "repo": {
+                "type": "string",
+                "maxLength": 201,
+                "description": "owner/name; must be in the bridge's repo allowlist.",
+            },
+            "checkout": {
+                "type": "string",
+                "maxLength": 4096,
+                "description": "Absolute path of the clone, under an allowed checkout root.",
+            },
+            "base": {
+                "type": "string",
+                "maxLength": 200,
+                "description": "The branch, tag or commit HEAD is compared with.",
+            },
+        },
+        ("repo", "checkout", "base"),
+    ),
 }
 
 # noun, name, summary, handler, writes, surfaces, cli_generated. The surfaces of a local verb
-# are the cli only, except the rules search (a read over HTTP): the others read or write the
-# working directory or drive ``gh`` as the caller, which a server or an MCP client must not.
+# are the cli only, except the rules search (a read over HTTP) and config propose: the others
+# read or write the working directory or drive ``gh`` as the caller, which a server or an MCP
+# client must not. config propose reads only a checkout under a configured root, for a repo in a
+# configured allowlist, and writes nothing; it is on the api because culture-rules calls it over
+# HTTP. It is not on mcp: no MCP client needs it, so it is not exposed there.
 _LOCAL_VERBS = (
     ("rules", "get", "Semantic-search the rules API (the older HTTP path).", _rules_get, False,
      ("cli", "api", "mcp"), False),
@@ -530,8 +551,8 @@ _LOCAL_VERBS = (
     ("config", "validate", "Validate the repo reviewer config.", _config_validate, False,
      ("cli",), False),
     ("config", "init", "Scaffold a minimal reviewer config.", _config_init, True, ("cli",), False),
-    ("config", "propose", "Propose a reviewer config change (not implemented yet).",
-     _config_propose, True, ("cli",), True),
+    ("config", "propose", "Check a checkout's Qodo config change against a base; return it if "
+     "safe.", _config_propose, False, ("cli", "api"), True),
 )  # fmt: skip
 
 
