@@ -1,0 +1,31 @@
+{
+  "isError": false,
+  "structuredContent": {
+    "categories": [
+      "Correctness",
+      "Security",
+      "Reliability",
+      "Performance",
+      "Observability",
+      "Maintainability",
+      "Quality",
+      "Testability",
+      "Compliance",
+      "Accessibility",
+      "Architecture",
+      "Documentation"
+    ],
+    "severities": [
+      "error",
+      "warning",
+      "recommendation"
+    ],
+    "sourceTypes": [
+      "User",
+      "Qodo Library",
+      "Code Patterns",
+      "Compliance Checklist",
+      "Repository File"
+    ]
+  }
+}
